@@ -1,0 +1,4 @@
+pydantic
+requests
+StrEnum
+loguru

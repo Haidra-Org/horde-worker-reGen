@@ -1,0 +1,7 @@
+pytest==7.4.0
+mypy==1.4.1
+black==23.3.0
+ruff==0.0.275
+types-requests==2.31.0.1
+tox==4.6.3
+pre-commit==3.3.3

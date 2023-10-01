@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import multiprocessing
+import random
 import time
 from asyncio import Lock as Lock_Asyncio
 from collections import deque
@@ -1099,6 +1100,12 @@ class HordeWorkerProcessManager:
             return
 
         logger.info(f"Popped job {job_pop_response.id_} (model: {job_pop_response.model})")
+
+        if job_pop_response.payload.seed is None:
+            logger.warning(f"Job {job_pop_response.id_} has no seed!")
+            new_response_dict = job_pop_response.model_dump()
+            new_response_dict["payload"]["seed"] = random.randint(0, (2**32) - 1)
+            job_pop_response = ImageGenerateJobPopResponse(**new_response_dict)
 
         async with self._job_deque_lock:
             self.job_deque.append(job_pop_response)

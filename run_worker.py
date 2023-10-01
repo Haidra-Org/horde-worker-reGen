@@ -44,6 +44,11 @@ def main(ctx: BaseContext) -> None:
     if resolved_models is not None:
         bridge_data.image_models_to_load = list(set(bridge_data.image_models_to_load + list(resolved_models)))
 
+    if bridge_data.image_models_to_skip is not None and len(bridge_data.image_models_to_skip) > 0:
+        bridge_data.image_models_to_load = list(
+            set(bridge_data.image_models_to_load) - set(bridge_data.image_models_to_skip),
+        )
+
     start_working(ctx=ctx, bridge_data=bridge_data)
 
 
@@ -68,7 +73,7 @@ def ensure_model_db_downloaded() -> ModelReferenceManager:
 
 if __name__ == "__main__":
     with contextlib.suppress(Exception):
-        multiprocessing.set_start_method("spawn")
+        multiprocessing.set_start_method("spawn", force=True)
 
     print(f"Multiprocessing start method: {multiprocessing.get_start_method()}")
 

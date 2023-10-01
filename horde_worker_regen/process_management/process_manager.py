@@ -996,6 +996,7 @@ class HordeWorkerProcessManager:
             if self._consecutive_failed_results >= self._consecutive_failed_results_max:
                 async with self._completed_jobs_lock:
                     self.completed_jobs.remove(completed_job_info)
+                    return
 
             image_in_buffer = self.base64_image_to_stream_buffer(completed_job_info.job_result_images_base64[0])
 

@@ -1116,6 +1116,12 @@ class HordeWorkerProcessManager:
             new_response_dict["payload"]["seed"] = random.randint(0, (2**32) - 1)
             job_pop_response = ImageGenerateJobPopResponse(**new_response_dict)
 
+        if job_pop_response.payload.denoising_strength is not None and job_pop_response.source_image is None:
+            logger.warning(f"Job {job_pop_response.id_} has denoising_strength but no source image!")
+            new_response_dict = job_pop_response.model_dump()
+            new_response_dict["payload"]["denoising_strength"] = None
+            job_pop_response = ImageGenerateJobPopResponse(**new_response_dict)
+
         if job_pop_response.source_image is not None and "https://" in job_pop_response.source_image:
             # Download and convert the source image to base64
             fail_count = 0

@@ -34,13 +34,15 @@ def main(ctx: BaseContext) -> None:
 
     imlr = ImageModelLoadResolver(horde_model_reference_manager)
 
+    resolved_models = None
     if bridge_data.meta_load_instructions is not None:
         resolved_models = imlr.resolve_meta_instructions(
             list(bridge_data.meta_load_instructions),
             AIHordeAPIManualClient(),
         )
 
-    bridge_data.image_models_to_load = list(resolved_models)
+    if resolved_models is not None:
+        bridge_data.image_models_to_load = list(set(bridge_data.image_models_to_load + list(resolved_models)))
 
     start_working(ctx=ctx, bridge_data=bridge_data)
 

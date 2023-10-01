@@ -1,6 +1,6 @@
 torch
 
-horde_sdk
+horde_sdk>=7.10.0
 horde_model_reference
 horde_safety
 hordelib

@@ -58,8 +58,8 @@ from horde_worker_regen.process_management.messages import (
 from horde_worker_regen.process_management.worker_entry_points import start_inference_process, start_safety_process
 
 try:
-    from multiprocessing.connection import PipeConnection as Connection
-except ImportError:
+    from multiprocessing.connection import PipeConnection as Connection  # type: ignore
+except Exception:
     from multiprocessing.connection import Connection  # type: ignore
 
 
@@ -958,6 +958,9 @@ class HordeWorkerProcessManager:
 
         return image_buffer
 
+    _consecutive_failed_results = 0
+    _consecutive_failed_results_max = 10
+
     async def api_submit_job(
         self,
     ) -> None:
@@ -990,6 +993,10 @@ class HordeWorkerProcessManager:
         # TODO: n_iter support
 
         try:
+            if self._consecutive_failed_results >= self._consecutive_failed_results_max:
+                async with self._completed_jobs_lock:
+                    self.completed_jobs.remove(completed_job_info)
+
             image_in_buffer = self.base64_image_to_stream_buffer(completed_job_info.job_result_images_base64[0])
 
             # TODO: This would be better (?) if we could use aiohttp instead of requests
@@ -1021,7 +1028,11 @@ class HordeWorkerProcessManager:
             job_submit_response = await self.horde_client_session.submit_request(submit_job_request, JobSubmitResponse)
 
             if isinstance(job_submit_response, RequestErrorResponse):
-                logger.error(f"Failed to submit job (API Error): {job_submit_response}")
+                error_string = "Failed to submit job (API Error)"
+                error_string += f"{self._consecutive_failed_results}/{self._consecutive_failed_results_max} "
+                error_string += f": {job_submit_response}"
+                logger.error(error_string)
+                self._consecutive_failed_results += 1
                 return
 
             logger.info(
@@ -1029,8 +1040,10 @@ class HordeWorkerProcessManager:
             )
             async with self._completed_jobs_lock:
                 self.completed_jobs.remove(completed_job_info)
+                self._consecutive_failed_results = 0
         except Exception as e:
             logger.error(f"Failed to submit job (Unexpected Error): {e}")
+            self._consecutive_failed_results += 1
             return
 
     _testing_max_jobs = 10000
@@ -1112,13 +1125,13 @@ class HordeWorkerProcessManager:
 
         if job_pop_response.payload.seed is None:
             logger.warning(f"Job {job_pop_response.id_} has no seed!")
-            new_response_dict = job_pop_response.model_dump()
+            new_response_dict = job_pop_response.model_dump(by_alias=True)
             new_response_dict["payload"]["seed"] = random.randint(0, (2**32) - 1)
             job_pop_response = ImageGenerateJobPopResponse(**new_response_dict)
 
         if job_pop_response.payload.denoising_strength is not None and job_pop_response.source_image is None:
-            logger.warning(f"Job {job_pop_response.id_} has denoising_strength but no source image!")
-            new_response_dict = job_pop_response.model_dump()
+            logger.debug(f"Job {job_pop_response.id_} has denoising_strength but no source image!")
+            new_response_dict = job_pop_response.model_dump(by_alias=True)
             new_response_dict["payload"]["denoising_strength"] = None
             job_pop_response = ImageGenerateJobPopResponse(**new_response_dict)
 

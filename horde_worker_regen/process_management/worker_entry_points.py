@@ -1,8 +1,8 @@
 import contextlib
 
 try:
-    from multiprocessing.connection import PipeConnection as Connection
-except ImportError:
+    from multiprocessing.connection import PipeConnection as Connection  # type: ignore
+except Exception:
     from multiprocessing.connection import Connection  # type: ignore
 from multiprocessing.synchronize import Lock, Semaphore
 

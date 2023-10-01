@@ -1,0 +1,84 @@
+import contextlib
+import multiprocessing
+import time
+from multiprocessing.context import BaseContext
+
+from horde_model_reference.model_reference_manager import ModelReferenceManager
+from horde_sdk.ai_horde_api.ai_horde_clients import AIHordeAPIManualClient
+from horde_sdk.ai_horde_worker.model_meta import ImageModelLoadResolver
+from loguru import logger
+from pydantic import ValidationError
+
+from horde_worker_regen.bridge_data.load_config import BridgeDataLoader, reGenBridgeData
+from horde_worker_regen.consts import BRIDGE_CONFIG_FILENAME
+from horde_worker_regen.process_management.main_entry_point import start_working
+
+
+def main(ctx: BaseContext) -> None:
+    horde_model_reference_manager = ensure_model_db_downloaded()
+
+    bridge_data: reGenBridgeData
+    try:
+        bridge_data = BridgeDataLoader.load(file_path=BRIDGE_CONFIG_FILENAME)
+    except Exception as e:
+        logger.debug(e)
+
+        if isinstance(e, ValidationError):
+            # Print a list of fields that failed validation
+            logger.error(f"The following fields in {BRIDGE_CONFIG_FILENAME} failed validation:")
+            for error in e.errors():
+                logger.error(f"{error['loc'][0]}: {error['msg']}")
+
+        input("Press any key to exit...")
+        return
+
+    imlr = ImageModelLoadResolver(horde_model_reference_manager)
+
+    if bridge_data.meta_load_instructions is not None:
+        resolved_models = imlr.resolve_meta_instructions(
+            list(bridge_data.meta_load_instructions),
+            AIHordeAPIManualClient(),
+        )
+
+    bridge_data.image_models_to_load = list(resolved_models)
+
+    start_working(ctx=ctx, bridge_data=bridge_data)
+
+
+def ensure_model_db_downloaded() -> ModelReferenceManager:
+    horde_model_reference_manager = ModelReferenceManager(
+        download_and_convert_legacy_dbs=False,
+        override_existing=True,
+    )
+
+    while True:
+        try:
+            if not horde_model_reference_manager.download_and_convert_all_legacy_dbs(override_existing=True):
+                logger.error("Failed to download and convert legacy DBs. Retrying in 5 seconds...")
+                time.sleep(5)
+            else:
+                return horde_model_reference_manager
+        except Exception as e:
+            logger.error(f"Failed to download and convert legacy DBs: ({type(e).__name__}) {e}")
+            logger.error("Retrying in 5 seconds...")
+            time.sleep(5)
+
+
+if __name__ == "__main__":
+    with contextlib.suppress(Exception):
+        multiprocessing.set_start_method("spawn")
+
+    print(f"Multiprocessing start method: {multiprocessing.get_start_method()}")
+
+    from hordelib.utils.logger import HordeLog
+
+    # Initialise logging with loguru
+    HordeLog.initialise(
+        setup_logging=True,
+        process_id=None,
+        verbosity_count=5,  # FIXME
+    )
+
+    # We only need to download the legacy DBs once, so we do it here instead of in the worker processes
+
+    main(multiprocessing.get_context("spawn"))

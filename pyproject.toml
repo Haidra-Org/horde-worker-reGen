@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "horde_worker_regen"
-version = "0.1.0"
+version = "0.2.0"
 description = "Allows you to connect to the AI Horde and generate images for users."
 authors = [
-    {name = "db0", email = "mail@dbzer0.com"},
     {name = "tazlin", email = "tazlin.on.github@gmail.com"},
+    {name = "db0", email = "mail@dbzer0.com"},
     {name = "Jug", email = "jugdev@proton.me"},
 ]
 readme = "README.md"
@@ -31,31 +31,46 @@ classifiers = [
 "Homepage" = "https://github.com/Haidra-Org/AI-Horde-Worker"
 "Bug Tracker" = "https://github.com/Haidra-Org/AI-Horde-Worker"
 
+[tool.setuptools.package-dir]
+horde_sdk = "horde_worker_regen"
+
 [tool.setuptools.package-data]
 tests = ["*.json"]
 
 [tool.ruff]
 line-length = 119
-select = ["A", "I", "E", "W", "F", "UP", "YTT", "B", "C4", "PIE", "RET", "SIM"] #, "D", "ANN"] # FIXME
+select = [
+  "A",
+  "I",
+  "E",
+  "W",
+  "F",
+  "UP",
+  "YTT",
+  "B",
+  "C4",
+  "PIE",
+  "RET",
+  "SIM",
+  "COM",
+  # "D",
+  "ANN"]
 ignore = [
+  "ANN101",
+  "ANN102",
   # Ignore D rules for non-google docstring standard
   "D203",
   "D204",
   "D213",
   "D215",
   "D400",
-  "D401",
   "D404",
   "D406",
   "D407",
   "D408",
   "D409",
-  "D413",
-]
+  "D413",]
 
-[tool.ruff.per-file-ignores]
-"apimodels.py" = ["A003"]
-# A003 - in dataclasses/pydantic, shadowing python builtin fields is OK for this project
 
 [tool.black]
 line-length = 119

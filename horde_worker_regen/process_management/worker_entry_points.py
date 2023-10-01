@@ -1,5 +1,9 @@
 import contextlib
-from multiprocessing.connection import PipeConnection
+
+try:
+    from multiprocessing.connection import PipeConnection as Connection
+except ImportError:
+    from multiprocessing.connection import Connection  # type: ignore
 from multiprocessing.synchronize import Lock, Semaphore
 
 from loguru import logger
@@ -12,7 +16,7 @@ from horde_worker_regen.process_management.safety_process import HordeSafetyProc
 def start_inference_process(
     process_id: int,
     process_message_queue: ProcessQueue,
-    pipe_connection: PipeConnection,
+    pipe_connection: Connection,
     inference_semaphore: Semaphore,
     disk_lock: Lock,
 ) -> None:
@@ -30,7 +34,7 @@ def start_inference_process(
 def start_safety_process(
     process_id: int,
     process_message_queue: ProcessQueue,
-    pipe_connection: PipeConnection,
+    pipe_connection: Connection,
     disk_lock: Lock,
 ) -> None:
     worker_process = HordeSafetyProcess(

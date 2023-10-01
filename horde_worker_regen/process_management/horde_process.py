@@ -5,7 +5,11 @@ import enum
 import time
 from abc import abstractmethod
 from enum import auto
-from multiprocessing.connection import PipeConnection
+
+try:
+    from multiprocessing.connection import PipeConnection as Connection
+except ImportError:
+    from multiprocessing.connection import Connection  # type: ignore
 from multiprocessing.synchronize import Lock
 from typing import TYPE_CHECKING
 
@@ -41,7 +45,7 @@ class HordeProcess(abc.ABC):
     """The type of process. This distinguishes between inference, safety, and potentially other process types."""
     process_message_queue: ProcessQueue
     """The queue the main process uses to receive messages from all worker processes."""
-    pipe_connection: PipeConnection  # FIXME # TODO - this could be a Queue?
+    pipe_connection: Connection  # FIXME # TODO - this could be a Queue?
     """Receives `HordeControlMessage`s from the main process."""
 
     disk_lock: Lock
@@ -76,7 +80,7 @@ class HordeProcess(abc.ABC):
         self,
         process_id: int,
         process_message_queue: ProcessQueue,
-        pipe_connection: PipeConnection,
+        pipe_connection: Connection,
         disk_lock: Lock,
     ) -> None:
         self.process_id = process_id

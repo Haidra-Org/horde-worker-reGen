@@ -3,7 +3,11 @@ import enum
 import time
 from enum import auto
 from io import BytesIO
-from multiprocessing.connection import PipeConnection
+
+try:
+    from multiprocessing.connection import PipeConnection as Connection
+except ImportError:
+    from multiprocessing.connection import Connection  # type: ignore
 from multiprocessing.synchronize import Lock
 
 import PIL
@@ -50,7 +54,7 @@ class HordeSafetyProcess(HordeProcess):
         self,
         process_id: int,
         process_message_queue: ProcessQueue,
-        pipe_connection: PipeConnection,
+        pipe_connection: Connection,
         disk_lock: Lock,
     ) -> None:
         super().__init__(process_id, process_message_queue, pipe_connection, disk_lock)

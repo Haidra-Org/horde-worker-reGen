@@ -6,7 +6,11 @@ import enum
 import io
 import time
 from enum import auto
-from multiprocessing.connection import PipeConnection
+
+try:
+    from multiprocessing.connection import PipeConnection as Connection
+except ImportError:
+    from multiprocessing.connection import Connection  # type: ignore
 from multiprocessing.synchronize import Lock, Semaphore
 from typing import TYPE_CHECKING
 
@@ -63,7 +67,7 @@ class HordeInferenceProcess(HordeProcess):
         self,
         process_id: int,
         process_message_queue: ProcessQueue,
-        pipe_connection: PipeConnection,
+        pipe_connection: Connection,
         inference_semaphore: Semaphore,
         disk_lock: Lock,
     ) -> None:

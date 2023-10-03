@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "horde_worker_regen"
-version = "0.2.0"
+version = "0.3.0"
 description = "Allows you to connect to the AI Horde and generate images for users."
 authors = [
     {name = "tazlin", email = "tazlin.on.github@gmail.com"},
@@ -32,7 +32,7 @@ classifiers = [
 "Bug Tracker" = "https://github.com/Haidra-Org/AI-Horde-Worker"
 
 [tool.setuptools.package-dir]
-horde_sdk = "horde_worker_regen"
+horde_worker_regen = "horde_worker_regen"
 
 [tool.setuptools.package-data]
 tests = ["*.json"]

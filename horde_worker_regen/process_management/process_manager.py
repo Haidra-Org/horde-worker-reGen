@@ -249,6 +249,21 @@ class ProcessMap(dict[int, HordeProcessInfo]):
                 return p
         return None
 
+    def num_busy_processes(self) -> int:
+        count = 0
+        for p in self.values():
+            if p.is_process_busy():
+                count += 1
+        return count
+
+    def __repr__(self) -> str:
+        base_string = ""
+        for process_id, process_info in self.items():
+            base_string += f"{process_id}: ({process_info.loaded_horde_model_name}) "
+            base_string += f"{process_info.last_process_state.name}; "
+
+        return base_string
+
 
 class TorchDeviceInfo(BaseModel):
     device_name: str
@@ -383,10 +398,10 @@ class HordeWorkerProcessManager:
         bridge_data: reGenBridgeData,
         target_ram_overhead_bytes: int = 2 * 1024 * 1024 * 1024,
         target_vram_overhead_bytes_map: Mapping[int, int] | None = None,  # FIXME
-        max_inference_processes: int = 3,
+        max_inference_processes: int = 4,
         max_safety_processes: int = 1,
         max_download_processes: int = 1,
-        max_concurrent_inference_processes: int = 1,
+        max_concurrent_inference_processes: int = 2,
     ) -> None:
         self.session_start_time = time.time()
 
@@ -399,7 +414,7 @@ class HordeWorkerProcessManager:
         self.max_safety_processes = max_safety_processes
         self.max_download_processes = max_download_processes
 
-        self.max_concurrent_inference_processes = max_concurrent_inference_processes
+        self.max_concurrent_inference_processes = bridge_data.max_threads
 
         self._inference_semaphore = Semaphore(max_concurrent_inference_processes, ctx=ctx)
         self._disk_lock = Lock_MultiProcessing(ctx=ctx)
@@ -680,7 +695,12 @@ class HordeWorkerProcessManager:
                         message.process_id in self._process_map
                         and message.horde_model_state != self._process_map[message.process_id].loaded_horde_model_name
                     ):
-                        logger.info(f"Process {message.process_id} has model {message.horde_model_name} loaded.")
+                        loaded_message = f"Process {message.process_id} has model {message.horde_model_name} loaded. "
+
+                        if message.time_elapsed is not None:
+                            loaded_message += f"Loading took {message.time_elapsed} seconds"
+
+                        logger.info(loaded_message)
 
                     self._process_map.update_entry(
                         process_id=message.process_id,
@@ -722,7 +742,14 @@ class HordeWorkerProcessManager:
 
                 self.job_deque.popleft()
                 self.total_num_completed_jobs += 1
-                logger.info(f"Inference finished for job {message.job_info.id_}")
+                if message.time_elapsed is not None:
+                    logger.info(
+                        f"Inference finished for job {message.job_info.id_}. "
+                        f"It took {round(message.time_elapsed, 2)} seconds",
+                    )
+                else:
+                    logger.info(f"Inference finished for job {message.job_info.id_}")
+                    logger.debug(f"Job didn't include time_elapsed: {message.job_info}")
 
                 self.jobs_pending_safety_check.append(
                     CompletedJobInfo(
@@ -754,7 +781,10 @@ class HordeWorkerProcessManager:
                         if message.safety_evaluations[i].is_csam:
                             num_images_csam += 1
 
-                logger.debug(f"Job {message.job_id} had {num_images_censored} images censored")
+                logger.debug(
+                    f"Job {message.job_id} had {num_images_censored} images censored and took "
+                    f"{message.time_elapsed} seconds to check safety",
+                )
 
                 if num_images_censored > 0:
                     completed_job_info.censored = True
@@ -859,6 +889,9 @@ class HordeWorkerProcessManager:
                     continue
 
                 if process_info.is_process_busy():
+                    continue
+
+                if process_info.last_process_state == process_info.last_process_state:
                     continue
 
                 if process_info.loaded_horde_model_name is None:
@@ -1091,6 +1124,7 @@ class HordeWorkerProcessManager:
 
             if response.status_code != 200:
                 logger.error(f"Failed to upload image to R2: {response}")
+                self._consecutive_failed_results += 1
                 return
 
             submit_job_request = submit_job_request_type(
@@ -1105,6 +1139,25 @@ class HordeWorkerProcessManager:
             job_submit_response = await self.horde_client_session.submit_request(submit_job_request, JobSubmitResponse)
 
             if isinstance(job_submit_response, RequestErrorResponse):
+                if (
+                    "Processing Job with ID" in job_submit_response.message
+                    and "does not exist" in job_submit_response.message
+                ):
+                    logger.warning(f"Job {job_info.id_} does not exist, removing from completed jobs")
+                    async with self._completed_jobs_lock:
+                        self.completed_jobs.remove(completed_job_info)
+                        self._consecutive_failed_results = 0
+
+                    return
+
+                if "already submitted" in job_submit_response.message:
+                    logger.debug(f"Job {job_info.id_} has already been submitted, removing from completed jobs")
+                    async with self._completed_jobs_lock:
+                        self.completed_jobs.remove(completed_job_info)
+                        self._consecutive_failed_results = 0
+
+                    return
+
                 error_string = "Failed to submit job (API Error)"
                 error_string += f"{self._consecutive_failed_results}/{self._consecutive_failed_results_max} "
                 error_string += f": {job_submit_response}"
@@ -1158,7 +1211,13 @@ class HordeWorkerProcessManager:
         if len(self.job_deque) >= self.bridge_data.queue_size + 1:  # FIXME?
             return
 
-        if self._testing_jobs_added >= self._testing_max_jobs:
+        # if self._testing_jobs_added >= self._testing_max_jobs:
+        #   return
+
+        if self._process_map.get_first_available_safety_process() is None:
+            return
+
+        if self._process_map.get_first_available_inference_process() is None:
             return
 
         if self.should_wait_for_pending_megapixelsteps():
@@ -1318,8 +1377,8 @@ class HordeWorkerProcessManager:
                 logger.error(f"Failed to get user info (API Error): {response}")
                 self._user_info_failed = True
                 return
-            if self.user_info is None:
-                logger.info(f"Got user info: {response}")  # FIXME
+            # if self.user_info is None:
+            # logger.info(f"Got user info: {response}")  # FIXME
 
             self.user_info = response
             self._user_info_failed = False
@@ -1329,7 +1388,7 @@ class HordeWorkerProcessManager:
                 # print kudos this session and kudos per hour based on self.session_start_time
                 kudos_per_hour = self.kudos_generated_this_session / (time.time() - self.session_start_time) * 3600
                 logger.info(
-                    f"Kudos this session: {self.kudos_generated_this_session:.2f} ~{kudos_per_hour:.2f} kudos/hour)",
+                    f"Kudos this session: {self.kudos_generated_this_session:.2f} (~{kudos_per_hour:.2f} kudos/hour)",
                 )
                 logger.info(f"Worker Kudos Accumulated: {self.user_info.kudos_details.accumulated }")
 
@@ -1387,6 +1446,9 @@ class HordeWorkerProcessManager:
 
                     await asyncio.sleep(self._api_call_loop_interval)
 
+    _status_message_frequency = 20.0
+    _last_status_message_time = 0.0
+
     async def _process_control_loop(self) -> None:
         self.start_safety_processes()
         self.start_inference_processes()
@@ -1415,6 +1477,17 @@ class HordeWorkerProcessManager:
 
                 if self.is_time_for_shutdown():
                     break
+
+                if time.time() - self._last_status_message_time > self._status_message_frequency:
+                    logger.info(f"{self._process_map}")
+                    logger.info(f"Number of jobs popped: {len(self.job_deque)}")
+                    logger.info(f"Number of jobs in progress: {len(self.jobs_in_progress)}")
+                    logger.info(f"Number of jobs completed: {len(self.completed_jobs)}")
+                    logger.info(f"Number of jobs pending safety check: {len(self.jobs_pending_safety_check)}")
+                    logger.info(f"Number of jobs being safety checked: {len(self.jobs_being_safety_checked)}")
+                    logger.info(f"Number of jobs submitted: {self.total_num_completed_jobs}")
+
+                    self._last_status_message_time = time.time()
 
                 await asyncio.sleep(self._loop_interval)
             except CancelledError:

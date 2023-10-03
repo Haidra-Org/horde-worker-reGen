@@ -69,10 +69,15 @@ class HordeSafetyProcess(HordeProcess):
         self.load_censor_files()
 
         info_message = "Horde safety process started."
+
         logger.info(info_message)
         self.send_process_state_change_message(
             process_state=HordeProcessState.WAITING_FOR_JOB,
             info=info_message,
+        )
+
+        logger.info(
+            "The first job will always take several seconds longer when on CPU. Subsequent jobs will be faster.",
         )
 
     def _set_censor_image(self, reason: CensorReason, image_base64: str) -> None:

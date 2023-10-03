@@ -90,20 +90,33 @@ class HordeInferenceProcess(HordeProcess):
 
         from hordelib.nodes.node_model_loader import HordeCheckpointLoader
 
-        self._horde = HordeLib()
-        self._shared_model_manager = SharedModelManager()
-        self._checkpoint_loader = HordeCheckpointLoader()
+        try:
+            self._horde = HordeLib(comfyui_callback=self._comfyui_callback)
+            self._shared_model_manager = SharedModelManager()
+        except Exception as e:
+            logger.critical(f"Failed to initialise HordeLib: {type(e).__name__} {e}")
+
+        try:
+            self._checkpoint_loader = HordeCheckpointLoader()
+        except Exception as e:
+            logger.critical(f"Failed to initialise HordeCheckpointLoader: {type(e).__name__} {e}")
+
+        logger.info("HordeInferenceProcess initialised")
 
         self.send_process_state_change_message(
             process_state=HordeProcessState.WAITING_FOR_JOB,
             info="Waiting for job",
         )
 
+    def _comfyui_callback(self, label: str, data: dict, _id: str) -> None:
+        self.send_heartbeat_message()
+
     def on_horde_model_state_change(
         self,
         horde_model_name: str,
         process_state: HordeProcessState,
         horde_model_state: ModelLoadState,
+        time_elapsed: float | None = None,
     ) -> None:
         """Update the main process with the current process state and model state."""
         self.send_memory_report_message(include_vram=True)
@@ -114,7 +127,7 @@ class HordeInferenceProcess(HordeProcess):
             info=f"Model {horde_model_name} {horde_model_state.name}",
             horde_model_name=horde_model_name,
             horde_model_state=horde_model_state,
-            time_elapsed=self._last_message_time - time.time(),
+            time_elapsed=time_elapsed,
         )
         self.process_message_queue.put(model_update_message)
 
@@ -139,12 +152,15 @@ class HordeInferenceProcess(HordeProcess):
         if self._shared_model_manager.manager.is_model_available(horde_model_name):
             logger.info(f"Model {horde_model_name} already downloaded")
 
+        time_start = time.time()
+
         success = self._shared_model_manager.manager.download_model(horde_model_name, self.download_callback)
 
         if success:
             self.send_process_state_change_message(
                 process_state=HordeProcessState.DOWNLOAD_COMPLETE,
                 info=f"Downloaded model {horde_model_name}",
+                time_elapsed=time.time() - time_start,
             )
 
         self.on_horde_model_state_change(
@@ -178,6 +194,8 @@ class HordeInferenceProcess(HordeProcess):
             horde_model_state=ModelLoadState.LOADING,
         )
 
+        time_start = time.time()
+
         with contextlib.nullcontext():  # self.disk_lock:
             self._checkpoint_loader.load_checkpoint(
                 will_load_loras=will_load_loras,
@@ -192,6 +210,7 @@ class HordeInferenceProcess(HordeProcess):
             process_state=HordeProcessState.PRELOADED_MODEL,
             horde_model_name=horde_model_name,
             horde_model_state=ModelLoadState.LOADED_IN_RAM,
+            time_elapsed=time.time() - time_start,
         )
 
         self.send_process_state_change_message(
@@ -260,6 +279,7 @@ class HordeInferenceProcess(HordeProcess):
         process_state: HordeProcessState,
         job_info: ImageGenerateJobPopResponse,
         images: list[Image] | None,
+        time_elapsed: float,
     ) -> None:
         images_as_base64 = []
 
@@ -274,12 +294,11 @@ class HordeInferenceProcess(HordeProcess):
             process_id=self.process_id,
             info="Inference result",
             state=GENERATION_STATE.ok if images is not None and len(images) > 0 else GENERATION_STATE.faulted,
-            time_elapsed=self._last_message_time - time.time(),
+            time_elapsed=time_elapsed,
             job_result_images_base64=images_as_base64,
             job_info=job_info,
         )
         self.process_message_queue.put(message)
-        self._last_message_time = time.time()
 
         if self._active_model_name is None:
             logger.critical("No active model name, cannot update model state")
@@ -318,6 +337,8 @@ class HordeInferenceProcess(HordeProcess):
                     info=f"Starting inference for {message.job_info.id_} with model {message.horde_model_name}",
                 )
 
+                time_start = time.time()
+
                 images = self.start_inference(message.job_info)
                 process_state = HordeProcessState.INFERENCE_COMPLETE if images else HordeProcessState.INFERENCE_FAILED
                 logger.debug(f"Finished inference with process state {process_state}")
@@ -325,6 +346,7 @@ class HordeInferenceProcess(HordeProcess):
                     process_state=process_state,
                     job_info=message.job_info,
                     images=images,
+                    time_elapsed=time.time() - time_start,
                 )
             else:
                 logger.critical(f"Received unexpected message: {message}")

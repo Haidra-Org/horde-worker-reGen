@@ -68,7 +68,7 @@ class HordeProcessMessage(BaseModel):
 
     process_id: int
     info: str
-    time_elapsed: float
+    time_elapsed: float | None = None
 
 
 class HordeProcessMemoryMessage(HordeProcessMessage):
@@ -76,6 +76,10 @@ class HordeProcessMemoryMessage(HordeProcessMessage):
 
     vram_usage_bytes: int | None = None
     vram_total_bytes: int | None = None
+
+
+class HordeProcessHeartbeatMessage(HordeProcessMessage):
+    pass
 
 
 class HordeProcessStateChangeMessage(HordeProcessMessage):

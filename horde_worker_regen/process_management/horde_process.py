@@ -21,6 +21,7 @@ from horde_worker_regen.process_management._aliased_types import ProcessQueue
 from horde_worker_regen.process_management.messages import (
     HordeControlFlag,
     HordeControlMessage,
+    HordeProcessHeartbeatMessage,
     HordeProcessMemoryMessage,
     HordeProcessState,
     HordeProcessStateChangeMessage,
@@ -51,9 +52,6 @@ class HordeProcess(abc.ABC):
 
     disk_lock: Lock
     """A lock used to prevent multiple processes from accessing disk at the same time."""
-
-    _last_message_time: float = 0.0
-    """The last time a message was sent or received."""
 
     _loop_interval: float = 0.1
     """The time to sleep between each loop iteration."""
@@ -99,23 +97,43 @@ class HordeProcess(abc.ABC):
             verbosity_count=5,  # FIXME
         )
 
-        self._last_message_time = time.time()
-
         self.send_process_state_change_message(
             process_state=HordeProcessState.PROCESS_STARTING,
             info="Process starting",
         )
 
-    def send_process_state_change_message(self, process_state: HordeProcessState, info: str) -> None:
+    def send_process_state_change_message(
+        self,
+        process_state: HordeProcessState,
+        info: str,
+        time_elapsed: float | None = None,
+    ) -> None:
         message = HordeProcessStateChangeMessage(
             process_state=process_state,
             process_id=self.process_id,
             info=info,
-            time_elapsed=self._last_message_time - time.time(),
+            time_elapsed=time_elapsed,
         )
         self.process_message_queue.put(message)
-        self._last_message_time = time.time()
         self._last_sent_process_state = process_state
+
+    _heartbeat_limit_interval_seconds: float = 5.0
+    _last_heartbeat_time: float = 0.0
+
+    def send_heartbeat_message(self) -> None:
+        """Send a heartbeat message to the main process."""
+
+        if (time.time() - self._last_heartbeat_time) < self._heartbeat_limit_interval_seconds:
+            return
+
+        message = HordeProcessHeartbeatMessage(
+            process_id=self.process_id,
+            info="Heartbeat",
+            time_elapsed=None,
+        )
+        self.process_message_queue.put(message)
+
+        self._last_heartbeat_time = time.time()
 
     @abstractmethod
     def cleanup_and_exit(self) -> None:
@@ -129,7 +147,7 @@ class HordeProcess(abc.ABC):
         message = HordeProcessMemoryMessage(
             process_id=self.process_id,
             info="Memory report",
-            time_elapsed=self._last_message_time - time.time(),
+            time_elapsed=None,
             ram_usage_bytes=psutil.Process().memory_info().rss,
         )
 
@@ -138,7 +156,6 @@ class HordeProcess(abc.ABC):
             message.vram_total_bytes = self.get_vram_total_bytes()
 
         self.process_message_queue.put(message)
-        self._last_message_time = time.time()
 
     @abstractmethod
     def _receive_and_handle_control_message(self, message: HordeControlMessage) -> None:
@@ -148,7 +165,6 @@ class HordeProcess(abc.ABC):
         """Get and handle any control messages pending from the main process."""
         while self.pipe_connection.poll():
             message = self.pipe_connection.recv()
-            self._last_message_time = time.time()
 
             if not isinstance(message, HordeControlMessage):
                 logger.critical(f"Received unexpected message type: {type(message).__name__}")

@@ -1437,6 +1437,22 @@ class HordeWorkerProcessManager:
                 logger.debug(f"Failed to get user info: {self._user_info_failed_reason}")
             await logger.complete()
 
+    _job_submit_loop_interval = 0.1
+
+    async def _job_submit_loop(self) -> None:
+        """Main loop for the job submitter."""
+        logger.debug("In _job_submit_loop")
+        while True:
+            with logger.catch():
+                try:
+                    await self.api_submit_job()
+                    if self.is_time_for_shutdown():
+                        break
+                except CancelledError:
+                    self._shutting_down = True
+
+            await asyncio.sleep(self._job_submit_loop_interval)
+
     async def _api_call_loop(self) -> None:
         """Main loop for the API calls."""
         logger.debug("In _api_call_loop")
@@ -1454,7 +1470,7 @@ class HordeWorkerProcessManager:
                             if self._user_info_failed:
                                 await asyncio.sleep(5)
 
-                            tasks = [self.api_job_pop(), self.api_submit_job()]
+                            tasks = [self.api_job_pop()]
 
                             if self._last_get_user_info_time + self._api_get_user_info_interval < time.time():
                                 self._last_get_user_info_time = time.time()
@@ -1534,6 +1550,7 @@ class HordeWorkerProcessManager:
         await asyncio.gather(
             asyncio.create_task(self._process_control_loop(), name="process_control_loop"),
             asyncio.create_task(self._api_call_loop(), name="api_call_loop"),
+            asyncio.create_task(self._job_submit_loop(), name="job_submit_loop"),
         )
 
     def start(self) -> None:

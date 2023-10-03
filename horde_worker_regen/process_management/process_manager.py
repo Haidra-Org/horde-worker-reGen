@@ -688,8 +688,15 @@ class HordeWorkerProcessManager:
                 logger.debug(f"Process {message.process_id} changed state to {message.process_state}")
                 if message.process_state == HordeProcessState.INFERENCE_STARTING:
                     logger.info(f"Process {message.process_id} is starting inference on model {message.info}")
+
+                    loaded_model_name = self._process_map[message.process_id].loaded_horde_model_name
+                    if loaded_model_name is None:
+                        raise ValueError(
+                            f"Process {message.process_id} has no model loaded, but is starting inference",
+                        )
+
                     self._horde_model_map.update_entry(
-                        horde_model_name=message.info,
+                        horde_model_name=loaded_model_name,
                         load_state=ModelLoadState.IN_USE,
                         process_id=message.process_id,
                     )

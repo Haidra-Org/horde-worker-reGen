@@ -1412,7 +1412,7 @@ class HordeWorkerProcessManager:
             if self.user_info.kudos_details is not None:
                 # print kudos this session and kudos per hour based on self.session_start_time
                 kudos_per_hour = self.kudos_generated_this_session / (time.time() - self.session_start_time) * 3600
-                logger.info(
+                logger.success(
                     f"Kudos this session: {self.kudos_generated_this_session:.2f} (~{kudos_per_hour:.2f} kudos/hour)",
                 )
                 logger.info(f"Worker Kudos Accumulated: {self.user_info.kudos_details.accumulated }")

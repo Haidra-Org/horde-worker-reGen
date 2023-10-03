@@ -1,3 +1,4 @@
+import argparse
 import contextlib
 import multiprocessing
 import time
@@ -77,13 +78,20 @@ if __name__ == "__main__":
 
     print(f"Multiprocessing start method: {multiprocessing.get_start_method()}")
 
+    # Create args for -v, allowing -vvv
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-v", action="count", default=3, help="Increase verbosity of output")
+
+    args = parser.parse_args()
+
+    logger.remove()
     from hordelib.utils.logger import HordeLog
 
     # Initialise logging with loguru
     HordeLog.initialise(
         setup_logging=True,
         process_id=None,
-        verbosity_count=5,  # FIXME
+        verbosity_count=args.v,  # FIXME
     )
 
     # We only need to download the legacy DBs once, so we do it here instead of in the worker processes

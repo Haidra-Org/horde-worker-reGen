@@ -1,6 +1,6 @@
 torch
 
-horde_sdk>=7.10.0
+horde_sdk>=0.7.11
 horde_model_reference
 horde_safety
 hordelib
@@ -8,6 +8,7 @@ hordelib
 python-dotenv
 pyyaml
 
+python-Levenshtein
 
 pydantic
 typing_extensions

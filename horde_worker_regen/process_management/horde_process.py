@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import abc
 import enum
+import signal
 import time
 from abc import abstractmethod
 from enum import auto
@@ -155,6 +156,7 @@ class HordeProcess(abc.ABC):
 
             if message.control_flag == HordeControlFlag.END_PROCESS:
                 self._end_process = True
+                logger.info("Received end process message")
                 return
 
             self._receive_and_handle_control_message(message)
@@ -165,11 +167,31 @@ class HordeProcess(abc.ABC):
 
     def main_loop(self) -> None:
         """The main loop of the worker process."""
+        signal.signal(signal.SIGINT, signal_handler)
+
         while not self._end_process:
-            time.sleep(self._loop_interval)
+            try:
+                time.sleep(self._loop_interval)
 
-            self.receive_and_handle_control_messages()
+                self.receive_and_handle_control_messages()
 
-            self.worker_cycle()
+                self.worker_cycle()
+            except KeyboardInterrupt:
+                logger.info("Keyboard interrupt received")
+
+        self.send_process_state_change_message(
+            process_state=HordeProcessState.PROCESS_ENDING,
+            info="Process ending",
+        )
 
         self.cleanup_and_exit()
+
+        logger.info("Process ended")
+        self.send_process_state_change_message(
+            process_state=HordeProcessState.PROCESS_ENDED,
+            info="Process ended",
+        )
+
+
+def signal_handler(sig: int, frame: object) -> None:
+    print("You pressed Ctrl+C!")

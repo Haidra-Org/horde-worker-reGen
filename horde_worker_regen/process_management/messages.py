@@ -62,13 +62,6 @@ class HordeProcessState(enum.Enum):
 
     EVALUATING_SAFETY = auto()
 
-    def can_accept_job(self) -> bool:
-        return (
-            self == HordeProcessState.WAITING_FOR_JOB
-            or self == HordeProcessState.INFERENCE_COMPLETE
-            or self == HordeProcessState.INFERENCE_FAILED
-        )
-
 
 class HordeProcessMessage(BaseModel):
     """Process messages are sent from the child processes to the main process."""

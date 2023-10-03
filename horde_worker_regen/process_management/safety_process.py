@@ -127,8 +127,6 @@ class HordeSafetyProcess(HordeProcess):
             image_bytes = BytesIO(base64.b64decode(image_base64))
             image_as_pil = PIL.Image.open(image_bytes)
 
-            image_as_pil.save(f"testing/{message.job_id}.webp", "WEBP")
-
             nsfw_result: NSFWResult | None = self._nsfw_checker.check_for_nsfw(
                 image=image_as_pil,
                 prompt=message.prompt,

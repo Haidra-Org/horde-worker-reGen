@@ -1388,9 +1388,6 @@ class HordeWorkerProcessManager:
             self.job_deque.append(job_pop_response)
             self._testing_jobs_added += 1
 
-        with open(f"testing/{str(job_pop_response.id_)}", "w") as f:
-            f.write(job_pop_response.model_dump_json(by_alias=True))
-
     _user_info_failed = False
     _user_info_failed_reason: str | None = None
 

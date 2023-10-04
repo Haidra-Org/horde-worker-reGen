@@ -32,15 +32,32 @@ def main() -> None:
     SharedModelManager.load_model_managers()
 
     if bridge_data.allow_controlnet:
+        if SharedModelManager.manager.controlnet is None:
+            logger.error("Failed to load controlnet model manager")
+            exit(1)
         SharedModelManager.manager.controlnet.download_all_models()
 
     if bridge_data.allow_post_processing:
+        if SharedModelManager.manager.gfpgan is None:
+            logger.error("Failed to load GFPGAN model manager")
+            exit(1)
+        if SharedModelManager.manager.esrgan is None:
+            logger.error("Failed to load ESRGAN model manager")
+            exit(1)
+        if SharedModelManager.manager.codeformer is None:
+            logger.error("Failed to load codeformer model manager")
+            exit(1)
+
         if not SharedModelManager.manager.gfpgan.download_all_models():
             logger.error("Failed to download all GFPGAN models")
         if not SharedModelManager.manager.esrgan.download_all_models():
             logger.error("Failed to download all ESRGAN models")
         if not SharedModelManager.manager.codeformer.download_all_models():
             logger.error("Failed to download all codeformer models")
+
+    if SharedModelManager.manager.compvis is None:
+        logger.error("Failed to load compvis model manager")
+        exit(1)
 
     for model in bridge_data.image_models_to_load:
         if not SharedModelManager.manager.compvis.download_model(model):

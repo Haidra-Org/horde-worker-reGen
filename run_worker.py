@@ -5,8 +5,6 @@ import time
 from multiprocessing.context import BaseContext
 
 from horde_model_reference.model_reference_manager import ModelReferenceManager
-from horde_sdk.ai_horde_api.ai_horde_clients import AIHordeAPIManualClient
-from horde_sdk.ai_horde_worker.model_meta import ImageModelLoadResolver
 from loguru import logger
 from pydantic import ValidationError
 
@@ -20,7 +18,10 @@ def main(ctx: BaseContext) -> None:
 
     bridge_data: reGenBridgeData
     try:
-        bridge_data = BridgeDataLoader.load(file_path=BRIDGE_CONFIG_FILENAME)
+        bridge_data = BridgeDataLoader.load(
+            file_path=BRIDGE_CONFIG_FILENAME,
+            horde_model_reference_manager=horde_model_reference_manager,
+        )
     except Exception as e:
         logger.debug(e)
 
@@ -33,22 +34,7 @@ def main(ctx: BaseContext) -> None:
         input("Press any key to exit...")
         return
 
-    imlr = ImageModelLoadResolver(horde_model_reference_manager)
-
-    resolved_models = None
-    if bridge_data.meta_load_instructions is not None:
-        resolved_models = imlr.resolve_meta_instructions(
-            list(bridge_data.meta_load_instructions),
-            AIHordeAPIManualClient(),
-        )
-
-    if resolved_models is not None:
-        bridge_data.image_models_to_load = list(set(bridge_data.image_models_to_load + list(resolved_models)))
-
-    if bridge_data.image_models_to_skip is not None and len(bridge_data.image_models_to_skip) > 0:
-        bridge_data.image_models_to_load = list(
-            set(bridge_data.image_models_to_load) - set(bridge_data.image_models_to_skip),
-        )
+    bridge_data.load_env_vars()
 
     start_working(ctx=ctx, bridge_data=bridge_data)
 

@@ -6,6 +6,10 @@ from load_env_vars import load_env_vars
 
 load_env_vars()
 
+from download_models import download_all_models
+
+download_all_models()
+
 import argparse
 import contextlib
 import multiprocessing

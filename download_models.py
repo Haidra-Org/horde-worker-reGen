@@ -9,7 +9,7 @@ from horde_worker_regen.bridge_data.load_config import BridgeDataLoader, reGenBr
 from horde_worker_regen.consts import BRIDGE_CONFIG_FILENAME
 
 
-def main() -> None:
+def download_all_models() -> None:
     horde_model_reference_manager = ModelReferenceManager(
         download_and_convert_legacy_dbs=True,
         override_existing=True,
@@ -83,4 +83,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    download_all_models()

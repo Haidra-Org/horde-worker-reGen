@@ -1,5 +1,5 @@
 --extra-index-url https://download.pytorch.org/whl/cu118
-torch
+torch==2.0.1
 
 horde_sdk>=0.7.11
 git+https://github.com/Haidra-Org/horde-safety@nsfw-checking-and-anime-handling

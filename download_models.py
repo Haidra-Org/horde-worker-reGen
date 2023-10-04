@@ -79,7 +79,7 @@ def main() -> None:
     if any_model_failed_to_download:
         logger.error("Failed to download all models.")
     else:
-        logger.success("Downloaded all models.")
+        logger.success("Downloaded all compvis (Stable Diffusion) models.")
 
 
 if __name__ == "__main__":

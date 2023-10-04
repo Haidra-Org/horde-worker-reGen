@@ -109,7 +109,7 @@ class HordeInferenceProcess(HordeProcess):
             )
             return
 
-        if SharedModelManager.manager.compvis.available_models == 0:
+        if len(SharedModelManager.manager.compvis.available_models) == 0:
             logger.critical("No models available in SharedModelManager")
             self.send_process_state_change_message(
                 process_state=HordeProcessState.PROCESS_ENDED,

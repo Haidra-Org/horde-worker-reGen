@@ -402,7 +402,7 @@ class HordeWorkerProcessManager:
         *,
         ctx: BaseContext,
         bridge_data: reGenBridgeData,
-        target_ram_overhead_bytes: int = 2 * 1024 * 1024 * 1024,
+        target_ram_overhead_bytes: int = 8 * 1024 * 1024 * 1024,
         target_vram_overhead_bytes_map: Mapping[int, int] | None = None,  # FIXME
         max_inference_processes: int = 4,
         max_safety_processes: int = 1,
@@ -935,12 +935,15 @@ class HordeWorkerProcessManager:
                 if process_info.loaded_horde_model_name is None:
                     continue
 
-                process_info.pipe_connection.send(
-                    HordeControlModelMessage(
-                        control_flag=HordeControlFlag.UNLOAD_MODELS_FROM_VRAM,
-                        horde_model_name=process_info.loaded_horde_model_name,
-                    ),
-                )
+                next_n_models = self.get_next_n_models(self.max_inference_processes)
+
+                if process_info.loaded_horde_model_name not in next_n_models:
+                    process_info.pipe_connection.send(
+                        HordeControlModelMessage(
+                            control_flag=HordeControlFlag.UNLOAD_MODELS_FROM_VRAM,
+                            horde_model_name=process_info.loaded_horde_model_name,
+                        ),
+                    )
                 time.sleep(0.1)
 
             logger.info(f"Starting inference for job {next_job.id_} on process {process_with_model.process_id}")
@@ -1011,8 +1014,31 @@ class HordeWorkerProcessManager:
             loaded_horde_model_name=None,
         )
 
+    def get_next_n_models(self, n: int) -> set[str]:
+        """Get the next n models that will be used in the job deque."""
+
+        next_n_models: set[str] = set()
+        jobs_traversed = 0
+        while len(next_n_models) < n:
+            if jobs_traversed >= len(self.job_deque):
+                break
+
+            model_name = self.job_deque[jobs_traversed].model
+
+            if model_name is None:
+                raise ValueError(f"job_deque[{jobs_traversed}].model is None")
+
+            if model_name not in next_n_models:
+                next_n_models.add(model_name)
+
+            jobs_traversed += 1
+
+        return next_n_models
+
     def unload_models(self) -> None:
         """Unload models that are no longer needed and would use above the limit specified."""
+
+        next_n_models: set[str] = self.get_next_n_models(self.max_inference_processes)
 
         for process_info in self._process_map.values():
             if process_info.is_process_busy():
@@ -1023,22 +1049,6 @@ class HordeWorkerProcessManager:
 
             if self._horde_model_map.is_model_loading(process_info.loaded_horde_model_name):
                 continue
-
-            next_n_models: set[str] = set()
-            jobs_traversed = 0
-            while len(next_n_models) < self.max_concurrent_inference_processes:
-                if jobs_traversed >= len(self.job_deque):
-                    break
-
-                model_name = self.job_deque[jobs_traversed].model
-
-                if model_name is None:
-                    raise ValueError(f"job_deque[{jobs_traversed}].model is None")
-
-                if model_name not in next_n_models:
-                    next_n_models.add(model_name)
-
-                jobs_traversed += 1
 
             if process_info.loaded_horde_model_name in next_n_models:
                 continue

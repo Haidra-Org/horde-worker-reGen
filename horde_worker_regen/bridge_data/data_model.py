@@ -48,7 +48,7 @@ class reGenBridgeData(CombinedHordeBridgeData):
             file_path (str): The path to the file to save the config model to.
         """
 
-        if not self._yaml_loader:
+        if self._yaml_loader is None:
             self._yaml_loader = YAML()
 
         with open(file_path, "w") as f:

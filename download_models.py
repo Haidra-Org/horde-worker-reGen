@@ -1,3 +1,8 @@
+from load_env_vars import load_env_vars
+
+load_env_vars()
+
+from horde_model_reference.model_reference_manager import ModelReferenceManager
 from loguru import logger
 
 from horde_worker_regen.bridge_data.load_config import BridgeDataLoader, reGenBridgeData
@@ -5,29 +10,24 @@ from horde_worker_regen.consts import BRIDGE_CONFIG_FILENAME
 
 
 def main() -> None:
+    horde_model_reference_manager = ModelReferenceManager(
+        download_and_convert_legacy_dbs=True,
+        override_existing=True,
+    )
+
+    if not horde_model_reference_manager.download_and_convert_all_legacy_dbs(override_existing=True):
+        logger.error("Failed to download and convert legacy DBs. Retrying in 5 seconds...")
+
     bridge_data: reGenBridgeData
     try:
         bridge_data = BridgeDataLoader.load(
             file_path=BRIDGE_CONFIG_FILENAME,
+            horde_model_reference_manager=horde_model_reference_manager,
         )
         bridge_data.load_env_vars()
     except Exception as e:
         logger.error(e)
         input("Press any key to exit...")
-
-    from horde_model_reference.model_reference_manager import ModelReferenceManager
-
-    horde_model_reference_manager = ModelReferenceManager(
-        download_and_convert_legacy_dbs=True,
-        override_existing=True,
-    )
-    bridge_data.image_models_to_load = BridgeDataLoader._resolve_meta_instructions(
-        bridge_data,
-        horde_model_reference_manager,
-    )
-
-    if not horde_model_reference_manager.download_and_convert_all_legacy_dbs(override_existing=True):
-        logger.error("Failed to download and convert legacy DBs. Retrying in 5 seconds...")
 
     import hordelib
 

@@ -2,6 +2,10 @@ import os
 
 os.environ["HORDE_SDK_DISABLE_CUSTOM_SINKS"] = "1"
 
+from load_env_vars import load_env_vars
+
+load_env_vars()
+
 import argparse
 import contextlib
 import multiprocessing

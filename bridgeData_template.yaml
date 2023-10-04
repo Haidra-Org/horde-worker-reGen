@@ -2,8 +2,7 @@
 
 # The horde url
 horde_url: "https://aihorde.net"
-# Give a cool name to your instance
-worker_name: "An Awesome AI Horde Worker"
+
 # The api_key identifies a unique user in the horde
 # Visit https://stablehorde.net/register to create one before you can join
 api_key: "0000000000"
@@ -32,7 +31,7 @@ require_upfront_kudos: false
 
 ## Dreamer (Stable Diffusion Worker)
 
-# The name to use when running a dreamer instance. Will default to `worker_name` if not set
+# The name to use when running a dreamer instance.
 dreamer_name: "An Awesome Dreamer"
 # The amount of power your system can handle
 # 8 means 512*512. Each increase increases the possible resoluion by 64 pixes
@@ -164,7 +163,7 @@ suppress_speed_warnings: false # Currently unused in reGen
 
 ## Scribe (LLM Worker)
 
-# The name to use when running a scribe worker. Will default to `worker_name` if not set
+# The name to use when running a scribe worker.
 scribe_name: "An Awesome Scribe"
 # The KoboldAI Client API URL
 kai_url: "http://localhost:5000"
@@ -179,7 +178,7 @@ branded_model: true
 
 ## Alchemist (Image interrogation and post-processing)
 
-# The name to use when running an alchemist worker. Will default to `worker_name` if not set
+# The name to use when running an alchemist worker.
 alchemist_name: "An Awesome Alchemist"
 # The alchemy forms this worker can serve.
 forms:

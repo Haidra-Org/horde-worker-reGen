@@ -1596,6 +1596,12 @@ class HordeWorkerProcessManager:
         self.end_safety_processes()
         logger.info("Shutting down process manager")
 
+        for process in self._process_map.values():
+            process.mp_process.kill()
+            process.mp_process.kill()
+
+            process.mp_process.join(0.4)
+
     async def _main_loop(self) -> None:
         # Run both loops concurrently
         await asyncio.gather(
@@ -1633,8 +1639,10 @@ class HordeWorkerProcessManager:
             time.sleep((self.get_pending_megapixelsteps() * 1.75) + 3)
 
             for process in self._process_map.values():
-                process.mp_process.terminate()
-                process.mp_process.terminate()
+                process.mp_process.kill()
+                process.mp_process.kill()
+
+                process.mp_process.join(0.4)
 
             sys.exit(1)
 

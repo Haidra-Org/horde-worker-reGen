@@ -505,7 +505,10 @@ class HordeWorkerProcessManager:
             if process_info.process_type != HordeProcessKind.INFERENCE:
                 continue
 
-            if process_info.last_process_state != HordeProcessState.PROCESS_ENDED:
+            if (
+                process_info.last_process_state != HordeProcessState.PROCESS_ENDED
+                and process_info.last_process_state != HordeProcessState.PROCESS_ENDING
+            ):
                 any_process_alive = True
                 continue
 

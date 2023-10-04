@@ -197,6 +197,9 @@ class HordeInferenceProcess(HordeProcess):
         if self._active_model_name == horde_model_name:
             return
 
+        if self._is_busy:
+            logger.warning("Cannot preload model while busy")
+
         logger.debug(f"Currently active model is {self._active_model_name}")
         logger.debug(f"Preloading model {horde_model_name}")
 
@@ -237,9 +240,14 @@ class HordeInferenceProcess(HordeProcess):
             info=f"Preloaded model {horde_model_name}",
         )
 
+    _is_busy: bool = False
+
     def start_inference(self, job_info: ImageGenerateJobPopResponse) -> list[Image] | None:
         with self._inference_semaphore:
-            return self._horde.basic_inference(job_info)
+            self._is_busy = True
+            results = self._horde.basic_inference(job_info)
+            self._is_busy = False
+            return results
 
     def unload_models_from_vram(self) -> None:
         from hordelib.comfy_horde import unload_all_models_vram
@@ -351,9 +359,10 @@ class HordeInferenceProcess(HordeProcess):
                         info=error_message,
                     )
 
-                self.send_process_state_change_message(
+                self.on_horde_model_state_change(
+                    horde_model_name=message.horde_model_name,
                     process_state=HordeProcessState.INFERENCE_STARTING,
-                    info=f"Starting inference for {message.job_info.id_} with model {message.horde_model_name}",
+                    horde_model_state=ModelLoadState.IN_USE,
                 )
 
                 time_start = time.time()

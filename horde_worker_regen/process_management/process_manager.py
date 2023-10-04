@@ -1269,11 +1269,8 @@ class HordeWorkerProcessManager:
     def get_pending_megapixelsteps(self) -> int:
         """Get the number of megapixelsteps that are pending in the job deque."""
         job_deque_mps = sum(job.payload.width * job.payload.height * job.payload.ddim_steps for job in self.job_deque)
-        in_progress_mps = sum(
-            job.payload.width * job.payload.height * job.payload.ddim_steps for job in self.jobs_in_progress
-        )
 
-        return int((job_deque_mps + in_progress_mps) / 1_000_000)
+        return int((job_deque_mps) / 1_000_000)
 
     def should_wait_for_pending_megapixelsteps(self) -> bool:
         """Check if the number of megapixelsteps in the job deque is above the limit."""

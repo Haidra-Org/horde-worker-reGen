@@ -55,18 +55,31 @@ def main() -> None:
 
         if not SharedModelManager.manager.gfpgan.download_all_models():
             logger.error("Failed to download all GFPGAN models")
+        else:
+            logger.success("Downloaded all GFPGAN models")
         if not SharedModelManager.manager.esrgan.download_all_models():
             logger.error("Failed to download all ESRGAN models")
+        else:
+            logger.success("Downloaded all ESRGAN models")
         if not SharedModelManager.manager.codeformer.download_all_models():
             logger.error("Failed to download all codeformer models")
+        else:
+            logger.success("Downloaded all codeformer models")
 
     if SharedModelManager.manager.compvis is None:
         logger.error("Failed to load compvis model manager")
         exit(1)
 
+    any_model_failed_to_download = False
     for model in bridge_data.image_models_to_load:
         if not SharedModelManager.manager.compvis.download_model(model):
             logger.error(f"Failed to download model {model}")
+            any_model_failed_to_download = True
+
+    if any_model_failed_to_download:
+        logger.error("Failed to download all models.")
+    else:
+        logger.success("Downloaded all models.")
 
 
 if __name__ == "__main__":

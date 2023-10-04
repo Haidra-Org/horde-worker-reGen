@@ -490,6 +490,17 @@ class HordeWorkerProcessManager:
                 time.sleep(5)
 
     def is_time_for_shutdown(self) -> bool:
+        if all(
+            inference_process.last_process_state == HordeProcessState.PROCESS_ENDING
+            or inference_process.last_process_state == HordeProcessState.PROCESS_ENDED
+            for inference_process in [
+                inference_process
+                for inference_process in self._process_map.values()
+                if inference_process.process_type == HordeProcessKind.INFERENCE
+            ]
+        ):
+            return True
+
         if len(self.completed_jobs) > 0:
             return False
 

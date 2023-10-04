@@ -84,7 +84,7 @@ max_models_to_download: 10 # Currently unused in reGen
 stats_output_frequency: 30
 
 # The location in which stable diffusion ckpt models are stored
-cache_home: "./"
+cache_home: "./models/"
 # The location of the temp directory, also used for the model cache
 temp_dir: "./tmp" # Currently unused in reGen
 

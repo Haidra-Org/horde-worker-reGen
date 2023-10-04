@@ -25,6 +25,9 @@ def main(ctx: BaseContext) -> None:
     except Exception as e:
         logger.debug(e)
 
+        if "No such file or directory" in str(e):
+            logger.error(f"Could not find {BRIDGE_CONFIG_FILENAME}. Please create it and try again.")
+
         if isinstance(e, ValidationError):
             # Print a list of fields that failed validation
             logger.error(f"The following fields in {BRIDGE_CONFIG_FILENAME} failed validation:")

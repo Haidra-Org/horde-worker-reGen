@@ -97,3 +97,4 @@ plugins = [
 
 [tool.ruff.per-file-ignores]
 "download_models.py" = ["E402"]
+"run_worker.py" = ["E402"]

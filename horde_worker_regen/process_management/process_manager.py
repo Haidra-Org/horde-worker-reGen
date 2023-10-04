@@ -1616,6 +1616,7 @@ class HordeWorkerProcessManager:
             logger.warning("Caught SIGINT or SIGTERM twice, exiting immediately")
             sys.exit(1)
 
+        self._caught_sigints += 1
         logger.warning("Shutting down after current jobs are finished...")
         self._shutting_down = True
         self._start_timed_shutdown()

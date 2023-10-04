@@ -975,7 +975,10 @@ class HordeWorkerProcessManager:
                 time.sleep(0.1)
 
             logger.info(f"Starting inference for job {next_job.id_} on process {process_with_model.process_id}")
-            logger.info(f"Model: {next_job.model}, Using: {next_job.source_processing}")
+            logger.info(f"Model: {next_job.model}")
+            if next_job.source_image is not None:
+                logger.info(f"Using {next_job.source_processing}")
+
             extra_info = ""
             if next_job.payload.control_type is not None:
                 extra_info += f"Control type: {next_job.payload.control_type}"

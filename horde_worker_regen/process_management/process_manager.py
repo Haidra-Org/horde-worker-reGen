@@ -1621,6 +1621,10 @@ class HordeWorkerProcessManager:
         def shutdown() -> None:
             # Just in case the process manager gets stuck on shutdown
             time.sleep((self.get_pending_megapixelsteps() * 1.75) + 3)
+
+            for process in self._process_map.values():
+                process.mp_process.join(0.01)
+
             sys.exit(1)
 
         threading.Thread(target=shutdown).start()

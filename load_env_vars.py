@@ -14,4 +14,10 @@ def load_env_vars() -> None:
         config = yaml.load(f)
 
     if "cache_home" in config:
-        os.environ["AIWORKER_CACHE_HOME"] = config["cache_home"]
+        if os.getenv("AIWORKER_CACHE_HOME") is None:
+            os.environ["AIWORKER_CACHE_HOME"] = config["cache_home"]
+        else:
+            print(
+                "AIWORKER_CACHE_HOME environment variable already set. "
+                "This will override the value for `cache_home` in the config file.",
+            )

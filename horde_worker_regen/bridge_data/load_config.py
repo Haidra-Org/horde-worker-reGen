@@ -81,7 +81,8 @@ class BridgeDataLoader:
                 config = yaml.load(f)
 
             bridge_data = reGenBridgeData.model_validate(config)
-            bridge_data._yaml_loader = yaml
+            if bridge_data is not None:
+                bridge_data._yaml_loader = yaml
 
         if file_format == ConfigFormat.json:
             with open(file_path) as f:

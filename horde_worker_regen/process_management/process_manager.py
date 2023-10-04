@@ -957,9 +957,6 @@ class HordeWorkerProcessManager:
                 if process_info.is_process_busy():
                     continue
 
-                if process_info.last_process_state == process_info.last_process_state:
-                    continue
-
                 if process_info.loaded_horde_model_name is None:
                     continue
 

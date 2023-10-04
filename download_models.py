@@ -30,6 +30,13 @@ def download_all_models() -> None:
         input("Press any key to exit...")
 
     import hordelib
+    from horde_safety.deep_danbooru_model import get_deep_danbooru_model
+    from horde_safety.interrogate import get_interrogator_no_blip
+
+    _ = get_deep_danbooru_model()
+    del _
+    _ = get_interrogator_no_blip()
+    del _
 
     hordelib.initialise()
     from hordelib.shared_model_manager import SharedModelManager

@@ -93,3 +93,7 @@ exclude = '''
 plugins = [
   "pydantic.mypy"
 ]
+
+
+[tool.ruff.per-file-ignores]
+"download_models.py" = ["E402"]

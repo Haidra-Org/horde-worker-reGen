@@ -3,14 +3,21 @@ import os
 from horde_sdk.ai_horde_worker.bridge_data import CombinedHordeBridgeData
 from loguru import logger
 from pydantic import Field
+from ruamel.yaml import YAML
 
 from horde_worker_regen.locale_info.regen_bridge_data_fields import BRIDGE_DATA_FIELD_DESCRIPTIONS
 
 
 class reGenBridgeData(CombinedHordeBridgeData):
     disable_terminal_ui: bool = Field(
-        value=True,
+        default=True,
     )
+
+    safety_on_gpu: bool = Field(
+        default=False,
+    )
+
+    _yaml_loader: YAML | None = None
 
     def load_env_vars(self) -> None:
         """Load the environment variables into the config model."""
@@ -30,6 +37,22 @@ class reGenBridgeData(CombinedHordeBridgeData):
                     )
                 else:
                     os.environ["AI_HORDE_URL"] = self.horde_url
+
+        if self.max_lora_cache_size:
+            os.environ["AIWORKER_LORA_CACHE_SIZE"] = str(self.max_lora_cache_size * 1024)
+
+    def save(self, file_path: str) -> None:
+        """Save the config model to a file.
+
+        Args:
+            file_path (str): The path to the file to save the config model to.
+        """
+
+        if not self._yaml_loader:
+            self._yaml_loader = YAML()
+
+        with open(file_path, "w") as f:
+            self._yaml_loader.dump(self.model_dump(), f)
 
 
 # Dynamically add descriptions to the fields of the model

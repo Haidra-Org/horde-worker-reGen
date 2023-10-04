@@ -4,6 +4,7 @@ import base64
 import contextlib
 import enum
 import io
+import sys
 import time
 from enum import auto
 
@@ -95,11 +96,13 @@ class HordeInferenceProcess(HordeProcess):
             self._shared_model_manager = SharedModelManager()
         except Exception as e:
             logger.critical(f"Failed to initialise HordeLib: {type(e).__name__} {e}")
+            sys.exit(1)
 
         try:
             self._checkpoint_loader = HordeCheckpointLoader()
         except Exception as e:
             logger.critical(f"Failed to initialise HordeCheckpointLoader: {type(e).__name__} {e}")
+            sys.exit(1)
 
         if SharedModelManager.manager.compvis is None:
             logger.critical("Failed to initialise SharedModelManager")
@@ -107,7 +110,7 @@ class HordeInferenceProcess(HordeProcess):
                 process_state=HordeProcessState.PROCESS_ENDED,
                 info="Failed to initialise compvis in SharedModelManager",
             )
-            return
+            sys.exit(1)
 
         if len(SharedModelManager.manager.compvis.available_models) == 0:
             logger.critical("No models available in SharedModelManager")
@@ -115,7 +118,7 @@ class HordeInferenceProcess(HordeProcess):
                 process_state=HordeProcessState.PROCESS_ENDED,
                 info="No models available in SharedModelManager",
             )
-            return
+            sys.exit(1)
 
         logger.info("HordeInferenceProcess initialised")
 

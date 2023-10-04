@@ -3,6 +3,7 @@ from __future__ import annotations
 import abc
 import enum
 import signal
+import sys
 import time
 from abc import abstractmethod
 from enum import auto
@@ -207,6 +208,7 @@ class HordeProcess(abc.ABC):
             process_state=HordeProcessState.PROCESS_ENDED,
             info="Process ended",
         )
+        sys.exit(1)
 
 
 def signal_handler(sig: int, frame: object) -> None:

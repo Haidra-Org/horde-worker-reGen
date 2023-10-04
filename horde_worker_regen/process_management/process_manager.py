@@ -402,7 +402,7 @@ class HordeWorkerProcessManager:
         *,
         ctx: BaseContext,
         bridge_data: reGenBridgeData,
-        target_ram_overhead_bytes: int = 10 * 1024 * 1024 * 1024,
+        target_ram_overhead_bytes: int = 9 * 1024 * 1024 * 1024,
         target_vram_overhead_bytes_map: Mapping[int, int] | None = None,  # FIXME
         max_inference_processes: int = 4,
         max_safety_processes: int = 1,
@@ -436,14 +436,17 @@ class HordeWorkerProcessManager:
         self.target_vram_overhead_bytes_map = target_vram_overhead_bytes_map
 
         self.total_ram_bytes = psutil.virtual_memory().total
+
         self.target_ram_overhead_bytes = target_ram_overhead_bytes
-        # self.target_ram_overhead_bytes = int(self.total_ram_bytes / 2) # FIXME
+        self.target_ram_overhead_bytes = min(int(self.total_ram_bytes / 2), 9)
 
         if self.target_ram_overhead_bytes > self.total_ram_bytes:
             raise ValueError(
                 f"target_ram_overhead_bytes ({self.target_ram_overhead_bytes}) is greater than "
                 "total_ram_bytes ({self.total_ram_bytes})",
             )
+
+        self._status_message_frequency = bridge_data.stats_output_frequency
 
         logger.debug(f"Total RAM: {self.total_ram_bytes / 1024 / 1024 / 1024} GB")
         logger.debug(f"Target RAM overhead: {self.target_ram_overhead_bytes / 1024 / 1024 / 1024} GB")
@@ -555,6 +558,8 @@ class HordeWorkerProcessManager:
             pid = len(self._process_map)
             pipe_connection, child_pipe_connection = multiprocessing.Pipe(duplex=True)
 
+            cpu_only = not self.bridge_data.safety_on_gpu
+
             # Create a new process that will run the start_safety_process function
             process = multiprocessing.Process(
                 target=start_safety_process,
@@ -563,6 +568,7 @@ class HordeWorkerProcessManager:
                     self._process_message_queue,
                     child_pipe_connection,
                     self._disk_lock,
+                    cpu_only,
                 ),
             )
 

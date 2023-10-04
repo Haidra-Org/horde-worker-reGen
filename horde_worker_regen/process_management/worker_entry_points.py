@@ -36,12 +36,14 @@ def start_safety_process(
     process_message_queue: ProcessQueue,
     pipe_connection: Connection,
     disk_lock: Lock,
+    cpu_only: bool = True,
 ) -> None:
     worker_process = HordeSafetyProcess(
         process_id=process_id,
         process_message_queue=process_message_queue,
         pipe_connection=pipe_connection,
         disk_lock=disk_lock,
+        cpu_only=cpu_only,
     )
     with logger.catch(), contextlib.redirect_stdout(None), contextlib.redirect_stderr(None):
         worker_process.main_loop()

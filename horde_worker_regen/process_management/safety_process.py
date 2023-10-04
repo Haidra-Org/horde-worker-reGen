@@ -56,10 +56,11 @@ class HordeSafetyProcess(HordeProcess):
         process_message_queue: ProcessQueue,
         pipe_connection: Connection,
         disk_lock: Lock,
+        cpu_only: bool = True,
     ) -> None:
         super().__init__(process_id, process_message_queue, pipe_connection, disk_lock)
-        self._deep_danbooru_model = get_deep_danbooru_model(device="cpu")
-        self._interrogator = get_interrogator_no_blip(device="cpu")
+        self._deep_danbooru_model = get_deep_danbooru_model(device="cpu" if cpu_only else "cuda")
+        self._interrogator = get_interrogator_no_blip(device="cpu" if cpu_only else "cuda")
 
         self._nsfw_checker = NSFWChecker(
             self._interrogator,

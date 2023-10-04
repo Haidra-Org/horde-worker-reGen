@@ -872,7 +872,9 @@ class HordeWorkerProcessManager:
                     break
 
             for model in self._horde_model_map.root.values():
-                if model.horde_model_name == job.model and model.horde_model_load_state.is_loaded():
+                if model.horde_model_name == job.model and (
+                    model.horde_model_load_state.is_loaded() or model.horde_model_load_state == ModelLoadState.LOADING
+                ):
                     model_is_loaded = True
                     break
 

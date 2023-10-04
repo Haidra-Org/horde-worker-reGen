@@ -1261,6 +1261,8 @@ class HordeWorkerProcessManager:
             self._consecutive_failed_results += 1
             return
 
+        await asyncio.sleep(self._api_call_loop_interval)
+
     _testing_max_jobs = 10000
     _testing_jobs_added = 0
     _testing_job_queue_length = 1
@@ -1629,7 +1631,8 @@ class HordeWorkerProcessManager:
             time.sleep((self.get_pending_megapixelsteps() * 1.75) + 3)
 
             for process in self._process_map.values():
-                process.mp_process.join(0.01)
+                process.mp_process.terminate()
+                process.mp_process.terminate()
 
             sys.exit(1)
 

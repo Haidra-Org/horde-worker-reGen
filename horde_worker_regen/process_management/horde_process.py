@@ -211,5 +211,14 @@ class HordeProcess(abc.ABC):
         sys.exit(1)
 
 
+_signals_caught = 0
+
+
 def signal_handler(sig: int, frame: object) -> None:
-    print("You pressed Ctrl+C!")
+    global _signals_caught
+    if _signals_caught >= 1:
+        logger.warning("Received second signal, exiting immediately")
+        sys.exit(1)
+
+    logger.info("Received signal, exiting gracefully")
+    _signals_caught += 1

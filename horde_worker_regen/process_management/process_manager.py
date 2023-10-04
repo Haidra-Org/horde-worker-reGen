@@ -2,6 +2,7 @@ import asyncio
 import base64
 import multiprocessing
 import random
+import sys
 import time
 from asyncio import CancelledError
 from asyncio import Lock as Lock_Asyncio
@@ -669,8 +670,11 @@ class HordeWorkerProcessManager:
     def end_safety_processes(self) -> None:
         """End any safety processes above the configured limit, or all of them if shutting down."""
 
-        # Get the process to end
-        process_info = self._process_map.get_first_available_safety_process()
+        if self._shutting_down:
+            process_info = self._process_map.get_safety_process()
+        else:
+            # Get the process to end
+            process_info = self._process_map.get_first_available_safety_process()
 
         if process_info is None:
             return
@@ -1562,6 +1566,7 @@ class HordeWorkerProcessManager:
                     self.end_inference_processes()
 
                 if self.is_time_for_shutdown():
+                    self._start_timed_shutdown()
                     break
 
                 if time.time() - self._last_status_message_time > self._status_message_frequency:
@@ -1590,6 +1595,8 @@ class HordeWorkerProcessManager:
             asyncio.create_task(self._job_submit_loop(), name="job_submit_loop"),
         )
 
+    _caught_sigints = 0
+
     def start(self) -> None:
         """Start the process manager."""
         import signal
@@ -1598,5 +1605,22 @@ class HordeWorkerProcessManager:
         asyncio.run(self._main_loop())
 
     def signal_handler(self, sig: int, frame: object) -> None:
+        """Handle SIGINT and SIGTERM."""
+
+        if self._caught_sigints >= 2:
+            logger.warning("Caught SIGINT or SIGTERM twice, exiting immediately")
+            sys.exit(1)
+
         logger.warning("Shutting down after current jobs are finished...")
         self._shutting_down = True
+        self._start_timed_shutdown()
+
+    def _start_timed_shutdown(self) -> None:
+        import threading
+
+        def shutdown() -> None:
+            # Just in case the process manager gets stuck on shutdown
+            time.sleep((self.get_pending_megapixelsteps() * 1.75) + 3)
+            sys.exit(1)
+
+        threading.Thread(target=shutdown).start()

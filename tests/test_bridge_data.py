@@ -1,5 +1,7 @@
-import yaml
+# import yaml
+
 from horde_sdk.generic_api.consts import ANON_API_KEY
+from ruamel.yaml import YAML
 
 from horde_worker_regen.bridge_data.data_model import reGenBridgeData
 from horde_worker_regen.bridge_data.load_config import BridgeDataLoader, ConfigFormat
@@ -10,8 +12,10 @@ def test_bridge_data_yaml() -> None:
     bridge_data_filename = "bridgeData_template.yaml"
     bridge_data_raw: dict | None = None
 
+    yaml = YAML(typ="safe")
+
     with open(bridge_data_filename) as f:
-        bridge_data_raw = yaml.safe_load(f)
+        bridge_data_raw = yaml.load(f)
 
     assert bridge_data_raw is not None
 

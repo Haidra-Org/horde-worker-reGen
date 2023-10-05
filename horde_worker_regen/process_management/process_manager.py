@@ -1352,6 +1352,9 @@ class HordeWorkerProcessManager:
         if len(self.job_deque) >= self.bridge_data.queue_size + 1:  # FIXME?
             return
 
+        if len(self.job_deque) == 1 and self.completed_jobs == 0:
+            return
+
         # if self._testing_jobs_added >= self._testing_max_jobs:
         #   return
 

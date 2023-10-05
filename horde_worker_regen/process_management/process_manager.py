@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import multiprocessing
+import os
 import random
 import sys
 import time
@@ -35,9 +36,11 @@ from horde_sdk.ai_horde_api.apimodels import (
     JobSubmitResponse,
 )
 from loguru import logger
-from pydantic import BaseModel, ConfigDict, RootModel
+from pydantic import BaseModel, ConfigDict, RootModel, ValidationError
 
 from horde_worker_regen.bridge_data.data_model import reGenBridgeData
+from horde_worker_regen.bridge_data.load_config import BridgeDataLoader
+from horde_worker_regen.consts import BRIDGE_CONFIG_FILENAME
 from horde_worker_regen.process_management._aliased_types import ProcessQueue
 from horde_worker_regen.process_management.inference_process import HordeProcessKind
 from horde_worker_regen.process_management.messages import (
@@ -287,6 +290,7 @@ class CompletedJobInfo(BaseModel):
     job_result_images_base64: list[str] | None = None
     state: GENERATION_STATE
     censored: bool | None = None
+    time_to_generate: float
 
     @property
     def is_job_checked_for_safety(self) -> bool:
@@ -299,11 +303,20 @@ class HordeWorkerProcessManager:
     bridge_data: reGenBridgeData
     """The bridge data for this worker."""
 
+    horde_model_reference_manager: ModelReferenceManager
+    """The model reference manager for this worker."""
+
     max_inference_processes: int
     """The maximum number of inference processes that can be active. This is not the number of jobs that
     can run at once. Use `max_concurrent_inference_processes` to control that behavior."""
-    max_concurrent_inference_processes: int
-    """The maximum number of inference processes that can run jobs concurrently."""
+
+    _max_concurrent_inference_processes: int
+
+    @property
+    def max_concurrent_inference_processes(self) -> int:
+        """The maximum number of inference processes that can run jobs concurrently."""
+        return self._max_concurrent_inference_processes
+
     max_safety_processes: int
     """The maximum number of safety processes that can run at once."""
     max_download_processes: int
@@ -370,12 +383,12 @@ class HordeWorkerProcessManager:
     _device_map: TorchDeviceMap
     """A mapping (dict) of device IDs to TorchDeviceInfo objects. Contains some helper methods."""
 
-    _loop_interval: float = 0.1
+    _loop_interval: float = 0.20
     """The number of seconds to wait between each loop of the main process (inter process management) loop."""
-    _api_call_loop_interval = 0.1
+    _api_call_loop_interval = 0.05
     """The number of seconds to wait between each loop of the main API call loop."""
 
-    _api_get_user_info_interval = 10
+    _api_get_user_info_interval = 15
     """The number of seconds to wait between each fetch of the user info."""
 
     _last_get_user_info_time: float = 0
@@ -392,6 +405,9 @@ class HordeWorkerProcessManager:
     """A deque of jobs that are waiting to be processed."""
     _job_deque_lock: Lock_Asyncio
 
+    job_pop_timestamps: dict[str, float]
+    _job_pop_timestamps_lock: Lock_Asyncio
+
     _inference_semaphore: Semaphore
     """A semaphore that limits the number of inference processes that can run at once."""
     _disk_lock: Lock_MultiProcessing
@@ -403,27 +419,31 @@ class HordeWorkerProcessManager:
         *,
         ctx: BaseContext,
         bridge_data: reGenBridgeData,
+        horde_model_reference_manager: ModelReferenceManager,
         target_ram_overhead_bytes: int = 9 * 1024 * 1024 * 1024,
         target_vram_overhead_bytes_map: Mapping[int, int] | None = None,  # FIXME
-        max_inference_processes: int = 4,
         max_safety_processes: int = 1,
         max_download_processes: int = 1,
-        max_concurrent_inference_processes: int = 2,
     ) -> None:
         self.session_start_time = time.time()
 
         self.bridge_data = bridge_data
+        self.horde_model_reference_manager = horde_model_reference_manager
 
         self._process_map = ProcessMap({})
         self._horde_model_map = HordeModelMap(root={})
 
-        self.max_inference_processes = max_inference_processes
         self.max_safety_processes = max_safety_processes
         self.max_download_processes = max_download_processes
 
-        self.max_concurrent_inference_processes = bridge_data.max_threads
+        self._max_concurrent_inference_processes = bridge_data.max_threads
+        self._inference_semaphore = Semaphore(self._max_concurrent_inference_processes, ctx=ctx)
 
-        self._inference_semaphore = Semaphore(max_concurrent_inference_processes, ctx=ctx)
+        self.max_inference_processes = self.bridge_data.queue_size + self.bridge_data.max_threads
+
+        if len(self.bridge_data.image_models_to_load) == 1 and self.max_concurrent_inference_processes == 1:
+            self.max_inference_processes = 1
+
         self._disk_lock = Lock_MultiProcessing(ctx=ctx)
 
         self.completed_jobs = []
@@ -467,6 +487,9 @@ class HordeWorkerProcessManager:
         self.job_deque = deque()
         self._job_deque_lock = Lock_Asyncio()
 
+        self.job_pop_timestamps = {}
+        self._job_pop_timestamps_lock = Lock_Asyncio()
+
         self._process_message_queue = multiprocessing.Queue()
 
         # The parent process already downloaded and converted the model references
@@ -494,11 +517,7 @@ class HordeWorkerProcessManager:
         if all(
             inference_process.last_process_state == HordeProcessState.PROCESS_ENDING
             or inference_process.last_process_state == HordeProcessState.PROCESS_ENDED
-            for inference_process in [
-                inference_process
-                for inference_process in self._process_map.values()
-                if inference_process.process_type == HordeProcessKind.INFERENCE
-            ]
+            for inference_process in self._process_map.values()
         ):
             return True
 
@@ -670,11 +689,7 @@ class HordeWorkerProcessManager:
     def end_safety_processes(self) -> None:
         """End any safety processes above the configured limit, or all of them if shutting down."""
 
-        if self._shutting_down:
-            process_info = self._process_map.get_safety_process()
-        else:
-            # Get the process to end
-            process_info = self._process_map.get_first_available_safety_process()
+        process_info = self._process_map.get_first_available_safety_process()
 
         if process_info is None:
             return
@@ -693,7 +708,7 @@ class HordeWorkerProcessManager:
             message: HordeProcessMessage = self._process_message_queue.get()
 
             logger.debug(
-                f"Received {type(message).__name__} from process {message.process_id}",
+                f"Received {type(message).__name__} from process {message.process_id}:",
                 # f"{message.model_dump(exclude={'job_result_images_base64', 'replacement_image_base64'})}",
             )
 
@@ -801,7 +816,7 @@ class HordeWorkerProcessManager:
                 self.total_num_completed_jobs += 1
                 if message.time_elapsed is not None:
                     logger.info(
-                        f"Inference finished for job {message.job_info.id_}. "
+                        f"Inference finished for job {message.job_info.id_} on process {message.process_id}. "
                         f"It took {round(message.time_elapsed, 2)} seconds",
                     )
                 else:
@@ -813,6 +828,7 @@ class HordeWorkerProcessManager:
                         job_info=message.job_info,
                         job_result_images_base64=message.job_result_images_base64,
                         state=message.state,
+                        time_to_generate=message.time_elapsed if message.time_elapsed is not None else 0,
                     ),
                 )
             elif isinstance(message, HordeSafetyResultMessage):
@@ -957,10 +973,11 @@ class HordeWorkerProcessManager:
                 if process_info.is_process_busy():
                     continue
 
-                if process_info.last_process_state == process_info.last_process_state:
+                if process_info.loaded_horde_model_name is None:
                     continue
 
-                if process_info.loaded_horde_model_name is None:
+                if len(self.job_deque) == len(self.jobs_in_progress) + len(self.jobs_pending_safety_check):
+                    logger.debug("Not unloading models from VRAM because there are no jobs to make room for.")
                     continue
 
                 next_n_models = list(self.get_next_n_models(self.max_inference_processes))
@@ -979,7 +996,6 @@ class HordeWorkerProcessManager:
                         horde_model_name=process_info.loaded_horde_model_name,
                     ),
                 )
-                time.sleep(0.1)
 
             logger.info(f"Starting inference for job {next_job.id_} on process {process_with_model.process_id}")
             logger.info(f"Model: {next_job.model}")
@@ -1009,7 +1025,10 @@ class HordeWorkerProcessManager:
             if extra_info:
                 logger.info(extra_info)
 
-            logger.info(f"{next_job.payload.width}x{next_job.payload.height} for {next_job.payload.ddim_steps} steps")
+            logger.info(
+                f"{next_job.payload.width}x{next_job.payload.height} for {next_job.payload.ddim_steps} steps "
+                f"with sampler {next_job.payload.sampler_name}",
+            )
 
             self.jobs_in_progress.append(next_job)
             process_with_model.pipe_connection.send(
@@ -1076,6 +1095,15 @@ class HordeWorkerProcessManager:
     def unload_models(self) -> None:
         """Unload models that are no longer needed and would use above the limit specified."""
 
+        if len(self.job_deque) == 0:
+            return
+
+        if len(self.job_deque) == len(self.jobs_in_progress):
+            return
+
+        if len(self.job_deque) == len(self.jobs_in_progress) + len(self.jobs_pending_safety_check):
+            return
+
         next_n_models: set[str] = self.get_next_n_models(self.max_inference_processes)
 
         for process_info in self._process_map.values():
@@ -1086,6 +1114,12 @@ class HordeWorkerProcessManager:
                 continue
 
             if self._horde_model_map.is_model_loading(process_info.loaded_horde_model_name):
+                continue
+
+            if (
+                self._horde_model_map.root[process_info.loaded_horde_model_name].horde_model_load_state
+                == ModelLoadState.IN_USE
+            ):
                 continue
 
             if process_info.loaded_horde_model_name in next_n_models:
@@ -1251,9 +1285,28 @@ class HordeWorkerProcessManager:
                 self._consecutive_failed_results += 1
                 return
 
+            async with self._job_pop_timestamps_lock:
+                time_popped = self.job_pop_timestamps.pop(str(completed_job_info.job_info.id_))
+
+            time_taken = round(time.time() - time_popped, 2)
+
             logger.success(
-                f"Submitted job {job_info.id_} (model: {job_info.model}) for {job_submit_response.reward:.2f} kudos.",
+                f"Submitted job {job_info.id_} (model: {job_info.model}) for {job_submit_response.reward:.2f} kudos. "
+                f"Job popped {time_taken} seconds ago.",
             )
+
+            if not self.bridge_data.suppress_speed_warnings:
+                if (job_submit_response.reward / time_taken) < 0.1:
+                    logger.warning(
+                        f"This job ({job_info.id_}) may have been in the queue for a long time. ",
+                    )
+
+                if (job_submit_response.reward / completed_job_info.time_to_generate) < 0.4:
+                    logger.warning(
+                        f"This job ({job_info.id_}) took longer than is ideal; if this persists consider "
+                        "lowering your max_power, using less threads, disabling post processing and/or controlnets.",
+                    )
+
             self.kudos_generated_this_session += job_submit_response.reward
             async with self._completed_jobs_lock:
                 self.completed_jobs.remove(completed_job_info)
@@ -1274,13 +1327,16 @@ class HordeWorkerProcessManager:
     _job_pop_frequency = 1.0
     _last_job_pop_time = 0.0
 
-    _max_pending_megapixelsteps = 150
+    _max_pending_megapixelsteps = 45
     _triggered_max_pending_megapixelsteps_time = 0.0
     _triggered_max_pending_megapixelsteps = False
 
     def get_pending_megapixelsteps(self) -> int:
         """Get the number of megapixelsteps that are pending in the job deque."""
         job_deque_mps = sum(job.payload.width * job.payload.height * job.payload.ddim_steps for job in self.job_deque)
+
+        for _ in self.completed_jobs:
+            job_deque_mps += 1_000_000 * 4
 
         return int((job_deque_mps) / 1_000_000)
 
@@ -1441,9 +1497,14 @@ class HordeWorkerProcessManager:
                     fail_count += 1
                     time.sleep(0.5)
 
-        async with self._job_deque_lock:
+        if job_pop_response.id_ is None:
+            logger.error("Job has no id!")
+            return
+
+        async with self._job_deque_lock, self._job_pop_timestamps_lock:
             self.job_deque.append(job_pop_response)
             self._testing_jobs_added += 1
+            self.job_pop_timestamps[str(job_pop_response.id_)] = time.time()
 
     _user_info_failed = False
     _user_info_failed_reason: str | None = None
@@ -1487,7 +1548,7 @@ class HordeWorkerProcessManager:
                 logger.debug(f"Failed to get user info: {self._user_info_failed_reason}")
             await logger.complete()
 
-    _job_submit_loop_interval = 0.1
+    _job_submit_loop_interval = 0.02
 
     async def _job_submit_loop(self) -> None:
         """Main loop for the job submitter."""
@@ -1569,7 +1630,14 @@ class HordeWorkerProcessManager:
                     async with self._job_deque_lock, self._jobs_safety_check_lock, self._completed_jobs_lock:
                         self.preload_models()
                         self.start_inference()
-                        self.unload_models()
+                        await asyncio.sleep(self._loop_interval / 2)
+
+                # We don't want to pop jobs from the deque while we are adding jobs to it
+                # TODO: Is this necessary?
+                async with self._job_deque_lock, self._jobs_safety_check_lock, self._completed_jobs_lock:
+                    self.receive_and_handle_process_messages()
+
+                self.unload_models()
 
                 if self._shutting_down:
                     self.end_inference_processes()
@@ -1589,18 +1657,75 @@ class HordeWorkerProcessManager:
 
                     self._last_status_message_time = time.time()
 
-                await asyncio.sleep(self._loop_interval)
+                await asyncio.sleep(self._loop_interval / 2)
             except CancelledError:
                 self._shutting_down = True
 
+        while len(self.job_deque) > 0:
+            await asyncio.sleep(0.2)
+            self.receive_and_handle_process_messages()
+            await asyncio.sleep(0.2)
+
         self.end_safety_processes()
+        await asyncio.sleep(0.2)
+        self.receive_and_handle_process_messages()
+
         logger.info("Shutting down process manager")
 
         for process in self._process_map.values():
-            process.mp_process.kill()
-            process.mp_process.kill()
+            process.mp_process.terminate()
+            process.mp_process.terminate()
+            process.mp_process.terminate()
 
-            process.mp_process.join(0.4)
+            process.mp_process.join(0.2)
+
+        sys.exit(0)
+
+    _bridge_data_loop_interval = 1.0
+    _last_bridge_data_reload_time = 0.0
+
+    _bridge_data_last_modified_time = 0.0
+
+    def get_bridge_data_from_disk(self) -> None:
+        try:
+            self.bridge_data = BridgeDataLoader.load(
+                file_path=BRIDGE_CONFIG_FILENAME,
+                horde_model_reference_manager=self.horde_model_reference_manager,
+            )
+            if self.bridge_data.max_threads != self._max_concurrent_inference_processes:
+                logger.warning(
+                    f"max_threads in {BRIDGE_CONFIG_FILENAME} cannot be changed while the worker is running.",
+                )
+        except Exception as e:
+            logger.debug(e)
+
+            if "No such file or directory" in str(e):
+                logger.error(f"Could not find {BRIDGE_CONFIG_FILENAME}. Please create it and try again.")
+
+            if isinstance(e, ValidationError):
+                # Print a list of fields that failed validation
+                logger.error(f"The following fields in {BRIDGE_CONFIG_FILENAME} failed validation:")
+                for error in e.errors():
+                    logger.error(f"{error['loc'][0]}: {error['msg']}")
+
+            return
+
+    async def _bridge_data_loop(self) -> None:
+        while True:
+            try:
+                if self._shutting_down:
+                    break
+
+                self._bridge_data_last_modified_time = os.path.getmtime(BRIDGE_CONFIG_FILENAME)
+
+                if self._last_bridge_data_reload_time < self._bridge_data_last_modified_time:
+                    logger.info(f"Reloading {BRIDGE_CONFIG_FILENAME}")
+                    self.get_bridge_data_from_disk()
+                    self._last_bridge_data_reload_time = time.time()
+                    logger.success(f"Reloaded {BRIDGE_CONFIG_FILENAME}")
+                await asyncio.sleep(self._bridge_data_loop_interval)
+            except CancelledError:
+                self._shutting_down = True
 
     async def _main_loop(self) -> None:
         # Run both loops concurrently
@@ -1608,6 +1733,7 @@ class HordeWorkerProcessManager:
             asyncio.create_task(self._process_control_loop(), name="process_control_loop"),
             asyncio.create_task(self._api_call_loop(), name="api_call_loop"),
             asyncio.create_task(self._job_submit_loop(), name="job_submit_loop"),
+            asyncio.create_task(self._bridge_data_loop(), name="bridge_data_loop"),
         )
 
     _caught_sigints = 0
@@ -1636,14 +1762,14 @@ class HordeWorkerProcessManager:
 
         def shutdown() -> None:
             # Just in case the process manager gets stuck on shutdown
-            time.sleep((self.get_pending_megapixelsteps() * 1.75) + 3)
+            time.sleep((self.get_pending_megapixelsteps() * 3.5) + 10)
 
             for process in self._process_map.values():
                 process.mp_process.kill()
                 process.mp_process.kill()
 
-                process.mp_process.join(0.4)
+                process.mp_process.join()
 
-            sys.exit(1)
+            sys.exit(0)
 
         threading.Thread(target=shutdown).start()

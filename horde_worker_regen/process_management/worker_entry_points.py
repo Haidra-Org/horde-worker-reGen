@@ -1,4 +1,5 @@
 import contextlib
+import sys
 
 try:
     from multiprocessing.connection import PipeConnection as Connection  # type: ignore
@@ -9,8 +10,6 @@ from multiprocessing.synchronize import Lock, Semaphore
 from loguru import logger
 
 from horde_worker_regen.process_management._aliased_types import ProcessQueue
-from horde_worker_regen.process_management.inference_process import HordeInferenceProcess
-from horde_worker_regen.process_management.safety_process import HordeSafetyProcess
 
 
 def start_inference_process(
@@ -20,14 +19,30 @@ def start_inference_process(
     inference_semaphore: Semaphore,
     disk_lock: Lock,
 ) -> None:
-    worker_process = HordeInferenceProcess(
-        process_id=process_id,
-        process_message_queue=process_message_queue,
-        pipe_connection=pipe_connection,
-        inference_semaphore=inference_semaphore,
-        disk_lock=disk_lock,
-    )
-    with logger.catch(), contextlib.redirect_stdout(None), contextlib.redirect_stderr(None):
+    with contextlib.redirect_stdout(None), contextlib.redirect_stderr(None):
+        logger.remove()
+        import hordelib
+
+        try:
+            hordelib.initialise(
+                setup_logging=None,
+                process_id=process_id,
+                logging_verbosity=0,
+            )
+        except Exception as e:
+            logger.critical(f"Failed to initialise hordelib: {type(e).__name__} {e}")
+            sys.exit(1)
+
+        from horde_worker_regen.process_management.inference_process import HordeInferenceProcess
+
+        worker_process = HordeInferenceProcess(
+            process_id=process_id,
+            process_message_queue=process_message_queue,
+            pipe_connection=pipe_connection,
+            inference_semaphore=inference_semaphore,
+            disk_lock=disk_lock,
+        )
+
         worker_process.main_loop()
 
 
@@ -38,12 +53,28 @@ def start_safety_process(
     disk_lock: Lock,
     cpu_only: bool = True,
 ) -> None:
-    worker_process = HordeSafetyProcess(
-        process_id=process_id,
-        process_message_queue=process_message_queue,
-        pipe_connection=pipe_connection,
-        disk_lock=disk_lock,
-        cpu_only=cpu_only,
-    )
-    with logger.catch(), contextlib.redirect_stdout(None), contextlib.redirect_stderr(None):
+    with contextlib.redirect_stdout(None), contextlib.redirect_stderr(None):
+        logger.remove()
+        import hordelib
+
+        try:
+            hordelib.initialise(
+                setup_logging=None,
+                process_id=process_id,
+                logging_verbosity=0,
+            )
+        except Exception as e:
+            logger.critical(f"Failed to initialise hordelib: {type(e).__name__} {e}")
+            sys.exit(1)
+
+        from horde_worker_regen.process_management.safety_process import HordeSafetyProcess
+
+        worker_process = HordeSafetyProcess(
+            process_id=process_id,
+            process_message_queue=process_message_queue,
+            pipe_connection=pipe_connection,
+            disk_lock=disk_lock,
+            cpu_only=cpu_only,
+        )
+
         worker_process.main_loop()

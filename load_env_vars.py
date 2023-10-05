@@ -1,7 +1,10 @@
 import os
 import pathlib
 
+from dotenv import load_dotenv
 from ruamel.yaml import YAML
+
+load_dotenv()
 
 
 def load_env_vars() -> None:

@@ -19,8 +19,6 @@ from horde_sdk.ai_horde_api import GENERATION_STATE
 from horde_sdk.ai_horde_api.apimodels import (
     ImageGenerateJobPopResponse,
 )
-from hordelib.horde import HordeLib
-from hordelib.shared_model_manager import SharedModelManager
 from loguru import logger
 from PIL.Image import Image
 from typing_extensions import override
@@ -40,10 +38,18 @@ from horde_worker_regen.process_management.messages import (
 )
 
 if TYPE_CHECKING:
+    from hordelib.horde import HordeLib
     from hordelib.nodes.node_model_loader import HordeCheckpointLoader
+    from hordelib.shared_model_manager import SharedModelManager
 else:
     # Create a dummy class to prevent type errors
     class HordeCheckpointLoader:
+        pass
+
+    class HordeLib:
+        pass
+
+    class SharedModelManager:
         pass
 
 
@@ -79,13 +85,8 @@ class HordeInferenceProcess(HordeProcess):
             disk_lock=disk_lock,
         )
 
-        import hordelib
-
-        hordelib.initialise(
-            setup_logging=None,
-            process_id=self.process_id,
-            logging_verbosity=0,
-        )
+        from hordelib.horde import HordeLib
+        from hordelib.shared_model_manager import SharedModelManager
 
         self._inference_semaphore = inference_semaphore
 

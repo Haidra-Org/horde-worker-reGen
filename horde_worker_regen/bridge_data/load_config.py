@@ -57,8 +57,10 @@ class BridgeDataLoader:
 
         Args:
             file_path (str | Path): The path to the config file.
-            file_format (ConfigFormat | None, optional): The config file format. Defaults to None.
+            file_format (ConfigFormat | None, optional): The config file format. Defaults to None. \
             The file format will be inferred from the file extension if not provided.
+            horde_model_reference_manager (ModelReferenceManager | None, optional): The model reference manager. \
+            Used to resolve meta instructions. Defaults to None.
 
         Returns:
             reGenBridgeData: The validated config file.

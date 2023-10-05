@@ -54,7 +54,7 @@ class HordeProcess(abc.ABC):
     disk_lock: Lock
     """A lock used to prevent multiple processes from accessing disk at the same time."""
 
-    _loop_interval: float = 0.1
+    _loop_interval: float = 0.02
     """The time to sleep between each loop iteration."""
 
     _end_process: bool = False
@@ -208,7 +208,7 @@ class HordeProcess(abc.ABC):
             process_state=HordeProcessState.PROCESS_ENDED,
             info="Process ended",
         )
-        sys.exit(1)
+        sys.exit(0)
 
 
 _signals_caught = 0
@@ -218,7 +218,7 @@ def signal_handler(sig: int, frame: object) -> None:
     global _signals_caught
     if _signals_caught >= 1:
         logger.warning("Received second signal, exiting immediately")
-        sys.exit(1)
+        sys.exit(0)
 
     logger.info("Received signal, exiting gracefully")
     _signals_caught += 1

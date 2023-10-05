@@ -1396,7 +1396,7 @@ class HordeWorkerProcessManager:
             job_pop_request = ImageGenerateJobPopRequest(
                 apikey=self.bridge_data.api_key,
                 name=self.bridge_data.dreamer_worker_name,
-                bridge_agent="AI Horde Worker reGen:2:https://github.com/Haidra-Org/",
+                bridge_agent="AI Horde Worker reGen:2:https://github.com/Haidra-Org/horde-worker-reGen/",
                 bridge_version=2,
                 models=self.bridge_data.image_models_to_load,
                 nsfw=self.bridge_data.nsfw,
@@ -1663,7 +1663,8 @@ class HordeWorkerProcessManager:
 
         while len(self.job_deque) > 0:
             await asyncio.sleep(0.2)
-            self.receive_and_handle_process_messages()
+            async with self._job_deque_lock, self._jobs_safety_check_lock, self._completed_jobs_lock:
+                self.receive_and_handle_process_messages()
             await asyncio.sleep(0.2)
 
         self.end_safety_processes()

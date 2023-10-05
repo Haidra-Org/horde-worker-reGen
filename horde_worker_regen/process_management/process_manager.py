@@ -1292,7 +1292,7 @@ class HordeWorkerProcessManager:
 
             logger.success(
                 f"Submitted job {job_info.id_} (model: {job_info.model}) for {job_submit_response.reward:.2f} kudos. "
-                f"Job popped {time_taken} seconds ago and took {completed_job_info.time_to_generate} to generate.",
+                f"Job popped {time_taken} seconds ago and took {completed_job_info.time_to_generate:.2f} to generate.",
             )
 
             if not self.bridge_data.suppress_speed_warnings:

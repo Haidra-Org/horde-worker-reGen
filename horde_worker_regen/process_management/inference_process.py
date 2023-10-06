@@ -155,6 +155,7 @@ class HordeInferenceProcess(HordeProcess):
             process_state=process_state,
             info=f"Model {horde_model_name} {horde_model_state.name}",
         )
+        self.send_memory_report_message(include_vram=True)
 
     def download_callback(self, downloaded_bytes: int, total_bytes: int) -> None:
         if downloaded_bytes % (total_bytes / 20) == 0:
@@ -246,7 +247,12 @@ class HordeInferenceProcess(HordeProcess):
     def start_inference(self, job_info: ImageGenerateJobPopResponse) -> list[Image] | None:
         with self._inference_semaphore:
             self._is_busy = True
-            results = self._horde.basic_inference(job_info)
+            try:
+                results = self._horde.basic_inference(job_info)
+            except Exception as e:
+                logger.critical(f"Inference failed: {type(e).__name__} {e}")
+                return None
+
             self._is_busy = False
             return results
 
@@ -369,6 +375,20 @@ class HordeInferenceProcess(HordeProcess):
                 time_start = time.time()
 
                 images = self.start_inference(message.job_info)
+
+                if images is None:
+                    self.send_memory_report_message(include_vram=True)
+                    self.send_process_state_change_message(
+                        process_state=HordeProcessState.INFERENCE_FAILED,
+                        info=f"Inference failed for job {message.job_info.id_}",
+                    )
+
+                    logger.debug("Unloading models from RAM")
+                    self.unload_models_from_ram()
+                    logger.debug("Unloaded models from RAM")
+                    self.send_memory_report_message(include_vram=True)
+                    return
+
                 process_state = HordeProcessState.INFERENCE_COMPLETE if images else HordeProcessState.INFERENCE_FAILED
                 logger.debug(f"Finished inference with process state {process_state}")
                 self.send_inference_result_message(

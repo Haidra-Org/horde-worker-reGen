@@ -848,6 +848,13 @@ class HordeWorkerProcessManager:
 
                 for i in range(len(completed_job_info.job_result_images_base64)):
                     replacement_image = message.safety_evaluations[i].replacement_image_base64
+
+                    if message.safety_evaluations[i].failed:
+                        logger.error(
+                            f"Job {message.job_id} image #{i} wasn't safety checked ",
+                        )
+                        continue
+
                     if replacement_image is not None:
                         completed_job_info.job_result_images_base64[i] = replacement_image
                         num_images_censored += 1
@@ -1173,18 +1180,22 @@ class HordeWorkerProcessManager:
             ),
         )
 
-    def base64_image_to_stream_buffer(self, image_base64: str) -> BytesIO:
+    def base64_image_to_stream_buffer(self, image_base64: str) -> BytesIO | None:
         """Convert a base64 image to a BytesIO stream buffer."""
-        image_as_pil = PIL.Image.open(BytesIO(base64.b64decode(image_base64)))
-        image_buffer = BytesIO()
-        image_as_pil.save(
-            image_buffer,
-            format="WebP",
-            quality=95,  # FIXME # TODO
-            method=6,
-        )
+        try:
+            image_as_pil = PIL.Image.open(BytesIO(base64.b64decode(image_base64)))
+            image_buffer = BytesIO()
+            image_as_pil.save(
+                image_buffer,
+                format="WebP",
+                quality=95,  # FIXME # TODO
+                method=6,
+            )
 
-        return image_buffer
+            return image_buffer
+        except Exception as e:
+            logger.error(f"Failed to convert base64 image to stream buffer: {e}")
+            return None
 
     _consecutive_failed_results = 0
     _consecutive_failed_results_max = 10
@@ -1228,6 +1239,24 @@ class HordeWorkerProcessManager:
                     return
 
             image_in_buffer = self.base64_image_to_stream_buffer(completed_job_info.job_result_images_base64[0])
+
+            if image_in_buffer is None:
+                logger.critical(
+                    f"There is an invalid image in the job results for {job_info.id_}, removing from completed jobs",
+                )
+                async with self._completed_jobs_lock:
+                    self.completed_jobs.remove(completed_job_info)
+                    self._consecutive_failed_results = 0
+
+                    for follow_up_request in completed_job_info.job_info.get_follow_up_failure_cleanup_request():
+                        follow_up_response = self.horde_client_session.submit_request(
+                            follow_up_request,
+                            JobSubmitResponse,
+                        )
+
+                        if isinstance(follow_up_response, RequestErrorResponse):
+                            logger.error(f"Failed to submit followup request: {follow_up_response}")
+                    return
 
             # TODO: This would be better (?) if we could use aiohttp instead of requests
             # except for the fact that it causes S3 to return a 403 Forbidden error

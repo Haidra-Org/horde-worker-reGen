@@ -61,6 +61,7 @@ class HordeProcessState(enum.Enum):
     ALCHEMY_FAILED = auto()
 
     EVALUATING_SAFETY = auto()
+    SAFETY_FAILED = auto()
 
 
 class HordeProcessMessage(BaseModel):
@@ -114,6 +115,7 @@ class HordeSafetyEvaluation(BaseModel):
     is_nsfw: bool
     is_csam: bool
     replacement_image_base64: str | None
+    failed: bool = False
 
 
 class HordeSafetyResultMessage(HordeProcessMessage):

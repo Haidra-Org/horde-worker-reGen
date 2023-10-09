@@ -2,11 +2,9 @@ from __future__ import annotations
 
 import base64
 import contextlib
-import enum
 import io
 import sys
 import time
-from enum import auto
 
 try:
     from multiprocessing.connection import PipeConnection as Connection  # type: ignore
@@ -42,7 +40,7 @@ if TYPE_CHECKING:
     from hordelib.nodes.node_model_loader import HordeCheckpointLoader
     from hordelib.shared_model_manager import SharedModelManager
 else:
-    # Create a dummy class to prevent type errors
+    # Create a dummy class to prevent type errors at runtime
     class HordeCheckpointLoader:
         pass
 
@@ -51,11 +49,6 @@ else:
 
     class SharedModelManager:
         pass
-
-
-class HordeProcessKind(enum.Enum):
-    INFERENCE = auto()
-    SAFETY = auto()
 
 
 class HordeInferenceProcess(HordeProcess):
@@ -67,8 +60,11 @@ class HordeInferenceProcess(HordeProcess):
     _shared_model_manager: SharedModelManager
     """The SharedModelManager instance used by this process. It is not shared between processes (despite the name)."""
     _checkpoint_loader: HordeCheckpointLoader
+    """The HordeCheckpointLoader instance used by this process. This is horde hordelib signals comfyui \
+        to load a model. It is not shared between processes."""
 
     _active_model_name: str | None = None
+    """The name of the currently active model. Note that other models may be loaded in RAM or VRAM."""
 
     def __init__(
         self,
@@ -78,6 +74,16 @@ class HordeInferenceProcess(HordeProcess):
         inference_semaphore: Semaphore,
         disk_lock: Lock,
     ) -> None:
+        """Initialise the HordeInferenceProcess.
+
+        Args:
+            process_id (int): The ID of the process. This is not the same as the process PID.
+            process_message_queue (ProcessQueue): The queue the main process uses to receive messages from all worker \
+                processes.
+            pipe_connection (Connection): Receives `HordeControlMessage`s from the main process.
+            inference_semaphore (Semaphore): A semaphore used to limit the number of concurrent inference jobs.
+            disk_lock (Lock): A lock used to prevent multiple processes from accessing disk at the same time.
+        """
         super().__init__(
             process_id=process_id,
             process_message_queue=process_message_queue,
@@ -85,8 +91,14 @@ class HordeInferenceProcess(HordeProcess):
             disk_lock=disk_lock,
         )
 
-        from hordelib.horde import HordeLib
-        from hordelib.shared_model_manager import SharedModelManager
+        # We import these here to guard against potentially importing them in the main process
+        # which would create shared objects, potentially causing issues
+        try:
+            from hordelib.horde import HordeLib
+            from hordelib.shared_model_manager import SharedModelManager
+        except Exception as e:
+            logger.critical(f"Failed to import HordeLib or SharedModelManager: {type(e).__name__} {e}")
+            sys.exit(1)
 
         self._inference_semaphore = inference_semaphore
 
@@ -129,6 +141,7 @@ class HordeInferenceProcess(HordeProcess):
         )
 
     def _comfyui_callback(self, label: str, data: dict, _id: str) -> None:
+        # TODO
         self.send_heartbeat_message()
 
     def on_horde_model_state_change(
@@ -138,7 +151,16 @@ class HordeInferenceProcess(HordeProcess):
         horde_model_state: ModelLoadState,
         time_elapsed: float | None = None,
     ) -> None:
-        """Update the main process with the current process state and model state."""
+        """Update the main process with the current process state and model state.
+
+        Args:
+            horde_model_name (str): The name of the model.
+            process_state (HordeProcessState): The state of the process.
+            horde_model_state (ModelLoadState): The state of the model.
+            time_elapsed (float | None, optional): The time elapsed during the last operation, if applicable. \
+                Defaults to None.
+        """
+
         self.send_memory_report_message(include_vram=True)
 
         model_update_message = HordeModelStateChangeMessage(
@@ -155,8 +177,10 @@ class HordeInferenceProcess(HordeProcess):
             process_state=process_state,
             info=f"Model {horde_model_name} {horde_model_state.name}",
         )
+        self.send_memory_report_message(include_vram=True)
 
     def download_callback(self, downloaded_bytes: int, total_bytes: int) -> None:
+        # TODO
         if downloaded_bytes % (total_bytes / 20) == 0:
             self.send_process_state_change_message(
                 process_state=HordeProcessState.DOWNLOADING_MODEL,
@@ -164,6 +188,7 @@ class HordeInferenceProcess(HordeProcess):
             )
 
     def download_model(self, horde_model_name: str) -> None:
+        # TODO
         self.send_process_state_change_message(
             process_state=HordeProcessState.DOWNLOADING_MODEL,
             info=f"Downloading model {horde_model_name}",
@@ -195,6 +220,13 @@ class HordeInferenceProcess(HordeProcess):
         will_load_loras: bool,
         seamless_tiling_enabled: bool,
     ) -> None:
+        """Preload a model into RAM.
+
+        Args:
+            horde_model_name (str): The name of the model to preload.
+            will_load_loras (bool): Whether or not the model will be loaded into VRAM.
+            seamless_tiling_enabled (bool): Whether or not seamless tiling is enabled.
+        """
         if self._active_model_name == horde_model_name:
             return
 
@@ -244,13 +276,28 @@ class HordeInferenceProcess(HordeProcess):
     _is_busy: bool = False
 
     def start_inference(self, job_info: ImageGenerateJobPopResponse) -> list[Image] | None:
+        """Start an inference job in the HordeLib instance.
+
+        Args:
+            job_info (ImageGenerateJobPopResponse): The job to start inference on.
+
+        Returns:
+            list[Image] | None: The generated images, or None if inference failed.
+        """
         with self._inference_semaphore:
             self._is_busy = True
-            results = self._horde.basic_inference(job_info)
+            try:
+                results = self._horde.basic_inference(job_info)
+            except Exception as e:
+                logger.critical(f"Inference failed: {type(e).__name__} {e}")
+                self._is_busy = False
+                return None
+
             self._is_busy = False
             return results
 
     def unload_models_from_vram(self) -> None:
+        """Unload all models from VRAM."""
         from hordelib.comfy_horde import unload_all_models_vram
 
         unload_all_models_vram()
@@ -272,6 +319,7 @@ class HordeInferenceProcess(HordeProcess):
             )
 
     def unload_models_from_ram(self) -> None:
+        """Unload all models from RAM."""
         from hordelib.comfy_horde import unload_all_models_ram
 
         unload_all_models_ram()
@@ -295,7 +343,8 @@ class HordeInferenceProcess(HordeProcess):
         logger.info("Unloaded all models from RAM")
         self._active_model_name = None
 
-    def cleanup_and_exit(self) -> None:
+    def cleanup_for_exit(self) -> None:
+        """Cleanup the process pending a shutdown."""
         self.unload_models_from_ram()
         self.send_process_state_change_message(
             process_state=HordeProcessState.PROCESS_ENDED,
@@ -309,6 +358,14 @@ class HordeInferenceProcess(HordeProcess):
         images: list[Image] | None,
         time_elapsed: float,
     ) -> None:
+        """Send an inference result message to the main process.
+
+        Args:
+            process_state (HordeProcessState): The state of the process.
+            job_info (ImageGenerateJobPopResponse): The job that was inferred.
+            images (list[Image] | None): The generated images, or None if inference failed.
+            time_elapsed (float): The time elapsed during the last operation.
+        """
         images_as_base64 = []
 
         if images is not None:
@@ -340,6 +397,11 @@ class HordeInferenceProcess(HordeProcess):
 
     @override
     def _receive_and_handle_control_message(self, message: HordeControlMessage) -> None:
+        """Receive and handle a control message from the main process.
+
+        Args:
+            message (HordeControlMessage): The message to handle.
+        """
         logger.debug(f"Received ({type(message)}): {message.control_flag}")
 
         if isinstance(message, HordePreloadInferenceModelMessage):
@@ -369,6 +431,38 @@ class HordeInferenceProcess(HordeProcess):
                 time_start = time.time()
 
                 images = self.start_inference(message.job_info)
+
+                if images is None:
+                    self.send_memory_report_message(include_vram=True)
+                    self.send_inference_result_message(
+                        process_state=HordeProcessState.INFERENCE_FAILED,
+                        job_info=message.job_info,
+                        images=None,
+                        time_elapsed=time.time() - time_start,
+                    )
+
+                    active_model_name = self._active_model_name
+                    logger.debug("Unloading models from RAM")
+                    self.unload_models_from_ram()
+                    logger.debug("Unloaded models from RAM")
+                    self.send_memory_report_message(include_vram=True)
+
+                    if active_model_name is None:
+                        logger.critical("No active model name, cannot update model state")
+
+                    else:
+                        self.preload_model(
+                            active_model_name,
+                            will_load_loras=True,
+                            seamless_tiling_enabled=False,
+                        )
+
+                    self.send_process_state_change_message(
+                        process_state=HordeProcessState.WAITING_FOR_JOB,
+                        info="Waiting for job",
+                    )
+                    return
+
                 process_state = HordeProcessState.INFERENCE_COMPLETE if images else HordeProcessState.INFERENCE_FAILED
                 logger.debug(f"Finished inference with process state {process_state}")
                 self.send_inference_result_message(

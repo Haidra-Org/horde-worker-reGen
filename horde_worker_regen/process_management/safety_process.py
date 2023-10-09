@@ -126,7 +126,20 @@ class HordeSafetyProcess(HordeProcess):
         for image_base64 in message.images_base64:
             # Decode the image from base64
             image_bytes = BytesIO(base64.b64decode(image_base64))
-            image_as_pil = PIL.Image.open(image_bytes)
+            try:
+                image_as_pil = PIL.Image.open(image_bytes)
+            except Exception as e:
+                logger.error(f"Failed to open image: {type(e).__name__} {e}")
+                safety_evaluations.append(
+                    HordeSafetyEvaluation(
+                        is_nsfw=True,
+                        is_csam=True,
+                        replacement_image_base64=None,
+                        failed=True,
+                    ),
+                )
+
+                continue
 
             nsfw_result: NSFWResult | None = self._nsfw_checker.check_for_nsfw(
                 image=image_as_pil,
@@ -175,5 +188,5 @@ class HordeSafetyProcess(HordeProcess):
         self.send_process_state_change_message(HordeProcessState.WAITING_FOR_JOB, "Waiting for job")
 
     @override
-    def cleanup_and_exit(self) -> None:
-        return super().cleanup_and_exit()
+    def cleanup_for_exit(self) -> None:
+        return super().cleanup_for_exit()

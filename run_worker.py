@@ -49,7 +49,7 @@ def main(ctx: BaseContext) -> None:
             horde_model_reference_manager=horde_model_reference_manager,
         )
     except Exception as e:
-        logger.debug(e)
+        logger.exception(e)
 
         if "No such file or directory" in str(e):
             logger.error(f"Could not find {BRIDGE_CONFIG_FILENAME}. Please create it and try again.")

@@ -188,5 +188,5 @@ class HordeSafetyProcess(HordeProcess):
         self.send_process_state_change_message(HordeProcessState.WAITING_FOR_JOB, "Waiting for job")
 
     @override
-    def cleanup_and_exit(self) -> None:
-        return super().cleanup_and_exit()
+    def cleanup_for_exit(self) -> None:
+        return super().cleanup_for_exit()

@@ -1467,7 +1467,7 @@ class HordeWorkerProcessManager:
                 logger.success(
                     f"Submitted job {job_info.id_} (model: {job_info.model}) for {job_submit_response.reward:.2f} "
                     f"kudos. Job popped {time_taken} seconds ago and took {completed_job_info.time_to_generate:.2f} "
-                    f"to generate. ({kudos_per_second} kudos/second. 0.4 or greater is ideal)",
+                    f"to generate. ({kudos_per_second:.2f} kudos/second. 0.4 or greater is ideal)",
                 )
             # If the job was faulted, log an error
             else:

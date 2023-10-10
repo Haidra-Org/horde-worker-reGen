@@ -15,8 +15,8 @@ priority_usernames: []
 # But remember that the speed of your gens will also be affected for each parallel job
 max_threads: 1
 # We will keep this many requests in the queue so we can start working as soon as a thread is available
-# Recommended to keep no higher than 1
-queue_size: 0
+# This generally should be or 1 more the value of max_threads.
+queue_size: 2
 
 # Enable this on cards with 12gb or more VRAM to increase the rate you complete jobs
 # You can enable this on cards with less VRAM if you do not load SD2.0 or SDXL models, and keep your max_power low (<32)
@@ -36,7 +36,7 @@ dreamer_name: "An Awesome Dreamer"
 # The amount of power your system can handle
 # 8 means 512*512. Each increase increases the possible resoluion by 64 pixes
 # So if you put this to 2 (the minimum, your SD can only generate 64x64 pixels
-# If you put this to 32, it is equivalent to 1024x1024 pixels
+# If you put this to 32, it is equivalent to 1024x1024 pixels (SDXL workers should use at least 32)
 max_power: 8
 # Set this to false, if you do not want your worker to receive requests for NSFW generations
 nsfw: true

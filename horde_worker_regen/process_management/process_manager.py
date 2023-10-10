@@ -18,8 +18,8 @@ import aiohttp
 import PIL
 import PIL.Image
 import psutil
-import requests
 import torch
+import yarl
 from aiohttp import ClientSession
 from aiohttp.client_exceptions import ClientError
 from horde_model_reference.meta_consts import MODEL_REFERENCE_CATEGORY, STABLE_DIFFUSION_BASELINE_CATEGORY
@@ -1400,23 +1400,15 @@ class HordeWorkerProcessManager:
                                 logger.error(f"Failed to submit followup request: {follow_up_response}")
                         return
 
-                # TODO: This would be better (?) if we could use aiohttp instead of requests
-                # except for the fact that it causes S3 to return a 403 Forbidden error
-
-                # async with self._aiohttp_session.put(
-                #     yarl.URL(job_info.r2_upload, encoded=True),
-                #     data=image_in_buffer.getvalue(),
-                # ) as response:
-                #     if response.status != 200:
-                #         logger.error(f"Failed to upload image to R2: {response}")
-                #         return
-
-                response = requests.put(job_info.r2_upload, data=image_in_buffer.getvalue())
-
-                if response.status_code != 200:
-                    logger.error(f"Failed to upload image to R2: {response}")
-                    self._consecutive_failed_job_submits += 1
-                    return
+                async with self._aiohttp_session.put(
+                    yarl.URL(job_info.r2_upload, encoded=True),
+                    data=image_in_buffer.getvalue(),
+                    skip_auto_headers=["content-type"],
+                ) as response:
+                    if response.status != 200:
+                        logger.error(f"Failed to upload image to R2: {response}")
+                        self._consecutive_failed_job_submits += 1
+                        return
 
             if completed_job_info.state == GENERATION_STATE.faulted:
                 logger.error(
@@ -1468,12 +1460,14 @@ class HordeWorkerProcessManager:
 
             time_taken = round(time.time() - time_popped, 2)
 
+            kudos_per_second = job_submit_response.reward / completed_job_info.time_to_generate
+
             # If the job was not faulted, log the job submission as a success
             if completed_job_info.state != GENERATION_STATE.faulted:
                 logger.success(
                     f"Submitted job {job_info.id_} (model: {job_info.model}) for {job_submit_response.reward:.2f} "
                     f"kudos. Job popped {time_taken} seconds ago and took {completed_job_info.time_to_generate:.2f} "
-                    "to generate.",
+                    f"to generate. ({kudos_per_second} kudos/second. 0.4 or greater is ideal)",
                 )
             # If the job was faulted, log an error
             else:
@@ -1489,10 +1483,7 @@ class HordeWorkerProcessManager:
                         f"This job ({job_info.id_}) may have been in the queue for a long time. ",
                     )
 
-                if (
-                    job_submit_response.reward > 0
-                    and (job_submit_response.reward / completed_job_info.time_to_generate) < 0.4
-                ):
+                if job_submit_response.reward > 0 and kudos_per_second < 0.4:
                     logger.warning(
                         f"This job ({job_info.id_}) took longer than is ideal; if this persists consider "
                         "lowering your max_power, using less threads, disabling post processing and/or controlnets.",
@@ -1752,7 +1743,8 @@ class HordeWorkerProcessManager:
                         f"Kudos this session: {self.kudos_generated_this_session:.2f} "
                         f"(~{kudos_per_hour:.2f} kudos/hour)",
                     )
-                logger.info(f"Worker Kudos Accumulated: {self.user_info.kudos_details.accumulated }")
+
+                logger.info(f"Worker Kudos Accumulated: {self.user_info.kudos_details.accumulated:.2f}")
 
         except ClientError as e:
             self._user_info_failed = True
@@ -1786,7 +1778,7 @@ class HordeWorkerProcessManager:
     async def _api_call_loop(self) -> None:
         """Main loop for the API calls."""
         logger.debug("In _api_call_loop")
-        self._aiohttp_session = ClientSession(requote_redirect_url=True)
+        self._aiohttp_session = ClientSession(requote_redirect_url=False)
         async with self._aiohttp_session as aiohttp_session:
             self.horde_client_session = AIHordeAPIAsyncClientSession(aiohttp_session=aiohttp_session)
             self.horde_client = AIHordeAPIAsyncSimpleClient(
@@ -1866,6 +1858,7 @@ class HordeWorkerProcessManager:
 
                 if time.time() - self._last_status_message_time > self._status_message_frequency:
                     logger.info(f"{self._process_map}")
+                    logger.info(f"Threads being used: {self._max_concurrent_inference_processes}")
                     logger.info(f"Number of jobs popped: {len(self.job_deque)}")
                     logger.info(f"Number of jobs in progress: {len(self.jobs_in_progress)}")
                     logger.info(f"Number of jobs pending safety check: {len(self.jobs_pending_safety_check)}")

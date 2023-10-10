@@ -15,8 +15,8 @@ priority_usernames: []
 # But remember that the speed of your gens will also be affected for each parallel job
 max_threads: 1
 # We will keep this many requests in the queue so we can start working as soon as a thread is available
-# This generally should be or 1 more the value of max_threads.
-queue_size: 2
+# This generally should be or 1, or 1 more the value of max_threads if max_threads is 2 or higher.
+queue_size: 1
 
 # Enable this on cards with 12gb or more VRAM to increase the rate you complete jobs
 # You can enable this on cards with less VRAM if you do not load SD2.0 or SDXL models, and keep your max_power low (<32)

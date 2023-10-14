@@ -1582,8 +1582,10 @@ class HordeWorkerProcessManager:
         if self._consecutive_failed_jobs >= 3:
             logger.error(
                 "Too many consecutive failed jobs, pausing job pops. "
-                "Please look into what happened and let the devs know.",
+                "Please look into what happened and let the devs know. ",
+                "Waiting 300 seconds...",
             )
+            time.sleep(300)
             return
 
         if len(self.job_deque) >= self.bridge_data.queue_size + 1:  # FIXME?

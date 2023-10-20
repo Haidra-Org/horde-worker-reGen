@@ -1601,7 +1601,11 @@ class HordeWorkerProcessManager:
         """Check if the number of megapixelsteps in the job deque is above the limit."""
         # TODO: Option to increase the limit for higher end GPUs
 
-        return self.get_pending_megapixelsteps() > self._max_pending_megapixelsteps
+        return (
+            self.get_pending_megapixelsteps() > self._max_pending_megapixelsteps
+            if not self.bridge_data.auto_dual_gpu
+            else self.get_pending_megapixelsteps() > self._max_pending_megapixelsteps * 2.5  # FIXME
+        )
 
     async def _get_source_images(self, job_pop_response: ImageGenerateJobPopResponse) -> ImageGenerateJobPopResponse:
         # TODO: Move this into horde_sdk

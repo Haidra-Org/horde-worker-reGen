@@ -23,6 +23,7 @@ def start_inference_process(
 ) -> None:
     if CUDA_VISIBLE_DEVICES is not None:
         os.environ["CUDA_VISIBLE_DEVICES"] = CUDA_VISIBLE_DEVICES
+        logger.info(f"Set CUDA_VISIBLE_DEVICES to {CUDA_VISIBLE_DEVICES}")
 
     with contextlib.redirect_stdout(None), contextlib.redirect_stderr(None):
         logger.remove()

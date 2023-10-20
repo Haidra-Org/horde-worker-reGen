@@ -1756,7 +1756,7 @@ class HordeWorkerProcessManager:
                 name=self.bridge_data.dreamer_worker_name,
                 bridge_agent="AI Horde Worker reGen:2:https://github.com/Haidra-Org/horde-worker-reGen/#20231009_3",
                 bridge_version=2,
-                models=self.bridge_data.image_models_to_load,
+                models=models_to_pop,
                 nsfw=self.bridge_data.nsfw,
                 threads=self.max_concurrent_inference_processes,
                 max_pixels=self.bridge_data.max_power * 8 * 64 * 64,

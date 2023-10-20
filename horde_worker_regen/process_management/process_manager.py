@@ -738,7 +738,7 @@ class HordeWorkerProcessManager:
             kwargs = {}
 
             if self.bridge_data.auto_dual_gpu:
-                kwargs["CUDA_VISIBLE_DEVICES"] = i % 2
+                kwargs["CUDA_VISIBLE_DEVICES"] = str(i % 2)
 
             # Create a new process that will run the start_inference_process function
             process = multiprocessing.Process(

@@ -1991,7 +1991,7 @@ class HordeWorkerProcessManager:
                     logger.info(f"Number of jobs being safety checked: {len(self.jobs_being_safety_checked)}")
                     logger.info(f"Number of jobs completed: {len(self.completed_jobs)}")
                     # TODO: Faulted
-                    logger.info(f"Number of jobs submitted: {self.total_num_completed_jobs}")
+                    logger.success(f"Number of jobs submitted: {self.total_num_completed_jobs}")
 
                     self._last_status_message_time = time.time()
 

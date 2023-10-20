@@ -721,6 +721,9 @@ class HordeWorkerProcessManager:
             )
             raise ValueError("num_processes_to_start cannot be less than 0")
 
+        if num_processes_to_start == 0:
+            return
+
         if self._process_map.num_inference_processes() > 0 and self.bridge_data.auto_dual_gpu:
             raise NotImplementedError(
                 "auto_dual_gpu is not supported when starting inference processes after startup",

@@ -1,4 +1,5 @@
 import contextlib
+import os
 import sys
 
 try:
@@ -18,7 +19,11 @@ def start_inference_process(
     pipe_connection: Connection,
     inference_semaphore: Semaphore,
     disk_lock: Lock,
+    CUDA_VISIBLE_DEVICES: str | None = None,
 ) -> None:
+    if CUDA_VISIBLE_DEVICES is not None:
+        os.environ["CUDA_VISIBLE_DEVICES"] = CUDA_VISIBLE_DEVICES
+
     with contextlib.redirect_stdout(None), contextlib.redirect_stderr(None):
         logger.remove()
         import hordelib

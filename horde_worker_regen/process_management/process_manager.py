@@ -506,9 +506,6 @@ class HordeWorkerProcessManager:
         self.max_safety_processes = max_safety_processes
         self.max_download_processes = max_download_processes
 
-        self._max_concurrent_inference_processes = bridge_data.max_threads
-        self._inference_semaphore = Semaphore(self._max_concurrent_inference_processes, ctx=ctx)
-
         self.max_inference_processes = self.bridge_data.queue_size + self.bridge_data.max_threads
 
         # If there is only one model to load and only one inference process, then we can only run one job at a time
@@ -526,6 +523,7 @@ class HordeWorkerProcessManager:
 
         self._jobs_safety_check_lock = Lock_Asyncio()
 
+        # region Read and handle RAM/VRAM overhead settings
         self.target_vram_overhead_bytes_map = target_vram_overhead_bytes_map  # TODO
 
         self.total_ram_bytes = psutil.virtual_memory().total
@@ -544,6 +542,8 @@ class HordeWorkerProcessManager:
         logger.debug(f"Total RAM: {self.total_ram_bytes / 1024 / 1024 / 1024} GB")
         logger.debug(f"Target RAM overhead: {self.target_ram_overhead_bytes / 1024 / 1024 / 1024} GB")
 
+        # endregion
+
         # Get the total memory of each GPU
         self._device_map = TorchDeviceMap(root={})
         for i in range(torch.cuda.device_count()):
@@ -553,6 +553,22 @@ class HordeWorkerProcessManager:
                 device_index=i,
                 total_memory=device.total_memory,
             )
+
+        # region Read and handle the thread count and auto_dual_gpu settings
+        if self.bridge_data.auto_dual_gpu:
+            if len(self._device_map.root) < 2:
+                logger.exception("auto_dual_gpu is enabled, but there are not enough GPUs to use it")
+                raise ValueError("auto_dual_gpu is enabled, but there are not enough GPUs to use it")
+
+            if self.bridge_data.max_threads % 2 != 0:
+                logger.warning(
+                    "auto_dual_gpu is enabled, but max_threads is not a multiple of 2. "
+                    "This means one GPU will get more work than the other.",
+                )
+
+        self._max_concurrent_inference_processes = bridge_data.max_threads
+        self._inference_semaphore = Semaphore(self._max_concurrent_inference_processes, ctx=ctx)
+        # endregion
 
         self.jobs_in_progress = []
 
@@ -566,6 +582,8 @@ class HordeWorkerProcessManager:
 
         self.stable_diffusion_reference = None
 
+        # Get the model reference for stable diffusion from the model reference manager
+        # (we can't proceed without this)
         while self.stable_diffusion_reference is None:
             try:
                 horde_model_reference_manager = ModelReferenceManager(
@@ -703,11 +721,21 @@ class HordeWorkerProcessManager:
             )
             raise ValueError("num_processes_to_start cannot be less than 0")
 
+        if len(self._process_map) > 0 and self.bridge_data.auto_dual_gpu:
+            raise NotImplementedError(
+                "auto_dual_gpu is not supported when starting inference processes after startup",
+            )
+
         # Start the required number of processes
-        for _ in range(num_processes_to_start):
+        for i in range(num_processes_to_start):
             # Create a two-way communication pipe for the parent and child processes
             pid = len(self._process_map)
             pipe_connection, child_pipe_connection = multiprocessing.Pipe(duplex=True)
+
+            kwargs = {}
+
+            if self.bridge_data.auto_dual_gpu:
+                kwargs["CUDA_VISIBLE_DEVICES"] = i % 2
 
             # Create a new process that will run the start_inference_process function
             process = multiprocessing.Process(
@@ -719,6 +747,7 @@ class HordeWorkerProcessManager:
                     self._inference_semaphore,
                     self._disk_lock,
                 ),
+                kwargs=kwargs,
             )
 
             process.start()
@@ -1922,10 +1951,26 @@ class HordeWorkerProcessManager:
                 file_path=BRIDGE_CONFIG_FILENAME,
                 horde_model_reference_manager=self.horde_model_reference_manager,
             )
-            if self.bridge_data.max_threads != self._max_concurrent_inference_processes:
-                logger.warning(
-                    f"max_threads in {BRIDGE_CONFIG_FILENAME} cannot be changed while the worker is running.",
-                )
+
+            if self.bridge_data.auto_dual_gpu:
+                if self.bridge_data.max_threads < 2:
+                    logger.warning(
+                        f"max_threads in {BRIDGE_CONFIG_FILENAME} must be 2 to use auto_dual_gpu. "
+                        "Setting max_threads to 2.",
+                    )
+                    self.bridge_data.max_threads = 2
+
+                if self.bridge_data.queue_size == 0:
+                    logger.warning(
+                        f"queue_size in {BRIDGE_CONFIG_FILENAME} must be greater than 0 to use auto_dual_gpu. "
+                        "Setting queue_size to 1.",
+                    )
+                    self.bridge_data.queue_size = 1
+            else:
+                if self.bridge_data.max_threads != self._max_concurrent_inference_processes:
+                    logger.warning(
+                        f"max_threads in {BRIDGE_CONFIG_FILENAME} cannot be changed while the worker is running.",
+                    )
         except Exception as e:
             logger.debug(e)
 

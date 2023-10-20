@@ -17,6 +17,11 @@ class reGenBridgeData(CombinedHordeBridgeData):
         default=False,
     )
 
+    auto_dual_gpu: bool = Field(
+        default=False,
+    )
+    """Whether to automatically use both GPUs if two are available."""
+
     _yaml_loader: YAML | None = None
 
     def load_env_vars(self) -> None:

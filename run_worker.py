@@ -80,18 +80,26 @@ if __name__ == "__main__":
 
     # Create args for -v, allowing -vvv
     parser = argparse.ArgumentParser()
-    parser.add_argument("-v", action="count", default=3, help="Increase verbosity of output")
+    parser.add_argument("-v", action="count", default=0, help="Increase verbosity of output")
 
     args = parser.parse_args()
 
     logger.remove()
     from hordelib.utils.logger import HordeLog
 
+    if args.v == 2:
+
+        def _verbosity_hack(*args, **kwargs) -> None:  # noqa
+            return
+
+        HordeLog.verbosity = 25
+        HordeLog.set_logger_verbosity = _verbosity_hack  # type: ignore
+
     # Initialise logging with loguru
     HordeLog.initialise(
         setup_logging=True,
         process_id=None,
-        verbosity_count=args.v,  # FIXME
+        verbosity_count=args.v if args.v != 0 else 3,  # FIXME
     )
 
     # We only need to download the legacy DBs once, so we do it here instead of in the worker processes

@@ -596,7 +596,7 @@ class HordeWorkerProcessManager:
         if num_models_to_load == 1 and self.max_concurrent_inference_processes == 1:
             self.max_inference_processes = 1
 
-        if num_models_to_load > self.max_inference_processes:
+        if self.max_inference_processes > num_models_to_load:
             logger.debug(
                 f"Number of models to load ({num_models_to_load}) is greater than "
                 f"max_inference_processes ({self.max_inference_processes}). ",

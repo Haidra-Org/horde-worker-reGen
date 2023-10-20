@@ -1750,6 +1750,10 @@ class HordeWorkerProcessManager:
                         models_to_pop.remove(model)
                         logger.info(f"Model {model} has two jobs popped, not popping any more in dual GPU mode")
 
+        if len(models_to_pop) == 0:
+            logger.info("We have jobs for all models, popping any model.")
+            models_to_pop = self.bridge_data.image_models_to_load.copy()
+
         try:
             job_pop_request = ImageGenerateJobPopRequest(
                 apikey=self.bridge_data.api_key,

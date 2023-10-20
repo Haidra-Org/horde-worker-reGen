@@ -84,6 +84,9 @@ class HordeProcessInfo:
     loaded_horde_model_name: str | None = None
     """The name of the horde model that is (supposedly) currently loaded in this process."""
 
+    cuda_visible_device_number: int | None = None
+    """The CUDA_VISIBLE_DEVICE number that this process is using."""
+
     ram_usage_bytes: int = 0
     """The amount of RAM used by this process."""
     vram_usage_bytes: int = 0
@@ -100,6 +103,8 @@ class HordeProcessInfo:
         process_id: int,
         process_type: HordeProcessType,
         last_process_state: HordeProcessState,
+        *,
+        cuda_visible_device_number: int | None = None,
     ) -> None:
         """Initializes a new HordeProcessInfo object.
 
@@ -115,6 +120,7 @@ class HordeProcessInfo:
         self.process_id = process_id
         self.process_type = process_type
         self.last_process_state = last_process_state
+        self.cuda_visible_device_number = cuda_visible_device_number
 
     def is_process_busy(self) -> bool:
         """Return true if the process is actively engaged in a task.
@@ -257,11 +263,32 @@ class ProcessMap(dict[int, HordeProcessInfo]):
 
     def get_first_available_inference_process(self) -> HordeProcessInfo | None:
         """Return the first available inference process, or None if there are none available."""
-        for p in self.values():
-            if p.process_type == HordeProcessType.INFERENCE and p.can_accept_job():
-                if p.last_process_state == HordeProcessState.PRELOADED_MODEL:
-                    continue
-                return p
+
+        multi_gpu = False
+        if any(p.cuda_visible_device_number for p in self.values()):
+            multi_gpu = True
+
+        found_busy_gpus: list[int] = []
+        found_gpu_and_process_info: list[tuple[int, HordeProcessInfo]] = []
+
+        for process_info in self.values():
+            if process_info.process_type == HordeProcessType.INFERENCE:
+                if process_info.can_accept_job():
+                    if process_info.last_process_state == HordeProcessState.PRELOADED_MODEL:
+                        if multi_gpu:
+                            found_busy_gpus.append(process_info.cuda_visible_device_number or 0)
+                        continue
+
+                    if not multi_gpu:
+                        return process_info
+                    found_gpu_and_process_info.append((process_info.cuda_visible_device_number or 0, process_info))
+                else:
+                    found_busy_gpus.append(process_info.cuda_visible_device_number or 0)
+
+        if multi_gpu:
+            for found_gpu, found_process_info in found_gpu_and_process_info:
+                if found_gpu not in found_busy_gpus:
+                    return found_process_info
 
         return None
 
@@ -762,6 +789,7 @@ class HordeWorkerProcessManager:
                 process_id=pid,
                 process_type=HordeProcessType.INFERENCE,
                 last_process_state=HordeProcessState.PROCESS_STARTING,
+                cuda_visible_device_number=i % 2 if self.bridge_data.auto_dual_gpu else None,
             )
 
             logger.info(f"Started inference process (id: {pid})")

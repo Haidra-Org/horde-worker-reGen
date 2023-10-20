@@ -1735,7 +1735,7 @@ class HordeWorkerProcessManager:
         # # log a list of the current model names in the deque
         # logger.debug(f"Current models in job deque: {[job.model for job in self.job_deque]}")
 
-        models_to_pop = self.bridge_data.image_models_to_load
+        models_to_pop = self.bridge_data.image_models_to_load.copy()
 
         async with self._job_deque_lock:
             if self.bridge_data.auto_dual_gpu:

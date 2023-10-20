@@ -533,13 +533,6 @@ class HordeWorkerProcessManager:
         self.max_safety_processes = max_safety_processes
         self.max_download_processes = max_download_processes
 
-        self.max_inference_processes = self.bridge_data.queue_size + self.bridge_data.max_threads
-
-        # If there is only one model to load and only one inference process, then we can only run one job at a time
-        # and there is no point in having more than one inference process
-        if len(self.bridge_data.image_models_to_load) == 1 and self.max_concurrent_inference_processes == 1:
-            self.max_inference_processes = 1
-
         self._disk_lock = Lock_MultiProcessing(ctx=ctx)
 
         self.completed_jobs = []
@@ -594,6 +587,22 @@ class HordeWorkerProcessManager:
                 )
 
         self._max_concurrent_inference_processes = bridge_data.max_threads
+
+        self.max_inference_processes = self.bridge_data.queue_size + self.bridge_data.max_threads
+
+        # If there is only one model to load and only one inference process, then we can only run one job at a time
+        # and there is no point in having more than one inference process
+        num_models_to_load = len(self.bridge_data.image_models_to_load)
+        if num_models_to_load == 1 and self.max_concurrent_inference_processes == 1:
+            self.max_inference_processes = 1
+
+        if num_models_to_load > self.max_inference_processes:
+            logger.debug(
+                f"Number of models to load ({num_models_to_load}) is greater than "
+                f"max_inference_processes ({self.max_inference_processes}). ",
+            )
+            self.max_inference_processes = num_models_to_load
+
         self._inference_semaphore = Semaphore(self._max_concurrent_inference_processes, ctx=ctx)
         # endregion
 

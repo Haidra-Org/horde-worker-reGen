@@ -195,11 +195,28 @@ class HordeModelMap(RootModel[dict[str, ModelInfo]]):
             return False
         return self.root[horde_model_name].horde_model_load_state.is_loaded()
 
-    def is_model_loading(self, horde_model_name: str) -> bool:
+    def is_model_active(self, horde_model_name: str) -> bool:
         """Return true if the given model is currently being loaded in any process."""
         if horde_model_name not in self.root:
             return False
-        return self.root[horde_model_name].horde_model_load_state == ModelLoadState.LOADING
+        return self.root[horde_model_name].horde_model_load_state in (
+            ModelLoadState.LOADING,
+            ModelLoadState.LOADED_IN_VRAM,
+            ModelLoadState.IN_USE,
+        )
+
+    def get_active_models(self) -> list[str]:
+        """Return a list of models that are currently being loaded."""
+        busy_models = []
+        for model_name, model_info in self.root.items():
+            if model_info.horde_model_load_state in (
+                ModelLoadState.LOADING,
+                ModelLoadState.LOADED_IN_VRAM,
+                ModelLoadState.IN_USE,
+            ):
+                busy_models.append(model_name)
+
+        return busy_models
 
 
 class ProcessMap(dict[int, HordeProcessInfo]):
@@ -1323,7 +1340,7 @@ class HordeWorkerProcessManager:
             if process_info.loaded_horde_model_name is None:
                 continue
 
-            if self._horde_model_map.is_model_loading(process_info.loaded_horde_model_name):
+            if self._horde_model_map.is_model_active(process_info.loaded_horde_model_name):
                 continue
 
             if (
@@ -1717,6 +1734,21 @@ class HordeWorkerProcessManager:
         # logger.debug(f"Added {len(dummy_jobs)} dummy jobs to the job deque")
         # # log a list of the current model names in the deque
         # logger.debug(f"Current models in job deque: {[job.model for job in self.job_deque]}")
+
+        models_to_pop = self.bridge_data.image_models_to_load
+
+        async with self._job_deque_lock:
+            if self.bridge_data.auto_dual_gpu:
+                for model in self._horde_model_map.get_active_models():
+                    # If the model has two jobs popped, don't pop any more
+                    found_job_count = 0
+                    for job in self.job_deque:
+                        if job.model == model:
+                            found_job_count += 1
+
+                    if found_job_count >= 2:
+                        models_to_pop.remove(model)
+                        logger.info(f"Model {model} has two jobs popped, not popping any more in dual GPU mode")
 
         try:
             job_pop_request = ImageGenerateJobPopRequest(

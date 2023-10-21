@@ -281,31 +281,12 @@ class ProcessMap(dict[int, HordeProcessInfo]):
     def get_first_available_inference_process(self) -> HordeProcessInfo | None:
         """Return the first available inference process, or None if there are none available."""
 
-        multi_gpu = False
-        if any(p.cuda_visible_device_number for p in self.values()):
-            multi_gpu = True
+        for p in self.values():
+            if p.process_type == HordeProcessType.INFERENCE and p.can_accept_job():
+                if p.last_process_state == HordeProcessState.PRELOADED_MODEL:
+                    continue
 
-        found_busy_gpus: list[int] = []
-        found_gpu_and_process_info: list[tuple[int, HordeProcessInfo]] = []
-
-        for process_info in self.values():
-            if process_info.process_type == HordeProcessType.INFERENCE:
-                if process_info.can_accept_job():
-                    if process_info.last_process_state == HordeProcessState.PRELOADED_MODEL:
-                        if multi_gpu:
-                            found_busy_gpus.append(process_info.cuda_visible_device_number or 0)
-                        continue
-
-                    if not multi_gpu:
-                        return process_info
-                    found_gpu_and_process_info.append((process_info.cuda_visible_device_number or 0, process_info))
-                else:
-                    found_busy_gpus.append(process_info.cuda_visible_device_number or 0)
-
-        if multi_gpu:
-            for found_gpu, found_process_info in found_gpu_and_process_info:
-                if found_gpu not in found_busy_gpus:
-                    return found_process_info
+                return p
 
         return None
 

@@ -1439,7 +1439,6 @@ class HordeWorkerProcessManager:
                     async with self._completed_jobs_lock:
                         self.completed_jobs.remove(completed_job_info)
                         self._consecutive_failed_job_submits = 0
-
                     return
 
                 if "already submitted" in job_submit_response.message:
@@ -1447,7 +1446,13 @@ class HordeWorkerProcessManager:
                     async with self._completed_jobs_lock:
                         self.completed_jobs.remove(completed_job_info)
                         self._consecutive_failed_job_submits = 0
+                    return
 
+                if "Please check your worker speed" in job_submit_response.message:
+                    logger.error(job_submit_response.message)
+                    async with self._completed_jobs_lock:
+                        self.completed_jobs.remove(completed_job_info)
+                        self._consecutive_failed_job_submits = 0
                     return
 
                 error_string = "Failed to submit job (API Error)"

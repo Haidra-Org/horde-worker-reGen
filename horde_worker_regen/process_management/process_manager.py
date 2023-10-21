@@ -13,7 +13,6 @@ from io import BytesIO
 from multiprocessing.context import BaseContext
 from multiprocessing.synchronize import Lock as Lock_MultiProcessing
 from multiprocessing.synchronize import Semaphore
-
 import aiohttp
 import PIL
 import PIL.Image
@@ -60,8 +59,8 @@ from horde_worker_regen.process_management.messages import (
     ModelInfo,
     ModelLoadState,
 )
-from horde_worker_regen.process_management.worker_entry_points import start_inference_process, start_safety_process
 
+from horde_worker_regen.process_management.worker_entry_points import start_inference_process, start_safety_process
 try:
     from multiprocessing.connection import PipeConnection as Connection  # type: ignore
 except Exception:
@@ -1206,6 +1205,7 @@ class HordeWorkerProcessManager:
         )
 
     def get_next_n_models(self, n: int) -> set[str]:
+        
         """Get the next n models that will be used in the job deque.
 
         Args:
@@ -1477,13 +1477,16 @@ class HordeWorkerProcessManager:
                     f"kudos. Job popped {time_taken} seconds ago and took {completed_job_info.time_to_generate:.2f} "
                     f"to generate. ({kudos_per_second:.2f} kudos/second. 0.4 or greater is ideal)",
                 )
+                torch.cuda.empty_cache()
+                logger.info("Cache removal success")
             # If the job was faulted, log an error
             else:
                 logger.error(
                     f"{job_info.id_} faulted, not submitting for kudos. Job popped {time_taken} seconds ago and took "
                     f"{completed_job_info.time_to_generate:.2f} to generate.",
                 )
-
+                torch.cuda.empty_cache()
+                logger.info("Cache removal success")
             # If the job took a long time to generate, log a warning (unless speed warnings are suppressed)
             if not self.bridge_data.suppress_speed_warnings:
                 if job_submit_response.reward > 0 and (job_submit_response.reward / time_taken) < 0.1:
@@ -1708,7 +1711,6 @@ class HordeWorkerProcessManager:
             return
 
         logger.info(f"Popped job {job_pop_response.id_} (model: {job_pop_response.model})")
-
         # region TODO: move to horde_sdk
         if job_pop_response.payload.seed is None:  # TODO # FIXME
             logger.warning(f"Job {job_pop_response.id_} has no seed!")

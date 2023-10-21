@@ -1623,9 +1623,12 @@ class HordeWorkerProcessManager:
             # Assuming a megapixelstep takes 0.75 seconds, if 2/3 of the time has passed since the limit was triggered,
             # we can assume that the pending megapixelsteps will be below the limit soon. Otherwise we continue to wait
 
-            if not (time.time() - self._triggered_max_pending_megapixelsteps_time) > (
-                (self._max_pending_megapixelsteps * 0.75) * (2 / 3)
-            ):
+            seconds_to_wait = (self._max_pending_megapixelsteps * 0.75) * (2 / 3)
+
+            if self.get_pending_megapixelsteps() > 200:
+                seconds_to_wait = self._max_pending_megapixelsteps * 0.75
+
+            if not (time.time() - self._triggered_max_pending_megapixelsteps_time) > seconds_to_wait:
                 return
 
             self._triggered_max_pending_megapixelsteps = False

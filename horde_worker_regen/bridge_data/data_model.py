@@ -56,7 +56,7 @@ class reGenBridgeData(CombinedHordeBridgeData):
         if self._yaml_loader is None:
             self._yaml_loader = YAML()
 
-        with open(file_path, "w") as f:
+        with open(file_path, "w", encoding="utf-8") as f:
             self._yaml_loader.dump(self.model_dump(), f)
 
 

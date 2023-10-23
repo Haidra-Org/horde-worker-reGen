@@ -14,7 +14,7 @@ def test_bridge_data_yaml() -> None:
 
     yaml = YAML(typ="safe")
 
-    with open(bridge_data_filename) as f:
+    with open(bridge_data_filename, encoding="utf-8") as f:
         bridge_data_raw = yaml.load(f)
 
     assert bridge_data_raw is not None

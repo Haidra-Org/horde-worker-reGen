@@ -79,7 +79,7 @@ class BridgeDataLoader:
 
         if file_format == ConfigFormat.yaml:
             yaml = YAML()
-            with open(file_path) as f:
+            with open(file_path, encoding="utf-8") as f:
                 config = yaml.load(f)
 
             bridge_data = reGenBridgeData.model_validate(config)
@@ -87,7 +87,7 @@ class BridgeDataLoader:
                 bridge_data._yaml_loader = yaml
 
         if file_format == ConfigFormat.json:
-            with open(file_path) as f:
+            with open(file_path, encoding="utf-8") as f:
                 config = json.load(f)
 
             bridge_data = reGenBridgeData.model_validate(config)

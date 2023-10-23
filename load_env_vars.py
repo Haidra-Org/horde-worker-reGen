@@ -13,7 +13,7 @@ def load_env_vars() -> None:
     if not pathlib.Path("bridgeData.yaml").exists():
         raise FileNotFoundError("bridgeData.yaml not found")
 
-    with open("bridgeData.yaml") as f:
+    with open("bridgeData.yaml", encoding="utf-8") as f:
         config = yaml.load(f)
 
     if "cache_home" in config:

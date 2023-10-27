@@ -1,3 +1,4 @@
+"""The main entry point for the reGen worker."""
 import os
 
 os.environ["HORDE_SDK_DISABLE_CUSTOM_SINKS"] = "1"
@@ -15,6 +16,7 @@ from loguru import logger
 
 
 def main(ctx: BaseContext) -> None:
+    """Check for a valid config and start the driver ('main') process for the reGen worker."""
     from horde_model_reference.model_reference_manager import ModelReferenceManager
     from pydantic import ValidationError
 

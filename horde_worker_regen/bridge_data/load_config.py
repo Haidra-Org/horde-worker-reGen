@@ -1,3 +1,4 @@
+"""Contains methods for loading the config file."""
 import json
 from enum import auto
 from pathlib import Path
@@ -13,16 +14,23 @@ from horde_worker_regen.bridge_data.data_model import reGenBridgeData
 
 
 class UnsupportedConfigFormat(Exception):
+    """The config file format is not supported."""
+
     def __init__(self, file_path: str | Path, file_format: str) -> None:
+        """Initialise the exception."""
         super().__init__(f"Unsupported config file format: {file_format} ({file_path})")
 
 
 class ConfigFormat(StrEnum):
+    """The format of the config file."""
+
     yaml = auto()
     json = auto()
 
 
 class BridgeDataLoader:
+    """Contains methods for loading the config file."""
+
     @staticmethod
     def _infer_format(file_path: str | Path) -> ConfigFormat:
         """Infer the config file format from the file extension.
@@ -109,7 +117,7 @@ class BridgeDataLoader:
         return bridge_data
 
     @staticmethod
-    def _resolve_meta_instructions(
+    def _resolve_meta_instructions(  # FIXME: This should be moved into the SDK
         bridge_data: reGenBridgeData,
         horde_model_reference_manager: ModelReferenceManager,
     ) -> list[str]:

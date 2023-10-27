@@ -1,3 +1,4 @@
+"""Contains helper functions for mocking jobs."""
 import random
 import uuid
 

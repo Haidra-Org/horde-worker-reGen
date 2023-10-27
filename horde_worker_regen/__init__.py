@@ -1,3 +1,4 @@
+"""The primary package for the reGen worker."""
 from dotenv import load_dotenv
 
 load_dotenv()

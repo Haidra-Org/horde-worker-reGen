@@ -19,6 +19,15 @@ def start_inference_process(
     inference_semaphore: Semaphore,
     disk_lock: Lock,
 ) -> None:
+    """Start an inference process.
+
+    Args:
+        process_id (int): The ID of the process. This is not the same as the PID.
+        process_message_queue (ProcessQueue): The queue to send messages to the main process.
+        pipe_connection (Connection): Receives `HordeControlMessage`s from the main process.
+        inference_semaphore (Semaphore): The semaphore to use to limit concurrent inference.
+        disk_lock (Lock): The lock to use for disk access.
+    """
     with contextlib.redirect_stdout(None), contextlib.redirect_stderr(None):
         logger.remove()
         import hordelib
@@ -53,6 +62,15 @@ def start_safety_process(
     disk_lock: Lock,
     cpu_only: bool = True,
 ) -> None:
+    """Start a safety process.
+
+    Args:
+        process_id (int): The ID of the process. This is not the same as the PID.
+        process_message_queue (ProcessQueue): The queue to send messages to the main process.
+        pipe_connection (Connection): Receives `HordeControlMessage`s from the main process.
+        disk_lock (Lock): The lock to use for disk access.
+        cpu_only (bool, optional): _description_. Defaults to True.
+    """
     with contextlib.redirect_stdout(None), contextlib.redirect_stderr(None):
         logger.remove()
         import hordelib

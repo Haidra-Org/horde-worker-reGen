@@ -1,3 +1,4 @@
+"""Contains the entry point for the process manager."""
 from multiprocessing.context import BaseContext
 
 from horde_model_reference.model_reference_manager import ModelReferenceManager
@@ -11,6 +12,7 @@ def start_working(
     bridge_data: reGenBridgeData,
     horde_model_reference_manager: ModelReferenceManager,
 ) -> None:
+    """Create and start process manager."""
     process_manager = HordeWorkerProcessManager(
         ctx=ctx,
         bridge_data=bridge_data,

@@ -1,3 +1,4 @@
+"""Configures pytest and creates fixtures."""
 # import hordelib
 import pytest
 from loguru import logger

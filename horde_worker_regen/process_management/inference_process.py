@@ -1,3 +1,4 @@
+"""Contains the classes to form an inference process, which generate images."""
 from __future__ import annotations
 
 import base64
@@ -41,17 +42,19 @@ if TYPE_CHECKING:
     from hordelib.shared_model_manager import SharedModelManager
 else:
     # Create a dummy class to prevent type errors at runtime
-    class HordeCheckpointLoader:
+    class HordeCheckpointLoader:  # noqa
         pass
 
-    class HordeLib:
+    class HordeLib:  # noqa
         pass
 
-    class SharedModelManager:
+    class SharedModelManager:  # noqa
         pass
 
 
 class HordeInferenceProcess(HordeProcess):
+    """Represents an inference process, which generates images."""
+
     _inference_semaphore: Semaphore
     """A semaphore used to limit the number of concurrent inference jobs."""
 
@@ -160,7 +163,6 @@ class HordeInferenceProcess(HordeProcess):
             time_elapsed (float | None, optional): The time elapsed during the last operation, if applicable. \
                 Defaults to None.
         """
-
         self.send_memory_report_message(include_vram=True)
 
         model_update_message = HordeModelStateChangeMessage(
@@ -179,7 +181,17 @@ class HordeInferenceProcess(HordeProcess):
         )
         self.send_memory_report_message(include_vram=True)
 
-    def download_callback(self, downloaded_bytes: int, total_bytes: int) -> None:
+    def download_callback(
+        self,
+        downloaded_bytes: int,
+        total_bytes: int,
+    ) -> None:
+        """Handle the callback for progress when a model is being downloaded.
+
+        Args:
+            downloaded_bytes (int): The number of bytes downloaded so far.
+            total_bytes (int): The total number of bytes to download.
+        """
         # TODO
         if downloaded_bytes % (total_bytes / 20) == 0:
             self.send_process_state_change_message(
@@ -188,6 +200,11 @@ class HordeInferenceProcess(HordeProcess):
             )
 
     def download_model(self, horde_model_name: str) -> None:
+        """Download a model as defined in the horde model reference.
+
+        Args:
+            horde_model_name (str): The name of the model to download.\
+        """
         # TODO
         self.send_process_state_change_message(
             process_state=HordeProcessState.DOWNLOADING_MODEL,
@@ -251,7 +268,7 @@ class HordeInferenceProcess(HordeProcess):
 
         time_start = time.time()
 
-        with contextlib.nullcontext():  # self.disk_lock:
+        with contextlib.nullcontext():  # self.disk_lock: # FIXME
             self._checkpoint_loader.load_checkpoint(
                 will_load_loras=will_load_loras,
                 seamless_tiling_enabled=seamless_tiling_enabled,
@@ -381,7 +398,7 @@ class HordeInferenceProcess(HordeProcess):
             state=GENERATION_STATE.ok if images is not None and len(images) > 0 else GENERATION_STATE.faulted,
             time_elapsed=time_elapsed,
             job_result_images_base64=images_as_base64,
-            job_info=job_info,
+            sdk_api_job_info=job_info,
         )
         self.process_message_queue.put(message)
 
@@ -430,13 +447,13 @@ class HordeInferenceProcess(HordeProcess):
 
                 time_start = time.time()
 
-                images = self.start_inference(message.job_info)
+                images = self.start_inference(message.sdk_api_job_info)
 
                 if images is None:
                     self.send_memory_report_message(include_vram=True)
                     self.send_inference_result_message(
                         process_state=HordeProcessState.INFERENCE_FAILED,
-                        job_info=message.job_info,
+                        job_info=message.sdk_api_job_info,
                         images=None,
                         time_elapsed=time.time() - time_start,
                     )
@@ -467,7 +484,7 @@ class HordeInferenceProcess(HordeProcess):
                 logger.debug(f"Finished inference with process state {process_state}")
                 self.send_inference_result_message(
                     process_state=process_state,
-                    job_info=message.job_info,
+                    job_info=message.sdk_api_job_info,
                     images=images,
                     time_elapsed=time.time() - time_start,
                 )

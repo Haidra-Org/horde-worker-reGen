@@ -1,3 +1,4 @@
+"""Contains the classes to form a safety process, which is responsible for evaluating the safety of images."""
 import base64
 import enum
 import time
@@ -33,6 +34,8 @@ from horde_worker_regen.process_management.messages import (
 
 
 class CensorReason(enum.Enum):
+    """The reason for censoring an image."""
+
     CSAM = auto()
     CENSORLIST = auto()
     SFW_REQUEST = auto()
@@ -40,6 +43,8 @@ class CensorReason(enum.Enum):
 
 
 class HordeSafetyProcess(HordeProcess):
+    """The safety process, which is responsible for evaluating the safety of images."""
+
     _interrogator: Interrogator
     _deep_danbooru_model: DeepDanbooruModel
 
@@ -58,6 +63,15 @@ class HordeSafetyProcess(HordeProcess):
         disk_lock: Lock,
         cpu_only: bool = True,
     ) -> None:
+        """Initialise the safety process.
+
+        Args:
+            process_id (int): The ID of the process.
+            process_message_queue (ProcessQueue): The process message queue.
+            pipe_connection (Connection): The connection to the parent process.
+            disk_lock (Lock): The lock to use when accessing the disk.
+            cpu_only (bool, optional): Whether to only use the CPU. Defaults to True.
+        """
         super().__init__(process_id, process_message_queue, pipe_connection, disk_lock)
         self._deep_danbooru_model = get_deep_danbooru_model(device="cpu" if cpu_only else "cuda")
         self._interrogator = get_interrogator_no_blip(device="cpu" if cpu_only else "cuda")
@@ -94,6 +108,7 @@ class HordeSafetyProcess(HordeProcess):
             raise ValueError(f"Unknown censor reason: {reason}")
 
     def load_censor_files(self) -> None:
+        """Load the censor images from disk."""
         file_lookup = {
             CensorReason.CSAM: "nsfw_censor_csam.png",
             CensorReason.CENSORLIST: "nsfw_censor_censorlist.png",

@@ -1,3 +1,4 @@
+"""Setup file for the reGen worker project."""
 # from babel.messages import frontend as babel
 from setuptools import setup  # noqa: D100
 

@@ -1,3 +1,4 @@
+"""Contains the functions to load the environment variables from the config file."""
 import os
 import pathlib
 
@@ -7,7 +8,8 @@ from ruamel.yaml import YAML
 load_dotenv()
 
 
-def load_env_vars() -> None:
+def load_env_vars() -> None:  # FIXME: there is a dynamic way to do this
+    """Load the environment variables from the config file."""
     yaml = YAML()
 
     if not pathlib.Path("bridgeData.yaml").exists():

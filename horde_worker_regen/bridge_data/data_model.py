@@ -1,3 +1,4 @@
+"""The config model and initializers for the reGen configuration model."""
 import os
 
 from horde_sdk.ai_horde_worker.bridge_data import CombinedHordeBridgeData
@@ -9,6 +10,11 @@ from horde_worker_regen.locale_info.regen_bridge_data_fields import BRIDGE_DATA_
 
 
 class reGenBridgeData(CombinedHordeBridgeData):
+    """The config model for reGen. Extra fields added here are specific to this worker implementation.
+
+    See `CombinedHordeBridgeData` from the SDK for more information..
+    """
+
     disable_terminal_ui: bool = Field(
         default=True,
     )
@@ -52,7 +58,6 @@ class reGenBridgeData(CombinedHordeBridgeData):
         Args:
             file_path (str): The path to the file to save the config model to.
         """
-
         if self._yaml_loader is None:
             self._yaml_loader = YAML()
 

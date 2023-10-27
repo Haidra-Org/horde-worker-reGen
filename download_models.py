@@ -1,3 +1,4 @@
+"""Contains the code to download all models specified in the config file. Executable as a standalone script."""
 from load_env_vars import load_env_vars
 
 load_env_vars()
@@ -10,6 +11,7 @@ from horde_worker_regen.consts import BRIDGE_CONFIG_FILENAME
 
 
 def download_all_models() -> None:
+    """Download all models specified in the config file."""
     horde_model_reference_manager = ModelReferenceManager(
         download_and_convert_legacy_dbs=True,
         override_existing=True,

@@ -101,7 +101,7 @@ class HordeProcessInfo:
         process_type: HordeProcessType,
         last_process_state: HordeProcessState,
     ) -> None:
-        """Initializes a new HordeProcessInfo object.
+        """Initialize a new HordeProcessInfo object.
 
         Args:
             mp_process (multiprocessing.Process): The multiprocessing.Process object for this process.
@@ -118,8 +118,9 @@ class HordeProcessInfo:
 
     def is_process_busy(self) -> bool:
         """Return true if the process is actively engaged in a task.
-        This does not include the process starting up or shutting down."""
 
+        This does not include the process starting up or shutting down.
+        """
         return (
             self.last_process_state == HordeProcessState.INFERENCE_STARTING
             or self.last_process_state == HordeProcessState.ALCHEMY_STARTING
@@ -146,6 +147,8 @@ class HordeProcessInfo:
 
 
 class HordeModelMap(RootModel[dict[str, ModelInfo]]):
+    """A mapping of horde model names to `ModelInfo` objects. Contains some helper methods."""
+
     def update_entry(
         self,
         horde_model_name: str,
@@ -267,7 +270,9 @@ class ProcessMap(dict[int, HordeProcessInfo]):
 
     def _get_first_inference_process_to_kill(self) -> HordeProcessInfo | None:
         """Return the first inference process eligible to be killed, or None if there are none.
-        Used during shutdown."""
+
+        Used during shutdown.
+        """
         for p in self.values():
             if p.process_type != HordeProcessType.INFERENCE:
                 continue
@@ -317,8 +322,10 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         return None
 
     def num_busy_processes(self) -> int:
-        """Return the number of processes that are actively engaged in a task. This does not include processes which
-        are starting up or shutting down, or in a faulted state."""
+        """Return the number of processes that are actively engaged in a task.
+
+        This does not include processes whichP are starting up or shutting down, or in a faulted state.
+        """
         count = 0
         for p in self.values():
             if p.is_process_busy():
@@ -338,21 +345,26 @@ class ProcessMap(dict[int, HordeProcessInfo]):
 
 
 class TorchDeviceInfo(BaseModel):
+    """Contains information about a torch device."""
+
     device_name: str
     device_index: int
     total_memory: int
 
 
 class TorchDeviceMap(RootModel[dict[int, TorchDeviceInfo]]):  # TODO
-    pass
+    """A mapping of device IDs to TorchDeviceInfo objects. Contains some helper methods."""
 
 
-class CompletedJobInfo(BaseModel):
-    """Contains information about a job that has been generated. It is used to track the state of the job
-    as it goes through the safety process and then when it is returned to the requesting user."""
+class HordeJobInfo(BaseModel):
+    """Contains information about a job that has been generated.
 
-    job_info: ImageGenerateJobPopResponse
-    """The API response which has all of the information about the job."""
+    It is used to track the state of the job as it goes through the safety process and \
+        then when it is returned to the requesting user.
+    """
+
+    sdk_api_job_info: ImageGenerateJobPopResponse
+    """The API response which has all of the information about the job as sent by the API."""
     job_result_images_base64: list[str] | None = None
     """A list of base64 encoded images that are the result of the job."""
     state: GENERATION_STATE
@@ -364,6 +376,7 @@ class CompletedJobInfo(BaseModel):
 
     @property
     def is_job_checked_for_safety(self) -> bool:
+        """Return true if the job has been checked for safety."""
         return self.censored is not None
 
 
@@ -401,14 +414,17 @@ class HordeWorkerProcessManager:
 
     @property
     def max_queue_size(self) -> int:
+        """The maximum number of jobs that can be queued."""
         return self.bridge_data.queue_size
 
     @property
     def current_queue_size(self) -> int:
+        """The current number of jobs that are queued."""
         return len(self.job_deque)
 
     @property
     def target_ram_bytes_used(self) -> int:
+        """The target amount of RAM to use."""
         return self.total_ram_bytes - self.target_ram_overhead_bytes
 
     def get_process_total_ram_usage(self) -> int:
@@ -420,12 +436,12 @@ class HordeWorkerProcessManager:
     jobs_in_progress: list[ImageGenerateJobPopResponse]
     """A list of jobs that are currently in progress."""
 
-    jobs_pending_safety_check: list[CompletedJobInfo]
+    jobs_pending_safety_check: list[HordeJobInfo]
     _jobs_safety_check_lock: Lock_Asyncio
 
-    jobs_being_safety_checked: list[CompletedJobInfo]
+    jobs_being_safety_checked: list[HordeJobInfo]
 
-    completed_jobs: list[CompletedJobInfo]
+    completed_jobs: list[HordeJobInfo]
     """A list of 3 tuples containing the job, the state, and whether or not the job was censored."""
 
     _completed_jobs_lock: Lock_Asyncio
@@ -466,6 +482,7 @@ class HordeWorkerProcessManager:
 
     @property
     def num_total_processes(self) -> int:
+        """The total number of processes that can be running at once (inference, safety, and download)."""
         return self.max_inference_processes + self.max_safety_processes + self.max_download_processes
 
     _process_message_queue: ProcessQueue
@@ -495,6 +512,21 @@ class HordeWorkerProcessManager:
         max_safety_processes: int = 1,
         max_download_processes: int = 1,
     ) -> None:
+        """Initialise the process manager.
+
+        Args:
+            ctx (BaseContext): The multiprocessing context to use.
+            bridge_data (reGenBridgeData): The bridge data for this worker.
+            horde_model_reference_manager (ModelReferenceManager): The model reference manager for this worker.
+            target_ram_overhead_bytes (int, optional): The target amount of RAM to keep free. \
+                Defaults to 9 * 1024 * 1024 * 1024.
+            target_vram_overhead_bytes_map (Mapping[int, int] | None, optional): The target amount of VRAM to keep \
+                free. Defaults to None.
+            max_safety_processes (int, optional): The maximum number of safety processes that can run at once. \
+                Defaults to 1.
+            max_download_processes (int, optional): The maximum number of download processes that can run at once. \
+                Defaults to 1.
+        """
         self.session_start_time = time.time()
 
         self.bridge_data = bridge_data
@@ -584,6 +616,7 @@ class HordeWorkerProcessManager:
                 time.sleep(5)
 
     def is_time_for_shutdown(self) -> bool:
+        """Return true if it is time to shut down."""
         if all(
             inference_process.last_process_state == HordeProcessState.PROCESS_ENDING
             or inference_process.last_process_state == HordeProcessState.PROCESS_ENDED
@@ -625,6 +658,7 @@ class HordeWorkerProcessManager:
         return self._process_map.num_available_inference_processes() > 0
 
     def get_expected_ram_usage(self, horde_model_name: str) -> int:  # TODO: Use or rework this
+        """Return the expected RAM usage of the given model, in bytes."""
         if self.stable_diffusion_reference is None:
             raise ValueError("stable_diffusion_reference is None")
 
@@ -642,9 +676,10 @@ class HordeWorkerProcessManager:
         raise ValueError(f"Model {horde_model_name} has an unknown baseline {horde_model_record.baseline}")
 
     def start_safety_processes(self) -> None:
-        """Start all the safety processes configured to be used. This can be used after a configuration
-        change to get just the newly configured processes running."""
+        """Start all the safety processes configured to be used.
 
+        This can be used after a configuration change to get just the newly configured processes running.
+        """
         num_processes_to_start = self.max_safety_processes - self._process_map.num_safety_processes()
 
         # If the number of processes to start is less than 0, log a critical error and raise a ValueError
@@ -690,9 +725,10 @@ class HordeWorkerProcessManager:
             logger.info(f"Started safety process (id: {pid})")
 
     def start_inference_processes(self) -> None:
-        """Start all the inference processes configured to be used. This can be used after a configuration
-        change to get just the newly configured processes running."""
+        """Start all the inference processes configured to be used.
 
+        This can be used after a configuration change to get just the newly configured processes running.
+        """
         num_processes_to_start = self.max_inference_processes - self._process_map.num_inference_processes()
 
         # If the number of processes to start is less than 0, log a critical error and raise a ValueError
@@ -736,7 +772,6 @@ class HordeWorkerProcessManager:
 
     def end_inference_processes(self) -> None:
         """End any inference processes above the configured limit, or all of them if shutting down."""
-
         if len(self.job_deque) > 0 and len(self.job_deque) != len(self.jobs_in_progress):
             return
 
@@ -761,7 +796,6 @@ class HordeWorkerProcessManager:
 
     def end_safety_processes(self) -> None:
         """End any safety processes above the configured limit, or all of them if shutting down."""
-
         process_info = self._process_map.get_first_available_safety_process()
 
         if process_info is None:
@@ -776,9 +810,10 @@ class HordeWorkerProcessManager:
         logger.info(f"Ended safety process {process_info.process_id}")
 
     def receive_and_handle_process_messages(self) -> None:
-        """Receive and handle any messages from the child processes. This is the backbone of the \
-            inter-process communication system and is the main way that the parent process knows what is going on \
-            in the child processes.
+        """Receive and handle any messages from the child processes.
+
+        This is the backbone of the inter-process communication system and is the main way that the parent process \
+             knows what is going on in the child processes.
 
         **Note** also that this is a synchronous function and any interaction with objects that are shared between \
             coroutines should be done with care. Critically, this function should be called with locks already \
@@ -787,7 +822,6 @@ class HordeWorkerProcessManager:
         See also `._process_map` and `._horde_model_map`, which are updated by this function, and `HordeProcessState` \
             and `ModelLoadState` for the possible states that the processes and models can be in.
         """
-
         # We want to completely flush the queue, to maximize the chances we get the most up to date information
         while not self._process_message_queue.empty():
             message: HordeProcessMessage = self._process_message_queue.get()
@@ -890,7 +924,9 @@ class HordeWorkerProcessManager:
                 _num_jobs_in_progress = len(self.jobs_in_progress)
 
                 # Remove the job from the jobs in progress by matching the job ID (.id_)
-                self.jobs_in_progress = [job for job in self.jobs_in_progress if job.id_ != message.job_info.id_]
+                self.jobs_in_progress = [
+                    job for job in self.jobs_in_progress if job.id_ != message.sdk_api_job_info.id_
+                ]
 
                 if len(self.jobs_in_progress) != _num_jobs_in_progress - 1:
                     logger.warning(
@@ -900,24 +936,24 @@ class HordeWorkerProcessManager:
                     logger.debug(f"Jobs in progress: {self.jobs_in_progress}")
 
                 for job in self.job_deque:
-                    if job.id_ == message.job_info.id_:
+                    if job.id_ == message.sdk_api_job_info.id_:
                         self.job_deque.remove(job)
                         break
 
                 self.total_num_completed_jobs += 1
                 if message.time_elapsed is not None:
                     logger.info(
-                        f"Inference finished for job {message.job_info.id_} on process {message.process_id}. "
+                        f"Inference finished for job {message.sdk_api_job_info.id_} on process {message.process_id}. "
                         f"It took {round(message.time_elapsed, 2)} seconds",
                     )
                 else:
-                    logger.info(f"Inference finished for job {message.job_info.id_}")
-                    logger.debug(f"Job didn't include time_elapsed: {message.job_info}")
+                    logger.info(f"Inference finished for job {message.sdk_api_job_info.id_}")
+                    logger.debug(f"Job didn't include time_elapsed: {message.sdk_api_job_info}")
 
                 if message.state != GENERATION_STATE.faulted:
                     self.jobs_pending_safety_check.append(
-                        CompletedJobInfo(
-                            job_info=message.job_info,
+                        HordeJobInfo(
+                            sdk_api_job_info=message.sdk_api_job_info,
                             job_result_images_base64=message.job_result_images_base64,
                             state=message.state,
                             time_to_generate=message.time_elapsed if message.time_elapsed is not None else 0,
@@ -925,12 +961,12 @@ class HordeWorkerProcessManager:
                     )
                 else:
                     logger.error(
-                        f"Job {message.job_info.id_} faulted on process {message.process_id}: {message.info}",
+                        f"Job {message.sdk_api_job_info.id_} faulted on process {message.process_id}: {message.info}",
                     )
 
                     self.completed_jobs.append(
-                        CompletedJobInfo(
-                            job_info=message.job_info,
+                        HordeJobInfo(
+                            sdk_api_job_info=message.sdk_api_job_info,
                             job_result_images_base64=None,
                             state=message.state,
                             time_to_generate=message.time_elapsed if message.time_elapsed is not None else 0,
@@ -942,9 +978,9 @@ class HordeWorkerProcessManager:
             # - if the job was censored, replace the images with the replacement images
             # - add the job to the list of completed jobs to be sent to the API
             elif isinstance(message, HordeSafetyResultMessage):
-                completed_job_info: CompletedJobInfo | None = None
+                completed_job_info: HordeJobInfo | None = None
                 for i, job_being_safety_checked in enumerate(self.jobs_being_safety_checked):
-                    if job_being_safety_checked.job_info.id_ == message.job_id:
+                    if job_being_safety_checked.sdk_api_job_info.id_ == message.job_id:
                         completed_job_info = self.jobs_being_safety_checked.pop(i)
                         break
 
@@ -999,7 +1035,6 @@ class HordeWorkerProcessManager:
         Returns:
             True if a model was preloaded, False otherwise.
         """
-
         # Starting from the left of the deque, preload models that are not yet loaded up to the
         # number of inference processes that are available
         for job in self.job_deque:
@@ -1061,7 +1096,6 @@ class HordeWorkerProcessManager:
 
     def start_inference(self) -> None:
         """Start inference for the next job in the deque, if possible."""
-
         if len(self.jobs_in_progress) >= self.max_concurrent_inference_processes:
             return
 
@@ -1165,7 +1199,7 @@ class HordeWorkerProcessManager:
                 HordeInferenceControlMessage(
                     control_flag=HordeControlFlag.START_INFERENCE,
                     horde_model_name=next_job.model,
-                    job_info=next_job,
+                    sdk_api_job_info=next_job,
                 ),
             )
 
@@ -1175,7 +1209,6 @@ class HordeWorkerProcessManager:
         Args:
             process_id: The process to unload models from.
         """
-
         if process_id not in self._process_map:
             raise ValueError(f"process_id {process_id} is not in the process map")
 
@@ -1214,7 +1247,6 @@ class HordeWorkerProcessManager:
         Returns:
             A set of the next n models that will be used in the job deque.
         """
-
         next_n_models: set[str] = set()
         jobs_traversed = 0
         while len(next_n_models) < n:
@@ -1235,7 +1267,6 @@ class HordeWorkerProcessManager:
 
     def unload_models(self) -> None:
         """Unload models that are no longer needed and would use above the limit specified."""
-
         if len(self.job_deque) == 0:
             return
 
@@ -1287,17 +1318,17 @@ class HordeWorkerProcessManager:
         if len(completed_job_info.job_result_images_base64) > 1:
             raise NotImplementedError("Only single image jobs are supported right now")  # TODO
 
-        if completed_job_info.job_info.id_ is None:
-            raise ValueError("completed_job_info.job_info.id_ is None")
+        if completed_job_info.sdk_api_job_info.id_ is None:
+            raise ValueError("completed_job_info.sdk_api_job_info.id_ is None")
 
-        if completed_job_info.job_info.model is None:
-            raise ValueError("completed_job_info.job_info.model is None")
+        if completed_job_info.sdk_api_job_info.model is None:
+            raise ValueError("completed_job_info.sdk_api_job_info.model is None")
 
         if self.stable_diffusion_reference is None:
             raise ValueError("stable_diffusion_reference is None")
 
-        if completed_job_info.job_info.payload.prompt is None:
-            raise ValueError("completed_job_info.job_info.payload.prompt is None")
+        if completed_job_info.sdk_api_job_info.payload.prompt is None:
+            raise ValueError("completed_job_info.sdk_api_job_info.payload.prompt is None")
 
         self.jobs_pending_safety_check.remove(completed_job_info)
         self.jobs_being_safety_checked.append(completed_job_info)
@@ -1305,12 +1336,14 @@ class HordeWorkerProcessManager:
         safety_process.pipe_connection.send(
             HordeSafetyControlMessage(
                 control_flag=HordeControlFlag.EVALUATE_SAFETY,
-                job_id=completed_job_info.job_info.id_,
+                job_id=completed_job_info.sdk_api_job_info.id_,
                 images_base64=completed_job_info.job_result_images_base64,
-                prompt=completed_job_info.job_info.payload.prompt,
-                censor_nsfw=completed_job_info.job_info.payload.use_nsfw_censor,
+                prompt=completed_job_info.sdk_api_job_info.payload.prompt,
+                censor_nsfw=completed_job_info.sdk_api_job_info.payload.use_nsfw_censor,
                 sfw_worker=not self.bridge_data.nsfw,
-                horde_model_info=self.stable_diffusion_reference.root[completed_job_info.job_info.model].model_dump(),
+                horde_model_info=self.stable_diffusion_reference.root[
+                    completed_job_info.sdk_api_job_info.model
+                ].model_dump(),
                 # TODO: update this to use a class instead of a dict?
             ),
         )
@@ -1350,7 +1383,7 @@ class HordeWorkerProcessManager:
             return
 
         completed_job_info = self.completed_jobs[0]
-        job_info = completed_job_info.job_info
+        job_info = completed_job_info.sdk_api_job_info
 
         submit_job_request_type = job_info.get_follow_up_default_request_type()
 
@@ -1391,7 +1424,9 @@ class HordeWorkerProcessManager:
                         self.completed_jobs.remove(completed_job_info)
                         self._consecutive_failed_job_submits = 0
 
-                        for follow_up_request in completed_job_info.job_info.get_follow_up_failure_cleanup_request():
+                        for (
+                            follow_up_request
+                        ) in completed_job_info.sdk_api_job_info.get_follow_up_failure_cleanup_request():
                             follow_up_response = self.horde_client_session.submit_request(
                                 follow_up_request,
                                 JobSubmitResponse,
@@ -1464,7 +1499,7 @@ class HordeWorkerProcessManager:
 
             # Get the time the job was popped from the job deque
             async with self._job_pop_timestamps_lock:
-                time_popped = self.job_pop_timestamps.pop(str(completed_job_info.job_info.id_))
+                time_popped = self.job_pop_timestamps.pop(str(completed_job_info.sdk_api_job_info.id_))
 
             time_taken = round(time.time() - time_popped, 2)
 
@@ -1742,6 +1777,7 @@ class HordeWorkerProcessManager:
     _user_info_failed_reason: str | None = None
 
     async def api_get_user_info(self) -> None:
+        """Get the information associated with this API key from the API."""
         if self._shutting_down:
             return
 
@@ -1787,7 +1823,7 @@ class HordeWorkerProcessManager:
     _job_submit_loop_interval = 0.02
 
     async def _job_submit_loop(self) -> None:
-        """Main loop for the job submitter."""
+        """Run the job submit loop."""
         logger.debug("In _job_submit_loop")
         while True:
             with logger.catch():
@@ -1801,7 +1837,7 @@ class HordeWorkerProcessManager:
             await asyncio.sleep(self._job_submit_loop_interval)
 
     async def _api_call_loop(self) -> None:
-        """Main loop for the API calls."""
+        """Run the API call loop for popping jobs and doing miscellaneous API calls."""
         logger.debug("In _api_call_loop")
         self._aiohttp_session = ClientSession(requote_redirect_url=False)
         async with self._aiohttp_session as aiohttp_session:
@@ -1925,6 +1961,7 @@ class HordeWorkerProcessManager:
     _bridge_data_last_modified_time = 0.0
 
     def get_bridge_data_from_disk(self) -> None:
+        """Load the bridge data from disk."""
         try:
             self.bridge_data = BridgeDataLoader.load(
                 file_path=BRIDGE_CONFIG_FILENAME,
@@ -1985,7 +2022,6 @@ class HordeWorkerProcessManager:
 
     def signal_handler(self, sig: int, frame: object) -> None:
         """Handle SIGINT and SIGTERM."""
-
         if self._caught_sigints >= 2:
             logger.warning("Caught SIGINT or SIGTERM twice, exiting immediately")
             sys.exit(1)

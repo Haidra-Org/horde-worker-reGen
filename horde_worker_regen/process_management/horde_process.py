@@ -1,3 +1,4 @@
+"""Contains the base class for all processes, and additional helper types used by processes."""
 from __future__ import annotations
 
 import abc
@@ -32,16 +33,20 @@ if TYPE_CHECKING:
     from hordelib.nodes.node_model_loader import HordeCheckpointLoader
 else:
     # Create a dummy class to prevent type errors
-    class HordeCheckpointLoader:
+    class HordeCheckpointLoader:  # noqa
         pass
 
 
 class HordeProcessType(enum.Enum):
+    """The type of process. This distinguishes between inference, safety, and potentially other process types."""
+
     INFERENCE = auto()
     SAFETY = auto()
 
 
 class HordeProcess(abc.ABC):
+    """The base class for all sub-processes."""
+
     process_id: int
     """The ID of the process. This is not the same as the process PID."""
     process_type: HordeProcessType
@@ -97,7 +102,6 @@ class HordeProcess(abc.ABC):
             pipe_connection (Connection): Receives `HordeControlMessage`s from the main process.
             disk_lock (Lock): A lock used to prevent multiple processes from accessing disk at the same time.
         """
-
         self.process_id = process_id
         self.process_message_queue = process_message_queue
         self.pipe_connection = pipe_connection
@@ -146,13 +150,11 @@ class HordeProcess(abc.ABC):
     _last_heartbeat_time: float = 0.0
 
     def send_heartbeat_message(self) -> None:
-        """Send a heartbeat message to the main process, indicating that the process is still alive
-        during an operation.
+        """Send a heartbeat message to the main process, indicating that the process is still alive.
 
         Note that this will only send a heartbeat message if the last heartbeat was sent more than
         `_heartbeat_limit_interval_seconds` ago.
         """
-
         if (time.time() - self._last_heartbeat_time) < self._heartbeat_limit_interval_seconds:
             return
 
@@ -216,12 +218,14 @@ class HordeProcess(abc.ABC):
             self._receive_and_handle_control_message(message)
 
     def worker_cycle(self) -> None:
-        """Called after messages have been received and handled. Override this to implement any process specific \
-            logic."""
+        """Do any process specific handling after messages have been received and handled.
+
+        Override this to implement any process specific logic.
+        """
         return
 
     def main_loop(self) -> None:
-        """The main loop of the worker process."""
+        """Start the main loop of the process."""
         signal.signal(signal.SIGINT, signal_handler)
 
         while not self._end_process:
@@ -254,9 +258,11 @@ _signals_caught = 0
 
 
 def signal_handler(sig: int, frame: object) -> None:
-    """Called when a signal is received. This will exit the process gracefully if the process has only received one \
-        signal, or exit immediately if the process has received two signals."""
+    """Handle a signal.
 
+    This will exit the process gracefully if the process has only received one signal,
+    or exit immediately if the process has received two signals.
+    """
     global _signals_caught
     if _signals_caught >= 1:
         logger.warning("Received second signal, exiting immediately")

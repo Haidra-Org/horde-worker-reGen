@@ -307,10 +307,9 @@ class HordeInferenceProcess(HordeProcess):
                 results = self._horde.basic_inference(job_info)
             except Exception as e:
                 logger.critical(f"Inference failed: {type(e).__name__} {e}")
-                self._is_busy = False
                 return None
-
-            self._is_busy = False
+            finally:
+                self._is_busy = False
             return results
 
     def unload_models_from_vram(self) -> None:

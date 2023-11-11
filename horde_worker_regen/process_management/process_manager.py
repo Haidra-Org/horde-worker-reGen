@@ -28,6 +28,9 @@ from horde_model_reference.model_reference_records import StableDiffusion_ModelR
 from horde_sdk import RequestErrorResponse
 from horde_sdk.ai_horde_api import GENERATION_STATE
 from horde_sdk.ai_horde_api.ai_horde_clients import AIHordeAPIAsyncClientSession, AIHordeAPIAsyncSimpleClient
+from horde_sdk.ai_horde_api.apimodels.base import GenMetadataEntry # TODO: Switch to importing it withou .base once sdk is updated
+from horde_sdk.ai_horde_api.consts import METADATA_TYPE, METADATA_VALUE
+from horde_sdk.ai_horde_api.fields import JobID
 from horde_sdk.ai_horde_api.apimodels import (
     FindUserRequest,
     FindUserResponse,
@@ -436,6 +439,9 @@ class HordeWorkerProcessManager:
     jobs_in_progress: list[ImageGenerateJobPopResponse]
     """A list of jobs that are currently in progress."""
 
+    job_faults: dict[JobID, list[GenMetadataEntry]]
+    """A list of jobs that have exhibited faults and what kinds."""
+                        
     jobs_pending_safety_check: list[HordeJobInfo]
     _jobs_safety_check_lock: Lock_Asyncio
 
@@ -555,6 +561,7 @@ class HordeWorkerProcessManager:
 
         self.jobs_pending_safety_check = []
         self.jobs_being_safety_checked = []
+        self.job_faults = {}
 
         self._jobs_safety_check_lock = Lock_Asyncio()
 
@@ -1021,8 +1028,18 @@ class HordeWorkerProcessManager:
                 elif num_images_censored > 0:
                     completed_job_info.censored = True
                     if num_images_csam > 0:
+                        new_meta_entry = GenMetadataEntry(
+                            type = METADATA_TYPE.censorship,
+                            value = METADATA_VALUE.csam,
+                        )
+                        self.job_faults[completed_job_info.sdk_api_job_info.id_].append(new_meta_entry)
                         completed_job_info.state = GENERATION_STATE.csam
                     else:
+                        new_meta_entry = GenMetadataEntry(
+                            type = METADATA_TYPE.censorship,
+                            value = METADATA_VALUE.nsfw,
+                        )
+                        self.job_faults[completed_job_info.sdk_api_job_info.id_].append(new_meta_entry)
                         completed_job_info.state = GENERATION_STATE.censored
                 else:
                     completed_job_info.censored = False
@@ -1592,6 +1609,11 @@ class HordeWorkerProcessManager:
                 while True:
                     try:
                         if fail_count >= 10:
+                            new_meta_entry = GenMetadataEntry(
+                                type = METADATA_TYPE[field_name],
+                                value = METADATA_VALUE.download_failed,
+                            )
+                            self.job_faults[job_pop_response.id_].append(new_meta_entry)
                             logger.error(f"Failed to download {field_name} after {fail_count} attempts")
                             break
                         response = await self._aiohttp_session.get(
@@ -1760,6 +1782,8 @@ class HordeWorkerProcessManager:
         ):
             job_pop_response = ImageGenerateJobPopResponse(**new_response_dict)
 
+        # Initiate the job faults list for this job, so that we don't need to check if it exists every time
+        self.job_faults[job_pop_response.id_] = []
         job_pop_response = await self._get_source_images(job_pop_response)
 
         # endregion

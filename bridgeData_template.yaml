@@ -128,7 +128,7 @@ disable_disk_cache: false # Currently unused in reGen
 
 # The models to use.
 # Instead of a model name you may use of any of the following magic constants:
-#   "ALL MODELS"  - means load all possible models. Expect this to take over 1TB of space!
+#   "ALL"  - means load all possible models. Expect this to take over 1TB of space!
 #   "TOP n"  - load the top "N" most popular models, use for example, "top 5" or "top 3", etc.
 #   "BOTTOM n"  - load the top "N" most popular models, use for example, "top 5" or "top 3", etc.
 #   (not currently supported) "ALL <style> MODELS"  -  For example, "all anime models", styles are: generalist, artistic, realistic, anime, furry, other
@@ -164,6 +164,7 @@ models_to_load:
 models_to_skip:
   - "pix2pix" # Not currently supported
   - "SDXL_beta::stability.ai#6901" # Do not remove this, as this model would never work
+  - A to Zovya RPG # This model is known to cause problems with reGen
   #- "stable_diffusion_inpainting"  # Inpainting is generally quite heavy along with other models for smaller GPUs.
   #- "stable_diffusion_2.1",  # Stable diffusion 2.1 has bigger memory requirements than 1.5, so if your card cannot lift, it, disable it
   #- "stable_diffusion_2.0",  # Same as Stable diffusion 2.1

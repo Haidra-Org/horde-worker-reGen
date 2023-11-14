@@ -3,7 +3,7 @@ torch>=2.1.0
 
 horde_sdk>=0.7.15
 git+https://github.com/Haidra-Org/horde-safety@nsfw-checking-and-anime-handling
-hordelib>=2.0.2
+hordelib>=2.1.2
 horde_model_reference
 
 python-dotenv

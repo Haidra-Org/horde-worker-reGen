@@ -85,6 +85,10 @@ def download_all_models() -> None:
             logger.error(f"Failed to download model {model}")
             any_model_failed_to_download = True
 
+        if not SharedModelManager.manager.compvis.validate_model(model):
+            SharedModelManager.manager.compvis.taint_model(model)
+            SharedModelManager.manager.compvis.download_model(model)
+
     if any_model_failed_to_download:
         logger.error("Failed to download all models.")
     else:

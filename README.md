@@ -1,3 +1,5 @@
+# Below are some (possibly) outdated install steps. if you want the latest information. go here
+https://discord.com/channels/781145214752129095/1159154031151812650
 # horde-worker-reGen
 Your memory usage will increase up until the number of queued jobs. Its my belief that you should set your queue size to at least 1, and if you're using threads at least max_threads + 1.
 Feel free to try queue size 2 with threads at one and let me know if your kudos/hr goes up or down.

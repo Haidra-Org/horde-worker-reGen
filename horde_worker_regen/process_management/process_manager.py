@@ -2235,6 +2235,6 @@ class HordeWorkerProcessManager:
         """
         now = datetime.datetime.now()
         for process_info in self._process_map.values():
-            if (now - process_info.last_timestamp) > self.process_timeout:
+            if (now - process_info.last_timestamp) > self.process_timeout and process_info.is_process_busy():
                 logger.error(f"{process_info} has exceeded its timeout and will be replaced")
                 self._replace_inference_process(process_info)

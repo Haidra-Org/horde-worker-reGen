@@ -82,18 +82,26 @@ if __name__ == "__main__":
 
     # Create args for -v, allowing -vvv
     parser = argparse.ArgumentParser()
-    parser.add_argument("-v", action="count", default=3, help="Increase verbosity of output")
+    parser.add_argument("-v", action="count", default=0, help="Increase verbosity of output")
+    parser.add_argument("--no-logging", action="store_true", help="Disable logging to the console")
 
     args = parser.parse_args()
 
     logger.remove()
     from hordelib.utils.logger import HordeLog
 
+    target_verbosity = args.v
+
+    if args.no_logging:
+        target_verbosity = 0  # Disable logging to the console
+    elif args.v == 0:
+        target_verbosity = 3  # Default to INFO or higher (Warning, Error, Critical)
+
     # Initialise logging with loguru
     HordeLog.initialise(
         setup_logging=True,
         process_id=None,
-        verbosity_count=args.v,  # FIXME
+        verbosity_count=target_verbosity,
     )
 
     # We only need to download the legacy DBs once, so we do it here instead of in the worker processes

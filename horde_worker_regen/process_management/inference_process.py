@@ -19,7 +19,6 @@ from horde_sdk.ai_horde_api.apimodels import (
     ImageGenerateJobPopResponse,
 )
 from loguru import logger
-from PIL.Image import Image
 from typing_extensions import override
 
 from horde_worker_regen.process_management._aliased_types import ProcessQueue
@@ -400,7 +399,7 @@ class HordeInferenceProcess(HordeProcess):
             time_elapsed=time_elapsed,
             job_result_images_base64=images_as_base64,
             sdk_api_job_info=job_info,
-            job_faults=all_image_faults
+            job_faults=all_image_faults,
         )
         self.process_message_queue.put(message)
 

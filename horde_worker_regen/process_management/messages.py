@@ -8,7 +8,11 @@ from horde_sdk.ai_horde_api import GENERATION_STATE
 from horde_sdk.ai_horde_api.apimodels import (
     ImageGenerateJobPopResponse,
 )
-from horde_sdk.ai_horde_api.apimodels.base import GenMetadataEntry # TODO: Switch to importing it withou .base once sdk is updated
+from horde_sdk.ai_horde_api.apimodels.base import (
+    GenMetadataEntry,
+)
+
+# TODO: Switch to importing it withou .base once sdk is updated
 from horde_sdk.ai_horde_api.fields import JobID
 from loguru import logger
 from pydantic import BaseModel, model_validator
@@ -181,6 +185,7 @@ class HordeInferenceResultMessage(HordeProcessMessage):
     sdk_api_job_info: ImageGenerateJobPopResponse
     """The job as sent by the API."""
     job_faults: list[list[GenMetadataEntry]]
+
 
 class HordeSafetyEvaluation(BaseModel):
     """The result of a safety evaluation."""

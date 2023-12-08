@@ -28,9 +28,6 @@ from horde_model_reference.model_reference_records import StableDiffusion_ModelR
 from horde_sdk import RequestErrorResponse
 from horde_sdk.ai_horde_api import GENERATION_STATE
 from horde_sdk.ai_horde_api.ai_horde_clients import AIHordeAPIAsyncClientSession, AIHordeAPIAsyncSimpleClient
-from horde_sdk.ai_horde_api.apimodels.base import GenMetadataEntry # TODO: Switch to importing it withou .base once sdk is updated
-from horde_sdk.ai_horde_api.consts import METADATA_TYPE, METADATA_VALUE
-from horde_sdk.ai_horde_api.fields import JobID
 from horde_sdk.ai_horde_api.apimodels import (
     FindUserRequest,
     FindUserResponse,
@@ -38,6 +35,13 @@ from horde_sdk.ai_horde_api.apimodels import (
     ImageGenerateJobPopResponse,
     JobSubmitResponse,
 )
+from horde_sdk.ai_horde_api.apimodels.base import (
+    GenMetadataEntry,
+)
+
+# TODO: Switch to importing it withou .base once sdk is updated
+from horde_sdk.ai_horde_api.consts import METADATA_TYPE, METADATA_VALUE
+from horde_sdk.ai_horde_api.fields import JobID
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, RootModel, ValidationError
 
@@ -443,7 +447,7 @@ class HordeWorkerProcessManager:
 
     job_faults: dict[JobID, list[GenMetadataEntry]]
     """A list of jobs that have exhibited faults and what kinds."""
-                        
+
     jobs_pending_safety_check: list[HordeJobInfo]
     _jobs_safety_check_lock: Lock_Asyncio
 
@@ -962,7 +966,7 @@ class HordeWorkerProcessManager:
                 else:
                     logger.info(f"Inference finished for job {message.sdk_api_job_info.id_}")
                     logger.debug(f"Job didn't include time_elapsed: {message.sdk_api_job_info}")
-                logger.debug(f"Inference faults: {[f for f in message.job_faults]}")
+                logger.debug(f"Inference faults: {list(message.job_faults)}")
                 if message.state != GENERATION_STATE.faulted:
                     self.jobs_pending_safety_check.append(
                         HordeJobInfo(
@@ -1040,15 +1044,15 @@ class HordeWorkerProcessManager:
                     completed_job_info.censored = True
                     if num_images_csam > 0:
                         new_meta_entry = GenMetadataEntry(
-                            type = METADATA_TYPE.censorship,
-                            value = METADATA_VALUE.csam,
+                            type=METADATA_TYPE.censorship,
+                            value=METADATA_VALUE.csam,
                         )
                         completed_job_info.job_faults[i].append(new_meta_entry)
                         completed_job_info.state = GENERATION_STATE.csam
                     else:
                         new_meta_entry = GenMetadataEntry(
-                            type = METADATA_TYPE.censorship,
-                            value = METADATA_VALUE.nsfw,
+                            type=METADATA_TYPE.censorship,
+                            value=METADATA_VALUE.nsfw,
                         )
                         completed_job_info.job_faults[i].append(new_meta_entry)
                         completed_job_info.state = GENERATION_STATE.censored
@@ -1623,8 +1627,8 @@ class HordeWorkerProcessManager:
                     try:
                         if fail_count >= 10:
                             new_meta_entry = GenMetadataEntry(
-                                type = METADATA_TYPE[field_name],
-                                value = METADATA_VALUE.download_failed,
+                                type=METADATA_TYPE[field_name],
+                                value=METADATA_VALUE.download_failed,
                             )
                             self.job_faults[job_pop_response.id_].append(new_meta_entry)
                             logger.error(f"Failed to download {field_name} after {fail_count} attempts")

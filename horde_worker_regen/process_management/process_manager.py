@@ -953,12 +953,13 @@ class HordeWorkerProcessManager:
                 if message.time_elapsed is not None:
                     logger.info(
                         f"Inference finished for job {message.sdk_api_job_info.id_} on process {message.process_id}. "
-                        f"It took {round(message.time_elapsed, 2)} seconds",
+                        f"It took {round(message.time_elapsed, 2)} seconds "
+                        f"and reported {len(message.job_faults)} faults.",
                     )
                 else:
                     logger.info(f"Inference finished for job {message.sdk_api_job_info.id_}")
                     logger.debug(f"Job didn't include time_elapsed: {message.sdk_api_job_info}")
-
+                logger.info([f for f in message.job_faults])
                 if message.state != GENERATION_STATE.faulted:
                     self.jobs_pending_safety_check.append(
                         HordeJobInfo(

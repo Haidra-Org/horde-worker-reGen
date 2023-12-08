@@ -612,7 +612,7 @@ class HordeWorkerProcessManager:
 
         self.max_inference_processes = self.bridge_data.queue_size + self.bridge_data.max_threads
         self._lru = LRUCache(self.max_inference_processes)
-        self.process_timeout = datetime.timedelta(minutes=5)
+        self.process_timeout = datetime.timedelta(minutes=10)
 
         # If there is only one model to load and only one inference process, then we can only run one job at a time
         # and there is no point in having more than one inference process
@@ -1264,6 +1264,8 @@ class HordeWorkerProcessManager:
                 )
                 logger.debug(f"Horde model map: {self._horde_model_map}")
                 logger.debug(f"Process map: {self._process_map}")
+                # We'll just patch over this goof for now.
+                self._horde_model_map.expire_entry(next_job.model)
                 return
 
             if not process_with_model.can_accept_job():
@@ -2042,7 +2044,6 @@ class HordeWorkerProcessManager:
         self.start_inference_processes()
 
         while True:
-            logger.debug("_process_control_loop looped")
             try:
                 if self.stable_diffusion_reference is None:
                     return
@@ -2165,17 +2166,16 @@ class HordeWorkerProcessManager:
                 self._shutting_down = True
 
     @staticmethod
-    async def _handle_exception(task: Task) -> None:
+    def _handle_exception(future: asyncio.Future) -> None:
         """
         Logs exceptions from asyncio tasks.
 
-        :param task: asyncio task to monitor
+        :param future: asyncio task to monitor
         :return: None
         """
-        try:
-            await task
-        except Exception as e:
-            logger.error(f"Caught exception in task {task}: {e}")
+        ex = future.exception()
+        if ex is not None:
+            logger.error(f'exception thrown by a main loop task: {ex}')
 
     async def _main_loop(self) -> None:
         # Run both loops concurrently

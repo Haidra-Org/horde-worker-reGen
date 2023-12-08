@@ -2,9 +2,13 @@
 https://discord.com/channels/781145214752129095/1159154031151812650
 # horde-worker-reGen
 Your memory usage will increase up until the number of queued jobs. Its my belief that you should set your queue size to at least 1, and if you're using threads at least max_threads + 1.
+
 Feel free to try queue size 2 with threads at one and let me know if your kudos/hr goes up or down.
+
 If you have a low amount of system memory (16gb or under), do not attempt a queue size greater than 1 if you have more than one model set to load.
+
 If you plan on running SDXL, you will need to ensure at least 9 gb of system ram remains free.
+
 If you have an 8 gb card, SDXL will only reliably work at max_power values close to 32. 42 was too high for my 2080 in certain cases.
 # To run the beta worker (Please read above first)
 ## (Assuming you have python 3.10 installed):

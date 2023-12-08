@@ -369,6 +369,8 @@ class HordeJobInfo(BaseModel):
     sdk_api_job_info: ImageGenerateJobPopResponse
     """The API response which has all of the information about the job as sent by the API."""
     job_result_images_base64: list[str] | None = None
+    """The faults recorded for each image. The index matches each image in job_result_images_base64"""
+    job_faults: list[GenMetadataEntry] | None = None
     """A list of base64 encoded images that are the result of the job."""
     state: GENERATION_STATE
     """The state of the job to send to the API."""
@@ -962,6 +964,7 @@ class HordeWorkerProcessManager:
                         HordeJobInfo(
                             sdk_api_job_info=message.sdk_api_job_info,
                             job_result_images_base64=message.job_result_images_base64,
+                            job_faults=message.job_faults,
                             state=message.state,
                             time_to_generate=message.time_elapsed if message.time_elapsed is not None else 0,
                         ),
@@ -975,6 +978,7 @@ class HordeWorkerProcessManager:
                         HordeJobInfo(
                             sdk_api_job_info=message.sdk_api_job_info,
                             job_result_images_base64=None,
+                            job_faults=None,
                             state=message.state,
                             time_to_generate=message.time_elapsed if message.time_elapsed is not None else 0,
                         ),
@@ -1002,6 +1006,9 @@ class HordeWorkerProcessManager:
                 any_safety_failed = False
 
                 for i in range(len(completed_job_info.job_result_images_base64)):
+                    # We add to the image faults, all faults due to source images/masks
+                    completed_job_info.job_faults[i] += self.job_faults[completed_job_info.sdk_api_job_info.id_]
+                    del self.job_faults[completed_job_info.sdk_api_job_info.id_]
                     replacement_image = message.safety_evaluations[i].replacement_image_base64
 
                     if message.safety_evaluations[i].failed:
@@ -1032,14 +1039,14 @@ class HordeWorkerProcessManager:
                             type = METADATA_TYPE.censorship,
                             value = METADATA_VALUE.csam,
                         )
-                        self.job_faults[completed_job_info.sdk_api_job_info.id_].append(new_meta_entry)
+                        completed_job_info.job_faults[i].append(new_meta_entry)
                         completed_job_info.state = GENERATION_STATE.csam
                     else:
                         new_meta_entry = GenMetadataEntry(
                             type = METADATA_TYPE.censorship,
                             value = METADATA_VALUE.nsfw,
                         )
-                        self.job_faults[completed_job_info.sdk_api_job_info.id_].append(new_meta_entry)
+                        completed_job_info.job_faults[i].append(new_meta_entry)
                         completed_job_info.state = GENERATION_STATE.censored
                 else:
                     completed_job_info.censored = False
@@ -1431,6 +1438,7 @@ class HordeWorkerProcessManager:
 
             if completed_job_info.job_result_images_base64 is not None:
                 image_in_buffer = self.base64_image_to_stream_buffer(completed_job_info.job_result_images_base64[0])
+                gen_metadata = completed_job_info.job_faults[0]
 
                 if image_in_buffer is None:
                     logger.critical(
@@ -1477,6 +1485,7 @@ class HordeWorkerProcessManager:
                 generation="R2",  # TODO # FIXME
                 state=completed_job_info.state,
                 censored=bool(completed_job_info.censored),  # TODO: is this cast problematic?
+                gen_metadata=gen_metadata,
             )
 
             job_submit_response = await self.horde_client_session.submit_request(submit_job_request, JobSubmitResponse)

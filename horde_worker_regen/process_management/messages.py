@@ -180,7 +180,7 @@ class HordeInferenceResultMessage(HordeProcessMessage):
     """The state of the job to be sent to the API."""
     sdk_api_job_info: ImageGenerateJobPopResponse
     """The job as sent by the API."""
-    job_faults: list[GenMetadataEntry]
+    job_faults: list[list[GenMetadataEntry]]
 
 class HordeSafetyEvaluation(BaseModel):
     """The result of a safety evaluation."""

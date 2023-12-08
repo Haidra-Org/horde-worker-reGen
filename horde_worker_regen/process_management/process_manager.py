@@ -370,7 +370,7 @@ class HordeJobInfo(BaseModel):
     """The API response which has all of the information about the job as sent by the API."""
     job_result_images_base64: list[str] | None = None
     """The faults recorded for each image. The index matches each image in job_result_images_base64"""
-    job_faults: list[GenMetadataEntry] | None = None
+    job_faults: list[list[GenMetadataEntry]] | None = None
     """A list of base64 encoded images that are the result of the job."""
     state: GENERATION_STATE
     """The state of the job to send to the API."""
@@ -951,15 +951,18 @@ class HordeWorkerProcessManager:
 
                 self.total_num_completed_jobs += 1
                 if message.time_elapsed is not None:
+                    total_faults = 0
+                    for f in message.job_faults:
+                        total_faults += len(f)
                     logger.info(
                         f"Inference finished for job {message.sdk_api_job_info.id_} on process {message.process_id}. "
                         f"It took {round(message.time_elapsed, 2)} seconds "
-                        f"and reported {len(message.job_faults)} faults.",
+                        f"and reported {total_faults} faults.",
                     )
                 else:
                     logger.info(f"Inference finished for job {message.sdk_api_job_info.id_}")
                     logger.debug(f"Job didn't include time_elapsed: {message.sdk_api_job_info}")
-                logger.info([f for f in message.job_faults])
+                logger.debug(f"Inference faults: {[f for f in message.job_faults]}")
                 if message.state != GENERATION_STATE.faulted:
                     self.jobs_pending_safety_check.append(
                         HordeJobInfo(

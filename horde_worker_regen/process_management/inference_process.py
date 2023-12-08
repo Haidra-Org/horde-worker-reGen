@@ -391,8 +391,7 @@ class HordeInferenceProcess(HordeProcess):
                 result.image.save(buffered_image, format="PNG")
                 image_base64 = base64.b64encode(buffered_image.getvalue()).decode("utf-8")
                 images_as_base64.append(image_base64)
-                if len(result.faults) > 0:
-                    all_image_faults.append(result.faults)
+                all_image_faults.append(result.faults)
 
         message = HordeInferenceResultMessage(
             process_id=self.process_id,

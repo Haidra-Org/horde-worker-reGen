@@ -388,7 +388,7 @@ class HordeJobInfo(BaseModel):
         return self.censored is not None
 
     @property
-    def images_base64(self) -> list[str | None]:
+    def images_base64(self) -> list[str]:
         """Return a list containing all b64 images."""
         if self.job_image_results is None:
             return []
@@ -961,18 +961,14 @@ class HordeWorkerProcessManager:
 
                 self.total_num_completed_jobs += 1
                 if message.time_elapsed is not None:
-                    total_faults = 0
-                    for f in message.job_image_results:
-                        total_faults += len(f.generation_faults)
                     logger.info(
                         f"Inference finished for job {message.sdk_api_job_info.id_} on process {message.process_id}. "
                         f"It took {round(message.time_elapsed, 2)} seconds "
-                        f"and reported {total_faults} faults.",
+                        f"and reported {message.faults_count} faults.",
                     )
                 else:
                     logger.info(f"Inference finished for job {message.sdk_api_job_info.id_}")
                     logger.debug(f"Job didn't include time_elapsed: {message.sdk_api_job_info}")
-                logger.debug(f"Inference faults: {list(message.job_faults)}")
                 if message.state != GENERATION_STATE.faulted:
                     self.jobs_pending_safety_check.append(
                         HordeJobInfo(

@@ -1030,7 +1030,7 @@ class HordeWorkerProcessManager:
                         continue
 
                     if replacement_image is not None:
-                        completed_job_info.job_image_results[i].images_base64 = replacement_image
+                        completed_job_info.job_image_results[i].image_base64 = replacement_image
                         num_images_censored += 1
                         if message.safety_evaluations[i].is_csam:
                             num_images_csam += 1

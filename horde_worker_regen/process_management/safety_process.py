@@ -199,7 +199,6 @@ class HordeSafetyProcess(HordeProcess):
                 safety_evaluations=safety_evaluations,
             ),
         )
-
         self.send_process_state_change_message(HordeProcessState.WAITING_FOR_JOB, "Waiting for job")
 
     @override

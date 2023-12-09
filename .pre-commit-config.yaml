@@ -17,6 +17,7 @@ repos:
     rev: 'v1.7.1'
     hooks:
     -   id: mypy
+        args: []
         additional_dependencies:
         - pydantic
         - types-requests
@@ -32,3 +33,11 @@ repos:
         - types-pywin32
         - types-tabulate
         - types-tqdm
+        - pytest
+        - loguru
+        - python-dotenv
+        - horde_sdk
+        - aiohttp
+        - horde_safety
+        - torch
+        - ruamel.yaml

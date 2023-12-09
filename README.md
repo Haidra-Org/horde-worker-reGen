@@ -1,11 +1,20 @@
-# Below are some (possibly) outdated install steps. if you want the latest information. go here
+##  If you want the latest information or have questions, come to the thread in discord
 https://discord.com/channels/781145214752129095/1159154031151812650
-# horde-worker-reGen
-Your memory usage will increase up until the number of queued jobs. Its my belief that you should set your queue size to at least 1, and if you're using threads at least max_threads + 1.
-Feel free to try queue size 2 with threads at one and let me know if your kudos/hr goes up or down.
-If you have a low amount of system memory (16gb or under), do not attempt a queue size greater than 1 if you have more than one model set to load.
-If you plan on running SDXL, you will need to ensure at least 9 gb of system ram remains free.
-If you have an 8 gb card, SDXL will only reliably work at max_power values close to 32. 42 was too high for my 2080 in certain cases.
+## Some important details you should know before you start:
+- When submitting debug information **do not publish `.log` files in the server channels - send them to me directly** as I cannot guarantee that your API key would not be in it (though, this warning should relax over time).
+- You will need to monitor the worker a little closer during the beta, as new ways of failing are possible and potentially not yet accounted for.
+  - Workers especially interested in logs should note that there is a main log (`bridge.log`) and a log for each subprocess. `bridge_0.log` is the safety process, and all ones after that (`bridge_1.log`, `brige_2.log`, etc) are inference processes.
+  - You could `Get-Content bridge_1.log -Wait` each log on windows , or `less +F bridge_1.log` on linux to monitor these logs.
+- The worker does not download models on worker start for the moment (this will change.) You can download all models configured in your bridge data by invoking `python download_models.py`.
+- Dynamic models is not implemented
+- Style meta load commands like `ALL SFW` are not implemented, but `BOTTOM n` has been added.
+- I recommend you start with a fresh bridge data file (`bridgeData_template.yaml` -> `bridgeData.yaml`).
+
+- Your memory usage will increase up until the number of queued jobs. Its my belief that you should set your queue size to at least 1, and if you're using threads at least max_threads + 1.
+  - Feel free to try queue size 2 with threads at one and let me know if your kudos/hr goes up or down.
+- If you have a low amount of system memory (16gb or under), do not attempt a queue size greater than 1 if you have more than one model set to load.
+- If you plan on running SDXL, you will need to ensure at least 9 gb of system ram remains free.
+- If you have an 8 gb card, SDXL will only reliably work at max_power values close to 32. 42 was too high for my 2080 in certain cases.
 # To run the beta worker (Please read above first)
 ## (Assuming you have python 3.10 installed):
 

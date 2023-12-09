@@ -54,6 +54,7 @@ from horde_worker_regen.process_management.messages import (
     HordeControlFlag,
     HordeControlMessage,
     HordeControlModelMessage,
+    HordeImageResult,
     HordeInferenceControlMessage,
     HordeInferenceResultMessage,
     HordeModelStateChangeMessage,
@@ -372,10 +373,8 @@ class HordeJobInfo(BaseModel):
 
     sdk_api_job_info: ImageGenerateJobPopResponse
     """The API response which has all of the information about the job as sent by the API."""
-    job_result_images_base64: list[str] | None = None
-    """The faults recorded for each image. The index matches each image in job_result_images_base64"""
-    job_faults: list[list[GenMetadataEntry]] | None = None
-    """A list of base64 encoded images that are the result of the job."""
+    job_image_results: list[HordeImageResult] | None = None
+    """A list of base64 encoded images and their generation faults that are the result of the job."""
     state: GENERATION_STATE
     """The state of the job to send to the API."""
     censored: bool | None = None
@@ -387,6 +386,13 @@ class HordeJobInfo(BaseModel):
     def is_job_checked_for_safety(self) -> bool:
         """Return true if the job has been checked for safety."""
         return self.censored is not None
+
+    @property
+    def images_base64(self) -> list[str | None]:
+        """Return a list containing all b64 images."""
+        if self.job_image_results is None:
+            return []
+        return [r.image_base64 for r in self.job_image_results]
 
 
 class HordeWorkerProcessManager:
@@ -956,8 +962,8 @@ class HordeWorkerProcessManager:
                 self.total_num_completed_jobs += 1
                 if message.time_elapsed is not None:
                     total_faults = 0
-                    for f in message.job_faults:
-                        total_faults += len(f)
+                    for f in message.job_image_results:
+                        total_faults += len(f.generation_faults)
                     logger.info(
                         f"Inference finished for job {message.sdk_api_job_info.id_} on process {message.process_id}. "
                         f"It took {round(message.time_elapsed, 2)} seconds "
@@ -971,8 +977,7 @@ class HordeWorkerProcessManager:
                     self.jobs_pending_safety_check.append(
                         HordeJobInfo(
                             sdk_api_job_info=message.sdk_api_job_info,
-                            job_result_images_base64=message.job_result_images_base64,
-                            job_faults=message.job_faults,
+                            job_image_results=message.job_image_results,
                             state=message.state,
                             time_to_generate=message.time_elapsed if message.time_elapsed is not None else 0,
                         ),
@@ -985,8 +990,7 @@ class HordeWorkerProcessManager:
                     self.completed_jobs.append(
                         HordeJobInfo(
                             sdk_api_job_info=message.sdk_api_job_info,
-                            job_result_images_base64=None,
-                            job_faults=None,
+                            job_image_results=None,
                             state=message.state,
                             time_to_generate=message.time_elapsed if message.time_elapsed is not None else 0,
                         ),
@@ -1003,7 +1007,7 @@ class HordeWorkerProcessManager:
                         completed_job_info = self.jobs_being_safety_checked.pop(i)
                         break
 
-                if completed_job_info is None or completed_job_info.job_result_images_base64 is None:
+                if completed_job_info is None or completed_job_info.job_image_results is None:
                     raise ValueError(
                         f"Expected to find a completed job with ID {message.job_id} but none was found",
                     )
@@ -1013,9 +1017,11 @@ class HordeWorkerProcessManager:
 
                 any_safety_failed = False
 
-                for i in range(len(completed_job_info.job_result_images_base64)):
+                for i in range(len(completed_job_info.job_image_results)):
                     # We add to the image faults, all faults due to source images/masks
-                    completed_job_info.job_faults[i] += self.job_faults[completed_job_info.sdk_api_job_info.id_]
+                    completed_job_info.job_image_results[i].generation_faults += self.job_faults[
+                        completed_job_info.sdk_api_job_info.id_
+                    ]
                     del self.job_faults[completed_job_info.sdk_api_job_info.id_]
                     replacement_image = message.safety_evaluations[i].replacement_image_base64
 
@@ -1028,7 +1034,7 @@ class HordeWorkerProcessManager:
                         continue
 
                     if replacement_image is not None:
-                        completed_job_info.job_result_images_base64[i] = replacement_image
+                        completed_job_info.job_image_results[i].images_base64 = replacement_image
                         num_images_censored += 1
                         if message.safety_evaluations[i].is_csam:
                             num_images_csam += 1
@@ -1047,14 +1053,14 @@ class HordeWorkerProcessManager:
                             type=METADATA_TYPE.censorship,
                             value=METADATA_VALUE.csam,
                         )
-                        completed_job_info.job_faults[i].append(new_meta_entry)
+                        completed_job_info.job_image_results[i].generation_faults.append(new_meta_entry)
                         completed_job_info.state = GENERATION_STATE.csam
                     else:
                         new_meta_entry = GenMetadataEntry(
                             type=METADATA_TYPE.censorship,
                             value=METADATA_VALUE.nsfw,
                         )
-                        completed_job_info.job_faults[i].append(new_meta_entry)
+                        completed_job_info.job_image_results[i].generation_faults.append(new_meta_entry)
                         completed_job_info.state = GENERATION_STATE.censored
                 else:
                     completed_job_info.censored = False
@@ -1344,10 +1350,10 @@ class HordeWorkerProcessManager:
 
         completed_job_info = self.jobs_pending_safety_check[0]
 
-        if completed_job_info.job_result_images_base64 is None:
-            raise ValueError("completed_job_info.job_result_images_base64 is None")
+        if completed_job_info.job_image_results is None:
+            raise ValueError("completed_job_info.job_image_results is None")
 
-        if len(completed_job_info.job_result_images_base64) > 1:
+        if len(completed_job_info.job_image_results) > 1:
             raise NotImplementedError("Only single image jobs are supported right now")  # TODO
 
         if completed_job_info.sdk_api_job_info.id_ is None:
@@ -1369,7 +1375,7 @@ class HordeWorkerProcessManager:
             HordeSafetyControlMessage(
                 control_flag=HordeControlFlag.EVALUATE_SAFETY,
                 job_id=completed_job_info.sdk_api_job_info.id_,
-                images_base64=completed_job_info.job_result_images_base64,
+                images_base64=completed_job_info.images_base64,
                 prompt=completed_job_info.sdk_api_job_info.payload.prompt,
                 censor_nsfw=completed_job_info.sdk_api_job_info.payload.use_nsfw_censor,
                 sfw_worker=not self.bridge_data.nsfw,
@@ -1419,8 +1425,8 @@ class HordeWorkerProcessManager:
 
         submit_job_request_type = job_info.get_follow_up_default_request_type()
 
-        if completed_job_info.job_result_images_base64 is not None:
-            if len(completed_job_info.job_result_images_base64) > 1:
+        if completed_job_info.job_image_results is not None:
+            if len(completed_job_info.job_image_results) > 1:
                 raise NotImplementedError("Only single image jobs are supported right now")
 
             if completed_job_info.censored is None:
@@ -1443,10 +1449,12 @@ class HordeWorkerProcessManager:
                     self._consecutive_failed_job_submits = 0
                     self._consecutive_failed_jobs += 1
                     return
-
-            if completed_job_info.job_result_images_base64 is not None:
-                image_in_buffer = self.base64_image_to_stream_buffer(completed_job_info.job_result_images_base64[0])
-                gen_metadata = completed_job_info.job_faults[0]
+            gen_metadata = []
+            if completed_job_info.job_image_results is not None:
+                image_in_buffer = self.base64_image_to_stream_buffer(
+                    completed_job_info.job_image_results[0].image_base64,
+                )
+                gen_metadata = completed_job_info.job_image_results[0].generation_faults
 
                 if image_in_buffer is None:
                     logger.critical(

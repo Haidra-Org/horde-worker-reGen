@@ -27,6 +27,7 @@ from horde_worker_regen.process_management.messages import (
     HordeControlFlag,
     HordeControlMessage,
     HordeControlModelMessage,
+    HordeImageResult,
     HordeInferenceControlMessage,
     HordeInferenceResultMessage,
     HordeModelStateChangeMessage,
@@ -381,25 +382,27 @@ class HordeInferenceProcess(HordeProcess):
             images (list[Image] | None): The generated images, or None if inference failed.
             time_elapsed (float): The time elapsed during the last operation.
         """
-        images_as_base64 = []
-        all_image_faults = []
+        all_image_results = []
 
         if results is not None:
             for result in results:
                 buffered_image = io.BytesIO()
                 result.image.save(buffered_image, format="PNG")
                 image_base64 = base64.b64encode(buffered_image.getvalue()).decode("utf-8")
-                images_as_base64.append(image_base64)
-                all_image_faults.append(result.faults)
+                all_image_results.append(
+                    HordeImageResult(
+                        image_base64=image_base64,
+                        generation_faults=result.faults,
+                    ),
+                )
 
         message = HordeInferenceResultMessage(
             process_id=self.process_id,
             info="Inference result",
             state=GENERATION_STATE.ok if results is not None and len(results) > 0 else GENERATION_STATE.faulted,
             time_elapsed=time_elapsed,
-            job_result_images_base64=images_as_base64,
+            job_image_results=all_image_results,
             sdk_api_job_info=job_info,
-            job_faults=all_image_faults,
         )
         self.process_message_queue.put(message)
 

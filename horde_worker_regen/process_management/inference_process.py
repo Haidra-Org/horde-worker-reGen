@@ -19,7 +19,6 @@ from horde_sdk.ai_horde_api.apimodels import (
     ImageGenerateJobPopResponse,
 )
 from loguru import logger
-from PIL.Image import Image
 from typing_extensions import override
 
 from horde_worker_regen.process_management._aliased_types import ProcessQueue
@@ -28,6 +27,7 @@ from horde_worker_regen.process_management.messages import (
     HordeControlFlag,
     HordeControlMessage,
     HordeControlModelMessage,
+    HordeImageResult,
     HordeInferenceControlMessage,
     HordeInferenceResultMessage,
     HordeModelStateChangeMessage,
@@ -37,7 +37,7 @@ from horde_worker_regen.process_management.messages import (
 )
 
 if TYPE_CHECKING:
-    from hordelib.horde import HordeLib
+    from hordelib.horde import HordeLib, ResultingImageReturn
     from hordelib.nodes.node_model_loader import HordeCheckpointLoader
     from hordelib.shared_model_manager import SharedModelManager
 else:
@@ -292,7 +292,7 @@ class HordeInferenceProcess(HordeProcess):
 
     _is_busy: bool = False
 
-    def start_inference(self, job_info: ImageGenerateJobPopResponse) -> list[Image] | None:
+    def start_inference(self, job_info: ImageGenerateJobPopResponse) -> list[ResultingImageReturn] | None:
         """Start an inference job in the HordeLib instance.
 
         Args:
@@ -371,7 +371,7 @@ class HordeInferenceProcess(HordeProcess):
         self,
         process_state: HordeProcessState,
         job_info: ImageGenerateJobPopResponse,
-        images: list[Image] | None,
+        results: list[ResultingImageReturn] | None,
         time_elapsed: float,
     ) -> None:
         """Send an inference result message to the main process.
@@ -382,21 +382,26 @@ class HordeInferenceProcess(HordeProcess):
             images (list[Image] | None): The generated images, or None if inference failed.
             time_elapsed (float): The time elapsed during the last operation.
         """
-        images_as_base64 = []
+        all_image_results = []
 
-        if images is not None:
-            for image in images:
+        if results is not None:
+            for result in results:
                 buffered_image = io.BytesIO()
-                image.save(buffered_image, format="PNG")
+                result.image.save(buffered_image, format="PNG")
                 image_base64 = base64.b64encode(buffered_image.getvalue()).decode("utf-8")
-                images_as_base64.append(image_base64)
+                all_image_results.append(
+                    HordeImageResult(
+                        image_base64=image_base64,
+                        generation_faults=result.faults,
+                    ),
+                )
 
         message = HordeInferenceResultMessage(
             process_id=self.process_id,
             info="Inference result",
-            state=GENERATION_STATE.ok if images is not None and len(images) > 0 else GENERATION_STATE.faulted,
+            state=GENERATION_STATE.ok if results is not None and len(results) > 0 else GENERATION_STATE.faulted,
             time_elapsed=time_elapsed,
-            job_result_images_base64=images_as_base64,
+            job_image_results=all_image_results,
             sdk_api_job_info=job_info,
         )
         self.process_message_queue.put(message)
@@ -446,14 +451,14 @@ class HordeInferenceProcess(HordeProcess):
 
                 time_start = time.time()
 
-                images = self.start_inference(message.sdk_api_job_info)
+                results = self.start_inference(message.sdk_api_job_info)
 
-                if images is None:
+                if results is None or len(results) == 0:
                     self.send_memory_report_message(include_vram=True)
                     self.send_inference_result_message(
                         process_state=HordeProcessState.INFERENCE_FAILED,
                         job_info=message.sdk_api_job_info,
-                        images=None,
+                        results=None,
                         time_elapsed=time.time() - time_start,
                     )
 
@@ -479,12 +484,12 @@ class HordeInferenceProcess(HordeProcess):
                     )
                     return
 
-                process_state = HordeProcessState.INFERENCE_COMPLETE if images else HordeProcessState.INFERENCE_FAILED
+                process_state = HordeProcessState.INFERENCE_COMPLETE if results else HordeProcessState.INFERENCE_FAILED
                 logger.debug(f"Finished inference with process state {process_state}")
                 self.send_inference_result_message(
                     process_state=process_state,
                     job_info=message.sdk_api_job_info,
-                    images=images,
+                    results=results,
                     time_elapsed=time.time() - time_start,
                 )
             else:

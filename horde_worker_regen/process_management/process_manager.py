@@ -1901,11 +1901,13 @@ class HordeWorkerProcessManager:
                             if self._user_info_failed:
                                 await asyncio.sleep(5)
 
-                            tasks = [self.api_job_pop()]
+                            tasks = [
+                                asyncio.create_task(self.api_job_pop()),
+                            ]
 
                             if self._last_get_user_info_time + self._api_get_user_info_interval < time.time():
                                 self._last_get_user_info_time = time.time()
-                                tasks.append(self.api_get_user_info())
+                                tasks.append(asyncio.create_task(self.api_get_user_info()))
 
                             if len(tasks) > 0:
                                 results = await asyncio.gather(*tasks, return_exceptions=True)

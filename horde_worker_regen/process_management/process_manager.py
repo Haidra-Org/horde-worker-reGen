@@ -1015,6 +1015,8 @@ class HordeWorkerProcessManager:
 
                 for i in range(len(completed_job_info.job_image_results)):
                     # We add to the image faults, all faults due to source images/masks
+                    if completed_job_info.sdk_api_job_info.id_ is None:
+                        continue
                     completed_job_info.job_image_results[i].generation_faults += self.job_faults[
                         completed_job_info.sdk_api_job_info.id_
                     ]
@@ -1622,6 +1624,10 @@ class HordeWorkerProcessManager:
         return self.get_pending_megapixelsteps() > self._max_pending_megapixelsteps
 
     async def _get_source_images(self, job_pop_response: ImageGenerateJobPopResponse) -> ImageGenerateJobPopResponse:
+        # Adding this to stop mypy complaining
+        if job_pop_response.id_ is None:
+            logger.error("Received ImageGenerateJobPopResponse with id_ == None. This should never happen!")
+            return job_pop_response
         # TODO: Move this into horde_sdk
         for field_name in ["source_image", "source_mask"]:
             field_value = getattr(job_pop_response, field_name)
@@ -1784,6 +1790,7 @@ class HordeWorkerProcessManager:
         if job_pop_response.id_ is None:
             logger.info(info_string)
             return
+        self.job_faults[job_pop_response.id_] = []
 
         logger.info(f"Popped job {job_pop_response.id_} (model: {job_pop_response.model})")
 
@@ -1804,7 +1811,6 @@ class HordeWorkerProcessManager:
             job_pop_response = ImageGenerateJobPopResponse(**new_response_dict)
 
         # Initiate the job faults list for this job, so that we don't need to check if it exists every time
-        self.job_faults[job_pop_response.id_] = []
         job_pop_response = await self._get_source_images(job_pop_response)
 
         # endregion

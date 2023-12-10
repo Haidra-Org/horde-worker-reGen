@@ -18,7 +18,6 @@ import aiohttp
 import PIL
 import PIL.Image
 import psutil
-import torch
 import yarl
 from aiohttp import ClientSession
 from aiohttp.client_exceptions import ClientError
@@ -592,6 +591,8 @@ class HordeWorkerProcessManager:
         logger.debug(f"Target RAM overhead: {self.target_ram_overhead_bytes / 1024 / 1024 / 1024} GB")
 
         # Get the total memory of each GPU
+        import torch
+
         self._device_map = TorchDeviceMap(root={})
         for i in range(torch.cuda.device_count()):
             device = torch.cuda.get_device_properties(i)

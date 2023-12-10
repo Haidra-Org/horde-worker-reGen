@@ -4,6 +4,7 @@ import enum
 import time
 from enum import auto
 from io import BytesIO
+from typing import TYPE_CHECKING
 
 try:
     from multiprocessing.connection import PipeConnection as Connection  # type: ignore
@@ -13,10 +14,6 @@ from multiprocessing.synchronize import Lock
 
 import PIL
 import PIL.Image
-from horde_safety import get_interrogator_no_blip
-from horde_safety.deep_danbooru_model import DeepDanbooruModel, get_deep_danbooru_model
-from horde_safety.interrogate import Interrogator
-from horde_safety.nsfw_checker_class import NSFWChecker, NSFWResult
 from loguru import logger
 from typing_extensions import override
 
@@ -31,6 +28,24 @@ from horde_worker_regen.process_management.messages import (
     HordeSafetyEvaluation,
     HordeSafetyResultMessage,
 )
+
+if TYPE_CHECKING:
+    from horde_safety.deep_danbooru_model import DeepDanbooruModel
+    from horde_safety.interrogate import Interrogator
+    from horde_safety.nsfw_checker_class import NSFWChecker, NSFWResult
+else:
+
+    class Interrogator:
+        """Dummy class to prevent type errors."""
+
+    class NSFWChecker:
+        """Dummy class to prevent type errors."""
+
+    class NSFWResult:
+        """Dummy class to prevent type errors."""
+
+    class DeepDanbooruModel:
+        """Dummy class to prevent type errors."""
 
 
 class CensorReason(enum.Enum):
@@ -72,9 +87,16 @@ class HordeSafetyProcess(HordeProcess):
             disk_lock (Lock): The lock to use when accessing the disk.
             cpu_only (bool, optional): Whether to only use the CPU. Defaults to True.
         """
+
         super().__init__(process_id, process_message_queue, pipe_connection, disk_lock)
+
+        from horde_safety.deep_danbooru_model import get_deep_danbooru_model
+        from horde_safety.interrogate import get_interrogator_no_blip
+
         self._deep_danbooru_model = get_deep_danbooru_model(device="cpu" if cpu_only else "cuda")
         self._interrogator = get_interrogator_no_blip(device="cpu" if cpu_only else "cuda")
+
+        from horde_safety.nsfw_checker_class import NSFWChecker
 
         self._nsfw_checker = NSFWChecker(
             self._interrogator,

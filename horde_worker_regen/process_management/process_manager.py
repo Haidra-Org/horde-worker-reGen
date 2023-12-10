@@ -871,14 +871,16 @@ class HordeWorkerProcessManager:
         :param process_info: HordeProcessInfo for the process to end
         :return: None
         """
-        # Send the process a message to end
-        process_info.pipe_connection.send(HordeControlMessage(control_flag=HordeControlFlag.END_PROCESS))
-        # Update the process map
-        self._process_map.update_entry(process_id=process_info.process_id)
-        logger.info(f"Ended inference process {process_info.process_id}")
-        # Join the process with a timeout of 1 second
+        self._process_map.update_entry(
+            process_id=process_info.process_id, last_process_state=None, loaded_horde_model_name=None
+        )
+        try:
+            process_info.pipe_connection.send(HordeControlMessage(control_flag=HordeControlFlag.END_PROCESS))
+        except BrokenPipeError:
+            logger.debug(f"Process {process_info.process_id} control channel vanished")
         process_info.mp_process.join(timeout=1)
         process_info.mp_process.kill()
+        logger.info(f"Ended inference process {process_info.process_id}")
 
     def _replace_inference_process(self, process_info: HordeProcessInfo) -> None:
         """
@@ -2175,7 +2177,7 @@ class HordeWorkerProcessManager:
         """
         ex = future.exception()
         if ex is not None:
-            logger.error(f'exception thrown by a main loop task: {ex}')
+            logger.error(f"exception thrown by a main loop task: {ex}")
 
     async def _main_loop(self) -> None:
         # Run both loops concurrently

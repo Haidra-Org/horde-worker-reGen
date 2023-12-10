@@ -31,15 +31,11 @@ from horde_sdk.ai_horde_api.ai_horde_clients import AIHordeAPIAsyncClientSession
 from horde_sdk.ai_horde_api.apimodels import (
     FindUserRequest,
     FindUserResponse,
+    GenMetadataEntry,
     ImageGenerateJobPopRequest,
     ImageGenerateJobPopResponse,
     JobSubmitResponse,
 )
-from horde_sdk.ai_horde_api.apimodels.base import (
-    GenMetadataEntry,
-)
-
-# TODO: Switch to importing it withou .base once sdk is updated
 from horde_sdk.ai_horde_api.consts import METADATA_TYPE, METADATA_VALUE
 from horde_sdk.ai_horde_api.fields import JobID
 from loguru import logger
@@ -389,7 +385,7 @@ class HordeJobInfo(BaseModel):
 
     @property
     def images_base64(self) -> list[str]:
-        """Return a list containing all b64 images."""
+        """Return a list containing all base64 images."""
         if self.job_image_results is None:
             return []
         return [r.image_base64 for r in self.job_image_results]
@@ -1626,7 +1622,7 @@ class HordeWorkerProcessManager:
     async def _get_source_images(self, job_pop_response: ImageGenerateJobPopResponse) -> ImageGenerateJobPopResponse:
         # Adding this to stop mypy complaining
         if job_pop_response.id_ is None:
-            logger.error("Received ImageGenerateJobPopResponse with id_ == None. This should never happen!")
+            logger.error("Received ImageGenerateJobPopResponse with id_ is None. Please let the devs know!")
             return job_pop_response
         # TODO: Move this into horde_sdk
         for field_name in ["source_image", "source_mask"]:

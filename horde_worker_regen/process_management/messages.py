@@ -6,13 +6,9 @@ from enum import auto
 
 from horde_sdk.ai_horde_api import GENERATION_STATE
 from horde_sdk.ai_horde_api.apimodels import (
+    GenMetadataEntry,
     ImageGenerateJobPopResponse,
 )
-from horde_sdk.ai_horde_api.apimodels.base import (
-    GenMetadataEntry,
-)
-
-# TODO: Switch to importing it withou .base once sdk is updated
 from horde_sdk.ai_horde_api.fields import JobID
 from loguru import logger
 from pydantic import BaseModel, Field, model_validator

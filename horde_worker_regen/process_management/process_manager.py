@@ -7,7 +7,7 @@ import os
 import random
 import sys
 import time
-from asyncio import CancelledError, Task
+from asyncio import CancelledError
 from asyncio import Lock as Lock_Asyncio
 from collections import deque
 from collections.abc import Mapping
@@ -872,7 +872,9 @@ class HordeWorkerProcessManager:
         :return: None
         """
         self._process_map.update_entry(
-            process_id=process_info.process_id, last_process_state=None, loaded_horde_model_name=None
+            process_id=process_info.process_id,
+            last_process_state=None,
+            loaded_horde_model_name=None,
         )
         try:
             process_info.pipe_connection.send(HordeControlMessage(control_flag=HordeControlFlag.END_PROCESS))

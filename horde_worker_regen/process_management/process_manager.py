@@ -1190,17 +1190,16 @@ class HordeWorkerProcessManager:
             if model_is_loaded:
                 continue
 
-            available_process = None
+            available_process = self._process_map.get_first_available_inference_process()
             model_to_unload = self._lru.append(job.model)
-            if model_to_unload is not None:
+
+            if available_process is None and model_to_unload is not None:
                 for p in self._process_map.values():
                     if p.loaded_horde_model_name == model_to_unload and (
                         p.last_process_state == HordeProcessState.INFERENCE_COMPLETE
                         or p.last_process_state == HordeProcessState.WAITING_FOR_JOB
                     ):
                         available_process = p
-            if available_process is None:
-                available_process = self._process_map.get_first_available_inference_process()
 
             if available_process is None:
                 return False

@@ -8,7 +8,7 @@ from ruamel.yaml import YAML
 load_dotenv()
 
 
-def load_env_vars() -> None:
+def load_env_vars() -> None:  # FIXME: there is a dynamic way to do this
     """Load the environment variables from the config file."""
     yaml = YAML()
     config_file = "bridgeData.yaml"
@@ -16,11 +16,8 @@ def load_env_vars() -> None:
 
     if not pathlib.Path(config_file).exists():
         if pathlib.Path(template_file).exists():
-            raise FileNotFoundError(
-                f"{template_file} found. Please set variables and rename it to {config_file}."
-            )
-        else:
-            raise FileNotFoundError(f"{config_file} not found")
+            raise FileNotFoundError(f"{template_file} found. Please set variables and rename it to {config_file}.")
+        raise FileNotFoundError(f"{config_file} not found")
 
     with open(config_file, encoding="utf-8") as f:
         config = yaml.load(f)

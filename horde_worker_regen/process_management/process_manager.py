@@ -88,16 +88,16 @@ class HordeProcessInfo:
     """The last known state of this process."""
     last_timestamp: datetime.datetime
     """Last time we updated the process info. If we're regularly working, then this value should change frequently."""
-    loaded_horde_model_name: str | None = None
+    loaded_horde_model_name: str | None
     """The name of the horde model that is (supposedly) currently loaded in this process."""
     last_control_flag: HordeControlFlag | None
     """The last control flag sent, to avoid duplication."""
 
-    ram_usage_bytes: int = 0
+    ram_usage_bytes: int
     """The amount of RAM used by this process."""
-    vram_usage_bytes: int = 0
+    vram_usage_bytes: int
     """The amount of VRAM used by this process."""
-    total_vram_bytes: int = 0
+    total_vram_bytes: int
     """The total amount of VRAM available to this process."""
 
     # TODO: VRAM usage
@@ -125,7 +125,12 @@ class HordeProcessInfo:
         self.process_type = process_type
         self.last_process_state = last_process_state
         self.last_timestamp = datetime.datetime.now()
+        self.loaded_horde_model_name = None
         self.last_control_flag = None
+
+        self.ram_usage_bytes = 0
+        self.vram_usage_bytes = 0
+        self.total_vram_bytes = 0
 
     def is_process_busy(self) -> bool:
         """Return true if the process is actively engaged in a task.

@@ -125,6 +125,7 @@ class HordeProcessInfo:
         self.process_type = process_type
         self.last_process_state = last_process_state
         self.last_timestamp = datetime.datetime.now()
+        self.last_control_flag = None
 
     def is_process_busy(self) -> bool:
         """Return true if the process is actively engaged in a task.

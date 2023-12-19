@@ -26,3 +26,18 @@ def load_env_vars() -> None:  # FIXME: there is a dynamic way to do this
                 "AIWORKER_CACHE_HOME environment variable already set. "
                 "This will override the value for `cache_home` in the config file.",
             )
+
+    if "max_lora_cache_size" in config:
+        if os.getenv("AIWORKER_LORA_CACHE_SIZE") is None:
+            try:
+                int(config["max_lora_cache_size"])
+            except ValueError as e:
+                raise ValueError(
+                    "max_lora_cache_size must be an integer, but is not.",
+                ) from e
+            os.environ["AIWORKER_LORA_CACHE_SIZE"] = str(config["max_lora_cache_size"])
+        else:
+            print(
+                "AIWORKER_LORA_CACHE_SIZE environment variable already set. "
+                "This will override the value for `max_lora_cache_size` in the config file.",
+            )

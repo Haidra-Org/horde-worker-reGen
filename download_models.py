@@ -5,7 +5,6 @@ from load_env_vars import load_env_vars
 load_env_vars()
 
 import argparse
-import time
 
 from horde_model_reference.model_reference_manager import ModelReferenceManager
 from loguru import logger

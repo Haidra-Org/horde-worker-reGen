@@ -1213,6 +1213,7 @@ class HordeWorkerProcessManager:
             if (
                 available_process.last_process_state != HordeProcessState.WAITING_FOR_JOB
                 and available_process.loaded_horde_model_name is not None
+                and self.bridge_data.cycle_process_on_model_change
             ):
                 # We're going to restart the process and then exit the loop, because
                 # available_process is very quickly _not_ going to be available.

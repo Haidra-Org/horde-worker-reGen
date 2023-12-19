@@ -61,7 +61,7 @@ def download_all_models(purge_unused_loras: bool = False) -> None:
         if SharedModelManager.manager.lora is None:
             logger.error("Failed to load LORA model manager")
             exit(1)
-        SharedModelManager.manager.lora.download_default_loras()
+        SharedModelManager.manager.lora.download_default_loras(bridge_data.nsfw)
 
         while SharedModelManager.manager.lora.are_downloads_complete() is False:
             logger.info("Waiting for LORA downloads to complete...")

@@ -304,7 +304,8 @@ class HordeInferenceProcess(HordeProcess):
         with self._inference_semaphore:
             self._is_busy = True
             try:
-                results = self._horde.basic_inference(job_info)
+                with logger.catch(reraise=True):
+                    results = self._horde.basic_inference(job_info)
             except Exception as e:
                 logger.critical(f"Inference failed: {type(e).__name__} {e}")
                 return None

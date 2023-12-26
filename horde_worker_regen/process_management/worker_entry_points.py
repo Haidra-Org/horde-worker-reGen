@@ -33,11 +33,12 @@ def start_inference_process(
         import hordelib
 
         try:
-            hordelib.initialise(
-                setup_logging=None,
-                process_id=process_id,
-                logging_verbosity=0,
-            )
+            with logger.catch(reraise=True):
+                hordelib.initialise(
+                    setup_logging=None,
+                    process_id=process_id,
+                    logging_verbosity=0,
+                )
         except Exception as e:
             logger.critical(f"Failed to initialise hordelib: {type(e).__name__} {e}")
             sys.exit(1)
@@ -76,11 +77,12 @@ def start_safety_process(
         import hordelib
 
         try:
-            hordelib.initialise(
-                setup_logging=None,
-                process_id=process_id,
-                logging_verbosity=0,
-            )
+            with logger.catch(reraise=True):
+                hordelib.initialise(
+                    setup_logging=None,
+                    process_id=process_id,
+                    logging_verbosity=0,
+                )
         except Exception as e:
             logger.critical(f"Failed to initialise hordelib: {type(e).__name__} {e}")
             sys.exit(1)

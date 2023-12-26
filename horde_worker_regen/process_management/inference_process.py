@@ -97,8 +97,9 @@ class HordeInferenceProcess(HordeProcess):
         # We import these here to guard against potentially importing them in the main process
         # which would create shared objects, potentially causing issues
         try:
-            from hordelib.horde import HordeLib
-            from hordelib.shared_model_manager import SharedModelManager
+            with logger.catch(reraise=True):
+                from hordelib.horde import HordeLib
+                from hordelib.shared_model_manager import SharedModelManager
         except Exception as e:
             logger.critical(f"Failed to import HordeLib or SharedModelManager: {type(e).__name__} {e}")
             sys.exit(1)
@@ -108,14 +109,16 @@ class HordeInferenceProcess(HordeProcess):
         from hordelib.nodes.node_model_loader import HordeCheckpointLoader
 
         try:
-            self._horde = HordeLib(comfyui_callback=self._comfyui_callback)
-            self._shared_model_manager = SharedModelManager()
+            with logger.catch(reraise=True):
+                self._horde = HordeLib(comfyui_callback=self._comfyui_callback)
+                self._shared_model_manager = SharedModelManager()
         except Exception as e:
             logger.critical(f"Failed to initialise HordeLib: {type(e).__name__} {e}")
             sys.exit(1)
 
         try:
-            self._checkpoint_loader = HordeCheckpointLoader()
+            with logger.catch(reraise=True):
+                self._checkpoint_loader = HordeCheckpointLoader()
         except Exception as e:
             logger.critical(f"Failed to initialise HordeCheckpointLoader: {type(e).__name__} {e}")
             sys.exit(1)

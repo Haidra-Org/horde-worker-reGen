@@ -41,6 +41,7 @@ from horde_sdk.ai_horde_api.consts import METADATA_TYPE, METADATA_VALUE
 from horde_sdk.ai_horde_api.fields import JobID
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, RootModel, ValidationError
+from typing_extensions import Any
 
 from horde_worker_regen.bridge_data.data_model import reGenBridgeData
 from horde_worker_regen.bridge_data.load_config import BridgeDataLoader
@@ -1760,8 +1761,12 @@ class HordeWorkerProcessManager:
         if job_pop_response.id_ is None:
             logger.error("Received ImageGenerateJobPopResponse with id_ is None. Please let the devs know!")
             return job_pop_response
+        image_fields: list[str] = ["source_image", "source_mask"]
+
+        new_response_dict: dict[str, Any] = job_pop_response.model_dump(by_alias=True)
+
         # TODO: Move this into horde_sdk
-        for field_name in ["source_image", "source_mask"]:
+        for field_name in image_fields:
             field_value = getattr(job_pop_response, field_name)
             if field_value is not None and "https://" in field_value:
                 fail_count = 0
@@ -1785,15 +1790,37 @@ class HordeWorkerProcessManager:
                         content = await response.content.read()
 
                         new_response_dict[field_name] = base64.b64encode(content).decode("utf-8")
-                        job_pop_response = ImageGenerateJobPopResponse(**new_response_dict)
+
                         logger.debug(f"Downloaded {field_name} for job {job_pop_response.id_}")
                         break
                     except Exception as e:
+                        logger.debug(f"{type(e)}: {e}")
                         logger.warning(f"Failed to download {field_name}: {e}")
                         fail_count += 1
                         time.sleep(0.5)
 
-        return job_pop_response
+        for field in image_fields:
+            try:
+                field_value = getattr(job_pop_response, field)
+                if field_value is not None:
+                    image = PIL.Image.open(BytesIO(base64.b64decode(field_value)))
+                    image.verify()
+
+            except Exception as e:
+                logger.error(f"Failed to verify {field}: {e}")
+                if job_pop_response.id_ is None:
+                    raise ValueError("job_pop_response.id_ is None") from e
+
+                new_meta_entry = GenMetadataEntry(
+                    type=METADATA_TYPE[field],
+                    value=METADATA_VALUE.parse_failed,
+                )
+                self.job_faults[job_pop_response.id_].append(new_meta_entry)
+
+                new_response_dict[field] = None
+                new_response_dict["source_processing"] = "txt2img"
+
+        return ImageGenerateJobPopResponse(**new_response_dict)
 
     async def api_job_pop(self) -> None:
         """If the job deque is not full, add any jobs that are available to the job deque."""

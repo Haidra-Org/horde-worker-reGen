@@ -1767,7 +1767,7 @@ class HordeWorkerProcessManager:
 
         # TODO: Move this into horde_sdk
         for field_name in image_fields:
-            field_value = getattr(job_pop_response, field_name)
+            field_value = new_response_dict[field_name]
             if field_value is not None and "https://" in field_value:
                 fail_count = 0
                 while True:
@@ -1785,7 +1785,6 @@ class HordeWorkerProcessManager:
                             timeout=aiohttp.ClientTimeout(total=10),
                         )
                         response.raise_for_status()
-                        new_response_dict = job_pop_response.model_dump(by_alias=True)
 
                         content = await response.content.read()
 

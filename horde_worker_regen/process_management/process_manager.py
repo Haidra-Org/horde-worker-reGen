@@ -1185,33 +1185,28 @@ class HordeWorkerProcessManager:
         Returns:
             True if a model was preloaded, False otherwise.
         """
+        loaded_models = {process.loaded_horde_model_name for process in self._process_map.values()}
+        loaded_models = loaded_models.union(
+            model.horde_model_name
+            for model in self._horde_model_map.root.values()
+            if model.horde_model_load_state.is_loaded() or model.horde_model_load_state == ModelLoadState.LOADING
+        )
+        queued_models = {job.model for job in self.job_deque if job not in [j for j, _ in self.jobs_in_progress]}
+
+        logger.debug(f"Loaded models: {loaded_models}, queued: {queued_models}")
         # Starting from the left of the deque, preload models that are not yet loaded up to the
         # number of inference processes that are available
         for job in self.job_deque:
-            model_is_loaded = False
-
             if job.model is None:
                 raise ValueError(f"job.model is None ({job})")
 
-            for process in self._process_map.values():
-                if process.loaded_horde_model_name == job.model:
-                    model_is_loaded = True
-                    break
-
-            for model in self._horde_model_map.root.values():
-                if model.horde_model_name == job.model and (
-                    model.horde_model_load_state.is_loaded() or model.horde_model_load_state == ModelLoadState.LOADING
-                ):
-                    model_is_loaded = True
-                    break
-
-            if model_is_loaded:
+            if job.model in loaded_models:
                 continue
 
             available_process = self._process_map.get_first_available_inference_process()
             model_to_unload = self._lru.append(job.model)
 
-            if available_process is None and model_to_unload is not None:
+            if available_process is None and model_to_unload is not None and model_to_unload not in queued_models:
                 for p in self._process_map.values():
                     if p.loaded_horde_model_name == model_to_unload and (
                         p.last_process_state == HordeProcessState.INFERENCE_COMPLETE

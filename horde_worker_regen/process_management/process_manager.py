@@ -1294,35 +1294,35 @@ class HordeWorkerProcessManager:
             if not process_with_model.can_accept_job():
                 return
 
-            # Unload all models from vram from any other process that isn't running a job
-            for process_info in self._process_map.values():
-                if process_info.process_id == process_with_model.process_id:
-                    continue
-
-                if process_info.is_process_busy():
-                    continue
-
-                if process_info.loaded_horde_model_name is None:
-                    continue
-
-                if len(self.job_deque) == len(self.jobs_in_progress) + len(self.jobs_pending_safety_check):
-                    logger.debug("Not unloading models from VRAM because there are no jobs to make room for.")
-                    continue
-
+            # Unload all models from vram from any other process that isn't running a job if configured to do so
+            if self.bridge_data.unload_models_from_vram:
                 next_n_models = list(self.get_next_n_models(self.max_inference_processes))
+                for process_info in self._process_map.values():
+                    if process_info.process_id == process_with_model.process_id:
+                        continue
 
-                # If the model would be used by another process soon, don't unload it
-                if process_info.loaded_horde_model_name in next_n_models:
-                    continue
+                    if process_info.is_process_busy():
+                        continue
 
-                if process_info.last_control_flag != HordeControlFlag.UNLOAD_MODELS_FROM_VRAM:
-                    process_info.pipe_connection.send(
-                        HordeControlModelMessage(
-                            control_flag=HordeControlFlag.UNLOAD_MODELS_FROM_VRAM,
-                            horde_model_name=process_info.loaded_horde_model_name,
-                        ),
-                    )
-                    process_info.last_control_flag = HordeControlFlag.UNLOAD_MODELS_FROM_VRAM
+                    if process_info.loaded_horde_model_name is None:
+                        continue
+
+                    if len(self.job_deque) == len(self.jobs_in_progress) + len(self.jobs_pending_safety_check):
+                        logger.debug("Not unloading models from VRAM because there are no jobs to make room for.")
+                        continue
+
+                    # If the model would be used by another process soon, don't unload it
+                    if process_info.loaded_horde_model_name in next_n_models:
+                        continue
+
+                    if process_info.last_control_flag != HordeControlFlag.UNLOAD_MODELS_FROM_VRAM:
+                        process_info.pipe_connection.send(
+                            HordeControlModelMessage(
+                                control_flag=HordeControlFlag.UNLOAD_MODELS_FROM_VRAM,
+                                horde_model_name=process_info.loaded_horde_model_name,
+                            ),
+                        )
+                        process_info.last_control_flag = HordeControlFlag.UNLOAD_MODELS_FROM_VRAM
 
             logger.info(f"Starting inference for job {next_job.id_} on process {process_with_model.process_id}")
             # region Log job info

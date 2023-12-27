@@ -29,6 +29,8 @@ class reGenBridgeData(CombinedHordeBridgeData):
         default=False,
     )
 
+    unload_models_from_vram: bool = Field(default=True)
+
     def load_env_vars(self) -> None:
         """Load the environment variables into the config model."""
         if self.models_folder_parent and os.getenv("AIWORKER_CACHE_HOME") is None:

@@ -482,9 +482,6 @@ class HordeWorkerProcessManager:
 
     target_vram_overhead_bytes_map: Mapping[int, int] | None = None
 
-    process_timeout: datetime.timedelta
-    """Max amount of time a job can go without checking in with the main process manager"""
-
     @property
     def max_queue_size(self) -> int:
         """The maximum number of jobs that can be queued."""
@@ -621,7 +618,6 @@ class HordeWorkerProcessManager:
 
         self.max_inference_processes = self.bridge_data.queue_size + self.bridge_data.max_threads
         self._lru = LRUCache(self.max_inference_processes)
-        self.process_timeout = datetime.timedelta(minutes=10)
 
         # If there is only one model to load and only one inference process, then we can only run one job at a time
         # and there is no point in having more than one inference process
@@ -902,7 +898,22 @@ class HordeWorkerProcessManager:
         """
         logger.debug(f"Replacing {process_info}")
         self._end_inference_process(process_info)
-        self.jobs_in_progress = [job for job in self.jobs_in_progress if job[1] != process_info.process_id]
+        job_tuple = next(((job, pid) for job, pid in self.jobs_in_progress if pid == process_info.process_id), None)
+        if job_tuple is not None:
+            job, _ = job_tuple
+            self.jobs_in_progress.remove(job_tuple)
+            self.job_deque.remove(job)
+            self.completed_jobs.append(
+                HordeJobInfo(
+                    sdk_api_job_info=job,
+                    job_image_results=None,
+                    state=GENERATION_STATE.faulted,
+                    time_to_generate=self.bridge_data.process_timeout,
+                ),
+            )
+            del self.job_pop_timestamps[str(job.id_)]
+        if process_info.last_process_state == HordeProcessState.INFERENCE_STARTING:
+            self._inference_semaphore.release()
         self._start_inference_process(process_info.process_id)
 
     total_num_completed_jobs: int = 0
@@ -2111,7 +2122,12 @@ class HordeWorkerProcessManager:
                         self.start_evaluate_safety()
 
                 if self.is_free_inference_process_available() and len(self.job_deque) > 0:
-                    async with self._job_deque_lock, self._jobs_safety_check_lock, self._completed_jobs_lock:
+                    async with (
+                        self._job_deque_lock,
+                        self._jobs_safety_check_lock,
+                        self._completed_jobs_lock,
+                        self._job_pop_timestamps_lock,
+                    ):
                         # So long as we didn't preload a model this cycle, we can start inference
                         # We want to get any messages next cycle from preloading processes to make sure
                         # the state of everything is up to date
@@ -2122,7 +2138,8 @@ class HordeWorkerProcessManager:
                 async with self._job_deque_lock, self._jobs_safety_check_lock, self._completed_jobs_lock:
                     self.receive_and_handle_process_messages()
 
-                self.replace_hung_processes()
+                async with self._job_deque_lock, self._job_pop_timestamps_lock:
+                    self.replace_hung_processes()
 
                 # self.unload_models()
 
@@ -2287,12 +2304,14 @@ class HordeWorkerProcessManager:
 
     def replace_hung_processes(self) -> None:
         """
-        Replaces processes that haven't checked in since `self.process_timeout`
+        Replaces processes that haven't checked in since `process_timeout` seconds in bridgeData
 
         :return: None
         """
         now = datetime.datetime.now()
         for process_info in self._process_map.values():
-            if (now - process_info.last_timestamp) > self.process_timeout and process_info.is_process_busy():
+            if (now - process_info.last_timestamp) > datetime.timedelta(
+                seconds=self.bridge_data.process_timeout,
+            ) and process_info.is_process_busy():
                 logger.error(f"{process_info} has exceeded its timeout and will be replaced")
                 self._replace_inference_process(process_info)

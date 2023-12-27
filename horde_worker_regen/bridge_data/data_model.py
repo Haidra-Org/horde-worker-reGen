@@ -31,6 +31,9 @@ class reGenBridgeData(CombinedHordeBridgeData):
 
     unload_models_from_vram: bool = Field(default=True)
 
+    process_timeout: int = Field(default=300)
+    """The maximum amount of time to allow a job to run before it is killed"""
+
     def load_env_vars(self) -> None:
         """Load the environment variables into the config model."""
         if self.models_folder_parent and os.getenv("AIWORKER_CACHE_HOME") is None:

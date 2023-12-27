@@ -46,6 +46,7 @@ from typing_extensions import Any
 from horde_worker_regen.bridge_data.data_model import reGenBridgeData
 from horde_worker_regen.bridge_data.load_config import BridgeDataLoader
 from horde_worker_regen.consts import BRIDGE_CONFIG_FILENAME
+from horde_worker_regen.process_management import util
 from horde_worker_regen.process_management._aliased_types import ProcessQueue
 from horde_worker_regen.process_management.horde_process import HordeProcessType
 from horde_worker_regen.process_management.messages import (
@@ -374,7 +375,7 @@ class ProcessMap(dict[int, HordeProcessInfo]):
             if process_info.process_type == HordeProcessType.INFERENCE:
                 base_string += (
                     f"{process_id}: ({process_info.loaded_horde_model_name} "
-                    f"[last event: {process_info.last_timestamp}]) "
+                    f"[last event: {util.dt_to_td_str(process_info.last_timestamp)}]) "
                 )
             else:
                 base_string += f"{process_id}: ({process_info.process_type.name}) "
@@ -1076,7 +1077,9 @@ class HordeWorkerProcessManager:
                 self.total_num_completed_jobs += 1
                 if message.time_elapsed is not None:
                     logger.info(
-                        f"Inference finished for job {message.sdk_api_job_info.id_} on process {message.process_id}. "
+                        f"Inference finished for job {message.sdk_api_job_info.id_} "
+                        f"on process {message.process_id} "
+                        f"model {self._process_map[message.process_id].loaded_horde_model_name}. "
                         f"It took {round(message.time_elapsed, 2)} seconds "
                         f"and reported {message.faults_count} faults.",
                     )
@@ -1330,34 +1333,26 @@ class HordeWorkerProcessManager:
                         )
                         process_info.last_control_flag = HordeControlFlag.UNLOAD_MODELS_FROM_VRAM
 
-            logger.info(f"Starting inference for job {next_job.id_} on process {process_with_model.process_id}")
+            logger.info(
+                f"Starting inference for job {str(next_job.id_)[0:8]} "
+                f"on process {process_with_model.process_id} model {next_job.model}",
+            )
             # region Log job info
-            logger.info(f"Model: {next_job.model}")
+            extra_info = []
             if next_job.source_image is not None:
-                logger.info(f"Using {next_job.source_processing}")
-
-            extra_info = ""
+                extra_info.append(f", using {next_job.source_processing}")
             if next_job.payload.control_type is not None:
-                extra_info += f"Control type: {next_job.payload.control_type}"
+                extra_info.append(f"Control type: {next_job.payload.control_type}")
             if next_job.payload.loras:
-                if extra_info:
-                    extra_info += ", "
-                extra_info += f"{len(next_job.payload.loras)} LoRAs"
+                extra_info.append(f"{len(next_job.payload.loras)} LoRAs")
             if next_job.payload.tis:
-                if extra_info:
-                    extra_info += ", "
-                extra_info += f"{len(next_job.payload.tis)} TIs"
+                extra_info.append(f"{len(next_job.payload.tis)} TIs")
             if next_job.payload.post_processing is not None and len(next_job.payload.post_processing) > 0:
-                if extra_info:
-                    extra_info += ", "
-                extra_info += f"Post processing: {next_job.payload.post_processing}"
+                extra_info.append(f"Post processing: {next_job.payload.post_processing}")
             if next_job.payload.hires_fix:
-                if extra_info:
-                    extra_info += ", "
-                extra_info += "HiRes fix"
-
-            if extra_info:
-                logger.info(extra_info)
+                extra_info.append("HiRes fix")
+            if len(extra_info) > 0:
+                logger.info(", ".join(extra_info))
 
             logger.info(
                 f"{next_job.payload.width}x{next_job.payload.height} for {next_job.payload.ddim_steps} steps "
@@ -1986,7 +1981,7 @@ class HordeWorkerProcessManager:
 
         async with self._job_deque_lock, self._job_pop_timestamps_lock:
             self.job_deque.append(job_pop_response)
-            jobs = [f"<{x.id_}: {x.model}>" for x in self.job_deque]
+            jobs = [f"<{str(x.id_)[0:8]}: {x.model}>" for x in self.job_deque]
             logger.info(f'Job queue: {", ".join(jobs)}')
             # self._testing_jobs_added += 1
             self.job_pop_timestamps[str(job_pop_response.id_)] = time.time()
@@ -2147,16 +2142,22 @@ class HordeWorkerProcessManager:
 
                 if time.time() - self._last_status_message_time > self._status_message_frequency:
                     logger.info(f"{self._process_map}")
-                    logger.info(f"Threads being used: {self._max_concurrent_inference_processes}")
-                    logger.info(f"Number of jobs popped: {len(self.job_deque)}")
-                    jobs = [f"<{x.id_}: {x.model}>" for x in self.job_deque]
-                    logger.info(f'Job queue: {", ".join(jobs)}')
-                    logger.info(f"Number of jobs in progress: {len(self.jobs_in_progress)}")
-                    logger.info(f"Number of jobs pending safety check: {len(self.jobs_pending_safety_check)}")
-                    logger.info(f"Number of jobs being safety checked: {len(self.jobs_being_safety_checked)}")
-                    logger.info(f"Number of jobs completed: {len(self.completed_jobs)}")
-                    # TODO: Faulted
-                    logger.info(f"Number of jobs submitted: {self.total_num_completed_jobs}")
+                    jobs = [f"<{str(x.id_)[0:8]}: {x.model}>" for x in self.job_deque]
+                    in_progress = [f"{str(x.id_)[0:8]}" for x, _ in self.jobs_in_progress]
+                    logger.info(
+                        f"Threads being used: {self._max_concurrent_inference_processes}, "
+                        f'Job queue: {", ".join(jobs)}',
+                    )
+                    logger.info(
+                        f"In progress: {', '.join(in_progress)}, "
+                        f"awaiting safety: {len(self.jobs_pending_safety_check)}, "
+                        f"being safety checked: {len(self.jobs_being_safety_checked)}",
+                    )
+                    # TODO: Faulted submitted number
+                    logger.info(
+                        f"Completed jobs currently being submitted: {len(self.completed_jobs)}, "
+                        f"overall jobs submitted: {self.total_num_completed_jobs}",
+                    )
 
                     self._last_status_message_time = time.time()
 

@@ -1801,7 +1801,7 @@ class HordeWorkerProcessManager:
 
         for field in image_fields:
             try:
-                field_value = getattr(job_pop_response, field)
+                field_value = new_response_dict[field]
                 if field_value is not None:
                     image = PIL.Image.open(BytesIO(base64.b64decode(field_value)))
                     image.verify()

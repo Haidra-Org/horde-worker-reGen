@@ -111,7 +111,7 @@ class HordeInferenceProcess(HordeProcess):
         try:
             with logger.catch(reraise=True):
                 self._horde = HordeLib(comfyui_callback=self._comfyui_callback)
-                self._shared_model_manager = SharedModelManager()
+                self._shared_model_manager = SharedModelManager(do_not_load_model_mangers=True)
         except Exception as e:
             logger.critical(f"Failed to initialise HordeLib: {type(e).__name__} {e}")
             sys.exit(1)
@@ -122,6 +122,8 @@ class HordeInferenceProcess(HordeProcess):
         except Exception as e:
             logger.critical(f"Failed to initialise HordeCheckpointLoader: {type(e).__name__} {e}")
             sys.exit(1)
+
+        SharedModelManager.load_model_managers(multiprocessing_lock=self.disk_lock)
 
         if SharedModelManager.manager.compvis is None:
             logger.critical("Failed to initialise SharedModelManager")

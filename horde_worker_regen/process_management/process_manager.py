@@ -1898,12 +1898,47 @@ class HordeWorkerProcessManager:
         # # log a list of the current model names in the deque
         # logger.debug(f"Current models in job deque: {[job.model for job in self.job_deque]}")
 
+        models = set(self.bridge_data.image_models_to_load)
+
+        loaded_models = {
+            process.loaded_horde_model_name
+            for process in self._process_map.values()
+            if process.loaded_horde_model_name is not None
+        }
+
+        if (
+            len(self.bridge_data.image_models_to_load) > self.max_inference_processes
+            and len(loaded_models) == self.max_inference_processes
+        ):
+            if self.bridge_data.model_stickiness > 0 and random.random() < self.bridge_data.model_stickiness:
+                free_models = {
+                    process.loaded_horde_model_name
+                    for process in self._process_map.values()
+                    if not process.is_process_busy() and process.loaded_horde_model_name is not None
+                }
+                if len(loaded_models) >= 1:
+                    models = free_models
+                logger.debug(f"Sticky models -- popping only {models}")
+            else:
+                logger.debug("Models unstuck: asking to pop for all available models")
+
+        # We'll only allow one running plus one queued for a given model.
+        models_to_remove = {
+            model for model, count in collections.Counter([job.model for job in self.job_deque]).items() if count >= 2
+        }
+        if len(models_to_remove) > 0:
+            models = models.difference(models_to_remove)
+
+        if len(models) == 0:
+            logger.debug("Not eligible to pop a job yet")
+            return
+
         try:
             job_pop_request = ImageGenerateJobPopRequest(
                 apikey=self.bridge_data.api_key,
                 name=self.bridge_data.dreamer_worker_name,
                 bridge_agent="AI Horde Worker reGen:3.0.2:https://github.com/Haidra-Org/horde-worker-reGen",
-                models=self.bridge_data.image_models_to_load,
+                models=list(models),
                 nsfw=self.bridge_data.nsfw,
                 threads=self.max_concurrent_inference_processes,
                 max_pixels=self.bridge_data.max_power * 8 * 64 * 64,

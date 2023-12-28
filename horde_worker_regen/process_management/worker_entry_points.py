@@ -28,11 +28,19 @@ def start_inference_process(
         inference_semaphore (Semaphore): The semaphore to use to limit concurrent inference.
         disk_lock (Lock): The lock to use for disk access.
     """
-    with contextlib.redirect_stdout(None), contextlib.redirect_stderr(None):
+    with contextlib.nullcontext():  # contextlib.redirect_stdout(None), contextlib.redirect_stderr(None):
         logger.remove()
-        import hordelib
 
         try:
+            import hordelib
+            from hordelib.utils.logger import HordeLog
+
+            HordeLog.initialise(
+                setup_logging=True,
+                process_id=process_id,
+                verbosity_count=5,  # FIXME
+            )
+
             with logger.catch(reraise=True):
                 hordelib.initialise(
                     setup_logging=None,
@@ -72,11 +80,18 @@ def start_safety_process(
         disk_lock (Lock): The lock to use for disk access.
         cpu_only (bool, optional): _description_. Defaults to True.
     """
-    with contextlib.redirect_stdout(None), contextlib.redirect_stderr(None):
+    with contextlib.nullcontext():  # contextlib.redirect_stdout(), contextlib.redirect_stderr():
         logger.remove()
-        import hordelib
 
         try:
+            import hordelib
+            from hordelib.utils.logger import HordeLog
+
+            HordeLog.initialise(
+                setup_logging=True,
+                process_id=process_id,
+                verbosity_count=5,  # FIXME
+            )
             with logger.catch(reraise=True):
                 hordelib.initialise(
                     setup_logging=None,

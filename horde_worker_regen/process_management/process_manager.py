@@ -1599,7 +1599,7 @@ class HordeWorkerProcessManager:
                         for (
                             follow_up_request
                         ) in completed_job_info.sdk_api_job_info.get_follow_up_failure_cleanup_request():
-                            follow_up_response = self.horde_client_session.submit_request(
+                            follow_up_response = await self.horde_client_session.submit_request(
                                 follow_up_request,
                                 JobSubmitResponse,
                             )

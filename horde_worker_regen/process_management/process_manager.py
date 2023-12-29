@@ -1899,8 +1899,8 @@ class HordeWorkerProcessManager:
             job_pop_request = ImageGenerateJobPopRequest(
                 apikey=self.bridge_data.api_key,
                 name=self.bridge_data.dreamer_worker_name,
-                bridge_agent="AI Horde Worker reGen:2:https://github.com/Haidra-Org/horde-worker-reGen/#20231227_0",
-                bridge_version=2,
+                bridge_agent="AI Horde Worker reGen:2:https://github.com/Haidra-Org/horde-worker-reGen/#20231229_0",
+                bridge_version=3,
                 models=self.bridge_data.image_models_to_load,
                 nsfw=self.bridge_data.nsfw,
                 threads=self.max_concurrent_inference_processes,

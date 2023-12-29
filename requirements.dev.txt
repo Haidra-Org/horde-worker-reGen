@@ -1,7 +1,7 @@
 pytest==7.4.3
-mypy==1.7.1
-black==23.11.0
-ruff==0.1.7
+mypy==1.8.0
+black==23.12.1
+ruff==0.1.9
 tox~=4.11.4
 pre-commit~=3.6.0
 build>=0.10.0

@@ -1796,7 +1796,7 @@ class HordeWorkerProcessManager:
                         logger.debug(f"{type(e)}: {e}")
                         logger.warning(f"Failed to download {field_name}: {e}")
                         fail_count += 1
-                        time.sleep(0.5)
+                        await asyncio.sleep(0.5)
 
         for field in image_fields:
             try:
@@ -1830,9 +1830,11 @@ class HordeWorkerProcessManager:
             logger.error(
                 "Too many consecutive failed jobs, pausing job pops. "
                 "Please look into what happened and let the devs know. ",
-                "Waiting 300 seconds...",
+                "Waiting 180 seconds...",
             )
-            time.sleep(300)
+            await asyncio.sleep(180)
+            self._consecutive_failed_jobs = 0
+            logger.info("Resuming job pops")
             return
 
         if len(self.job_deque) >= self.bridge_data.queue_size + 1:  # FIXME?

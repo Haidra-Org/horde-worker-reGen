@@ -25,6 +25,10 @@ class reGenBridgeData(CombinedHordeBridgeData):
 
     _yaml_loader: YAML | None = None
 
+    cycle_process_on_model_change: bool = Field(
+        default=False,
+    )
+
     def load_env_vars(self) -> None:
         """Load the environment variables into the config model."""
         if self.models_folder_parent and os.getenv("AIWORKER_CACHE_HOME") is None:

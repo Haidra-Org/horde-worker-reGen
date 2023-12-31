@@ -28,16 +28,25 @@ def start_inference_process(
         inference_semaphore (Semaphore): The semaphore to use to limit concurrent inference.
         disk_lock (Lock): The lock to use for disk access.
     """
-    with contextlib.redirect_stdout(None), contextlib.redirect_stderr(None):
+    with contextlib.nullcontext():  # contextlib.redirect_stdout(None), contextlib.redirect_stderr(None):
         logger.remove()
-        import hordelib
 
         try:
-            hordelib.initialise(
-                setup_logging=None,
+            import hordelib
+            from hordelib.utils.logger import HordeLog
+
+            HordeLog.initialise(
+                setup_logging=True,
                 process_id=process_id,
-                logging_verbosity=0,
+                verbosity_count=5,  # FIXME
             )
+
+            with logger.catch(reraise=True):
+                hordelib.initialise(
+                    setup_logging=None,
+                    process_id=process_id,
+                    logging_verbosity=0,
+                )
         except Exception as e:
             logger.critical(f"Failed to initialise hordelib: {type(e).__name__} {e}")
             sys.exit(1)
@@ -71,16 +80,24 @@ def start_safety_process(
         disk_lock (Lock): The lock to use for disk access.
         cpu_only (bool, optional): _description_. Defaults to True.
     """
-    with contextlib.redirect_stdout(None), contextlib.redirect_stderr(None):
+    with contextlib.nullcontext():  # contextlib.redirect_stdout(), contextlib.redirect_stderr():
         logger.remove()
-        import hordelib
 
         try:
-            hordelib.initialise(
-                setup_logging=None,
+            import hordelib
+            from hordelib.utils.logger import HordeLog
+
+            HordeLog.initialise(
+                setup_logging=True,
                 process_id=process_id,
-                logging_verbosity=0,
+                verbosity_count=5,  # FIXME
             )
+            with logger.catch(reraise=True):
+                hordelib.initialise(
+                    setup_logging=None,
+                    process_id=process_id,
+                    logging_verbosity=0,
+                )
         except Exception as e:
             logger.critical(f"Failed to initialise hordelib: {type(e).__name__} {e}")
             sys.exit(1)

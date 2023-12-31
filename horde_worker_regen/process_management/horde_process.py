@@ -107,16 +107,6 @@ class HordeProcess(abc.ABC):
         self.pipe_connection = pipe_connection
         self.disk_lock = disk_lock
 
-        # Remove all handlers from the root logger
-        logger.remove()
-        from hordelib.utils.logger import HordeLog
-
-        HordeLog.initialise(
-            setup_logging=True,
-            process_id=process_id,
-            verbosity_count=5,  # FIXME
-        )
-
         self.send_process_state_change_message(
             process_state=HordeProcessState.PROCESS_STARTING,
             info="Process starting",

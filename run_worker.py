@@ -32,11 +32,12 @@ def main(ctx: BaseContext) -> None:
 
         while True:
             try:
-                if not horde_model_reference_manager.download_and_convert_all_legacy_dbs(override_existing=True):
-                    logger.error("Failed to download and convert legacy DBs. Retrying in 5 seconds...")
-                    time.sleep(5)
-                else:
-                    return horde_model_reference_manager
+                with logger.catch(reraise=True):
+                    if not horde_model_reference_manager.download_and_convert_all_legacy_dbs(override_existing=True):
+                        logger.error("Failed to download and convert legacy DBs. Retrying in 5 seconds...")
+                        time.sleep(5)
+                    else:
+                        return horde_model_reference_manager
             except Exception as e:
                 logger.error(f"Failed to download and convert legacy DBs: ({type(e).__name__}) {e}")
                 logger.error("Retrying in 5 seconds...")

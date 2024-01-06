@@ -1,4 +1,6 @@
 @echo off
+powershell.exe -File .\download_micromamba.ps1
+
 cd /d "%~dp0"
 
 :Isolation
@@ -7,6 +9,7 @@ SET PYTHONNOUSERSITE=1
 SET PYTHONPATH=
 SET MAMBA_ROOT_PREFIX=%~dp0conda
 echo %MAMBA_ROOT_PREFIX%
+
 
 
 setlocal EnableDelayedExpansion
@@ -34,13 +37,13 @@ if defined scribe (
 Reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v "LongPathsEnabled" /t REG_DWORD /d "1" /f 2>nul
 :We do this twice the first time to workaround a conda bug where pip is not installed correctly the first time - Henk
 IF EXIST CONDA GOTO WORKAROUND_END
-umamba create --no-shortcuts -r conda -n windows -f %CONDA_ENVIRONMENT_FILE% -y
+micromamba create --no-shortcuts -r conda -n windows -f %CONDA_ENVIRONMENT_FILE% -y
 :WORKAROUND_END
-umamba create --no-shortcuts -r conda -n windows -f %CONDA_ENVIRONMENT_FILE% -y
+micromamba create --no-shortcuts -r conda -n windows -f %CONDA_ENVIRONMENT_FILE% -y
 
 REM Check if hordelib argument is defined
 
-umamba.exe shell hook -s cmd.exe -p %MAMBA_ROOT_PREFIX% -v
+micromamba.exe shell hook -s cmd.exe -p %MAMBA_ROOT_PREFIX% -v
 call "%MAMBA_ROOT_PREFIX%\condabin\mamba_hook.bat"
 call "%MAMBA_ROOT_PREFIX%\condabin\micromamba.bat" activate windows
 

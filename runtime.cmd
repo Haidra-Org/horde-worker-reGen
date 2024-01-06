@@ -16,7 +16,7 @@ IF EXIST CONDA GOTO APP
 call update-runtime
 
 :APP
-umamba.exe shell hook -s cmd.exe -p "%MAMBA_ROOT_PREFIX%" -v
+micromamba.exe shell hook -s cmd.exe -p "%MAMBA_ROOT_PREFIX%" -v
 call "%MAMBA_ROOT_PREFIX%\condabin\mamba_hook.bat"
 call "%MAMBA_ROOT_PREFIX%\condabin\micromamba.bat" activate windows
 %*

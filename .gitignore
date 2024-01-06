@@ -3,6 +3,11 @@ testing
 
 .vscode/
 
+micromamba.exe
+micromamba.tar.bz2
+info/
+library/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

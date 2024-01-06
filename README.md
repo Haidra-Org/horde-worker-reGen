@@ -52,7 +52,7 @@ This option is recommended as it will make keeping your repository up to date mu
 1. In the target directory, browse to any folder you want to put the horde worker folder.
 1. Press `Clone`
 1. Open powershell (also referred to as terminal) or `cmd` from the start menu.
-2. continue with the [Basic Usage](#Basic-Usage) instructions
+c. Continue with the [Basic Usage](#Basic-Usage) instructions
 
 #### Without git
 
@@ -60,7 +60,7 @@ Use these instructions if you do not have git for windows and do not want to ins
 
 1. Download [the zipped version](https://github.com/Haidra-Org/horde-worker-reGen/archive/refs/heads/main.zip)
 1. Extract it to any folder of your choice
-1. continue with the [Basic Usage](#Basic-Usage) instructions
+1. Continue with the [Basic Usage](#Basic-Usage) instructions
 
 ### Linux
 

@@ -159,7 +159,7 @@ To update:
    - Some updates may not require this and the update notification will tell you if this is the case.
    - When in doubt, you should run it anyway.
    - **Advanced users**: If you do not want to use mamba or you are comfortable with python/venvs, see [README_advanced.md](README_advanced.md).
-1. Continue with [Starting/stopping](#Starting/stopping) instructions above
+1. Continue with [Starting/stopping](#startingstopping) instructions above
 
 
 # Model Usage

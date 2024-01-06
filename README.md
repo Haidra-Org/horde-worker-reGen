@@ -99,7 +99,7 @@ You can double click the provided script files below from a file explorer or run
 ### Starting/stopping
 
 #### Starting the worker
-1. When updates are required, see [Updating](#Updating) for instructions.
+1. The first time you install, or when updates are required, see [Updating](#Updating) for instructions.
 
 2. Depending on the type of worker:
    - 'Dreamer' worker (image generation): run `horde-bridge`.
@@ -158,6 +158,7 @@ To update:
 1. Run the `update-runtime` script for your OS. This will update all dependencies if required.
    - Some updates may not require this and the update notification will tell you if this is the case.
    - When in doubt, you should run it anyway.
+   - **Advanced users**: If you do not want to use mamba or you are comfortable with python/venvs, see [README_advanced.md](README_advanced.md).
 1. Continue with [Starting/stopping](#Starting/stopping) instructions above
 
 

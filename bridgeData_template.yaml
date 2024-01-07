@@ -36,7 +36,7 @@ require_upfront_kudos: false
 ## Dreamer (Stable Diffusion Worker) ##
 #######################################
 
-# The name to use when running a dreamer instance.
+# The worker name to use when running a dreamer instance.
 dreamer_name: "An Awesome Dreamer"
 
 # This is representation of your max resolution (max pixels) supported.
@@ -181,7 +181,7 @@ suppress_speed_warnings: false # Currently unused in reGen
 ## Scribe (LLM Worker) ##
 #########################
 
-# The name to use when running a scribe worker.
+# The worker name to use when running a scribe worker.
 scribe_name: "An Awesome Scribe"
 
 # The KoboldAI Client API URL

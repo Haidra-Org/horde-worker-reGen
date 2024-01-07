@@ -1,7 +1,7 @@
 --extra-index-url https://download.pytorch.org/whl/cu121
 torch>=2.1.2
 
-horde_sdk>=0.7.29
+horde_sdk>=0.7.31
 horde_safety>=0.2.3
 hordelib~=2.3.7
 horde_model_reference

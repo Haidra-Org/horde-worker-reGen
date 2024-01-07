@@ -1704,7 +1704,6 @@ class HordeWorkerProcessManager:
 
 
         except Exception as e:
-            raise e
             logger.error(f"Failed to submit job (Unexpected Error): {e}")
             self._consecutive_failed_job_submits += 1
             return

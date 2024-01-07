@@ -17,6 +17,7 @@ def dummy_job_factory(model_name: str) -> ImageGenerateJobPopResponse:
     return ImageGenerateJobPopResponse(
         ids=[JobID(root=uuid.uuid4())],
         id=JobID(root=uuid.uuid4()),
+        ids=[JobID(root=uuid.uuid4())],
         source_processing=KNOWN_SOURCE_PROCESSING.txt2img,
         skipped=ImageGenerateJobPopSkippedStatus(),
         model=model_name,

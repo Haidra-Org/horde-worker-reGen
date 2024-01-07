@@ -1,7 +1,7 @@
 @echo off
 :Check if micromamba is already installed
 if exist micromamba.exe goto Isolation
-  curl.exe -L -o micromamba.exe https://github.com/mamba-org/micromamba-releases/releases/$VERSION/download/micromamba-win-64
+  curl.exe -L -o micromamba.exe https://github.com/mamba-org/micromamba-releases/releases/latest/download/micromamba-win-64
 
 cd /d "%~dp0"
 

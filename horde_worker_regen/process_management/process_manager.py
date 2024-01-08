@@ -1671,8 +1671,7 @@ class HordeWorkerProcessManager:
 
                     error_string = "Failed to submit job (API Error)"
                     error_string += (
-                        f"{self._consecutive_failed_job_submits}/ "
-                        f"{self._max_consecutive_failed_job_submits} "
+                        f"{self._consecutive_failed_job_submits}/{self._max_consecutive_failed_job_submits}"
                     )
                     error_string += f": {job_submit_response}"
                     logger.error(error_string)
@@ -1719,7 +1718,6 @@ class HordeWorkerProcessManager:
                         )
 
                 self.kudos_generated_this_session += job_submit_response.reward
-
 
         except Exception as e:
             logger.error(f"Failed to submit job (Unexpected Error): {e}")

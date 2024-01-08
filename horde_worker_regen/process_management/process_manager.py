@@ -100,6 +100,8 @@ class HordeProcessInfo:
     """The amount of VRAM used by this process."""
     total_vram_bytes: int
     """The total amount of VRAM available to this process."""
+    batch_amount: int
+    """The total amount of batching being run by this process."""
 
     # TODO: VRAM usage
 
@@ -132,6 +134,7 @@ class HordeProcessInfo:
         self.ram_usage_bytes = 0
         self.vram_usage_bytes = 0
         self.total_vram_bytes = 0
+        self.batch_amount = 1
 
     def is_process_busy(self) -> bool:
         """Return true if the process is actively engaged in a task.
@@ -239,6 +242,7 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         ram_usage_bytes: int | None = None,
         vram_usage_bytes: int | None = None,
         total_vram_bytes: int | None = None,
+        batch_amount: int | None = None,
     ) -> None:
         """Update the entry for the given process ID. If the process does not exist, it will be created.
 
@@ -258,6 +262,9 @@ class ProcessMap(dict[int, HordeProcessInfo]):
 
         if loaded_horde_model_name is not None:
             self[process_id].loaded_horde_model_name = loaded_horde_model_name
+
+        if batch_amount is not None:
+            self[process_id].batch_amount = batch_amount
 
         if ram_usage_bytes is not None:
             self[process_id].ram_usage_bytes = ram_usage_bytes
@@ -282,9 +289,25 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         """Return the number of inference processes that are available to accept jobs."""
         count = 0
         for p in self.values():
-            if p.process_type == HordeProcessType.INFERENCE and not p.is_process_busy():
+            if p.process_type != HordeProcessType.INFERENCE and not p.is_process_busy():
                 count += 1
         return count
+
+    def keep_single_inference(self) -> bool:
+        """Return True, if we need to keep the VRAM available for one single inference
+        Typically used if the currently running inference is batching
+        So we cannot adequately estimate if we have enough VRAM free.
+        """
+        for p in self.values():
+            # We only parallelizing if we have a currently running inference with n_iter > 1
+            if p.batch_amount == 1:
+                continue
+            if p.can_accept_job():
+                continue
+            return True
+        return False
+
+
 
     def get_first_available_inference_process(self) -> HordeProcessInfo | None:
         """Return the first available inference process, or None if there are none available."""
@@ -740,6 +763,7 @@ class HordeWorkerProcessManager:
         """Return true if there is an inference process available which can accept a job."""
         return self._process_map.num_available_inference_processes() > 0
 
+
     def get_expected_ram_usage(self, horde_model_name: str) -> int:  # TODO: Use or rework this
         """Return the expected RAM usage of the given model, in bytes."""
         if self.stable_diffusion_reference is None:
@@ -884,6 +908,7 @@ class HordeWorkerProcessManager:
             process_id=process_info.process_id,
             last_process_state=None,
             loaded_horde_model_name=None,
+            batch_amount=1,
         )
         try:
             process_info.pipe_connection.send(HordeControlMessage(control_flag=HordeControlFlag.END_PROCESS))
@@ -978,6 +1003,11 @@ class HordeWorkerProcessManager:
                     if loaded_model_name is None:
                         raise ValueError(
                             f"Process {message.process_id} has no model loaded, but is starting inference",
+                        )
+                    batch_amount = self._process_map[message.process_id].batch_amount
+                    if batch_amount is None:
+                        raise ValueError(
+                            f"Process {message.process_id} has batch_amount, but is starting inference",
                         )
                     self._horde_model_map.update_entry(
                         horde_model_name=loaded_model_name,
@@ -1362,6 +1392,9 @@ class HordeWorkerProcessManager:
             # endregion
 
             self.jobs_in_progress.append((next_job, process_with_model.process_id))
+            # We store the amount of batches this job will do, 
+            # as we use that later to check if we should start inference in parallel
+            process_with_model.batch_amount = next_job.payload.n_iter
             process_with_model.pipe_connection.send(
                 HordeInferenceControlMessage(
                     control_flag=HordeControlFlag.START_INFERENCE,
@@ -1727,7 +1760,12 @@ class HordeWorkerProcessManager:
         finally:
             # Finally, remove the job from the completed jobs list and reset the number of consecutive failed job
             async with self._completed_jobs_lock:
-                self.completed_jobs.remove(completed_job_info)
+                try:
+                    self.completed_jobs.remove(completed_job_info)
+                except ValueError:
+                    # This means another fault catch removed the faulted job so it's OK
+                    # But we post a log anyway, just in case
+                    logger.warning(f"Tried to remove completed_job_info {completed_job_info.sdk_api_job_info.id_} but it has already been removed.")
                 self._consecutive_failed_job_submits = 0
             del self.job_pop_timestamps[str(completed_job_info.sdk_api_job_info.id_)]
 
@@ -2143,14 +2181,19 @@ class HordeWorkerProcessManager:
                 if len(self.jobs_pending_safety_check) > 0:
                     async with self._jobs_safety_check_lock:
                         self.start_evaluate_safety()
-
+                
+                    
                 if self.is_free_inference_process_available() and len(self.job_deque) > 0:
                     async with self._job_deque_lock, self._jobs_safety_check_lock, self._completed_jobs_lock:
                         # So long as we didn't preload a model this cycle, we can start inference
                         # We want to get any messages next cycle from preloading processes to make sure
                         # the state of everything is up to date
+
                         if not self.preload_models():
-                            self.start_inference()
+                            if self._process_map.keep_single_inference():
+                                logger.info("Blocking further inference because batch inference in process.")
+                            else:
+                                self.start_inference()
                         await asyncio.sleep(self._loop_interval / 2)
 
                 async with self._job_deque_lock, self._jobs_safety_check_lock, self._completed_jobs_lock:

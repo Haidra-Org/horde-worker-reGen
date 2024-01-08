@@ -1634,9 +1634,13 @@ class HordeWorkerProcessManager:
                     censored=bool(completed_job_info.censored),  # TODO: is this cast problematic?
                     gen_metadata=gen_metadata,
                 )
-                job_submit_response = await self.horde_client_session.submit_request(submit_job_request, JobSubmitResponse)
+                job_submit_response = await self.horde_client_session.submit_request(
+                    submit_job_request,
+                    JobSubmitResponse,
+                )
 
-                # If the job submit response is an error, log it and increment the number of consecutive failed job submits
+                # If the job submit response is an error,
+                # log it and increment the number of consecutive failed job submits
                 if isinstance(job_submit_response, RequestErrorResponse):
                     if (
                         "Processing Job with ID" in job_submit_response.message
@@ -1649,7 +1653,10 @@ class HordeWorkerProcessManager:
                         return
 
                     if "already submitted" in job_submit_response.message:
-                        logger.debug(f"Job {job_info.ids[gen_iter]} has already been submitted, removing from completed jobs")
+                        logger.debug(
+                            f"Job {job_info.ids[gen_iter]} has already been submitted, "
+                            "removing from completed jobs",
+                        )
                         async with self._completed_jobs_lock:
                             self.completed_jobs.remove(completed_job_info)
                             self._consecutive_failed_job_submits = 0
@@ -1663,7 +1670,10 @@ class HordeWorkerProcessManager:
                         return
 
                     error_string = "Failed to submit job (API Error)"
-                    error_string += f"{self._consecutive_failed_job_submits}/{self._max_consecutive_failed_job_submits} "
+                    error_string += (
+                        f"{self._consecutive_failed_job_submits}/ "
+                        f"{self._max_consecutive_failed_job_submits} "
+                    )
                     error_string += f": {job_submit_response}"
                     logger.error(error_string)
                     self._consecutive_failed_job_submits += 1
@@ -1680,14 +1690,17 @@ class HordeWorkerProcessManager:
                 # If the job was not faulted, log the job submission as a success
                 if completed_job_info.state != GENERATION_STATE.faulted:
                     logger.success(
-                        f"Submitted job {job_info.ids[gen_iter]} (model: {job_info.model}) for {job_submit_response.reward:.2f} "
-                        f"kudos. Job popped {time_taken} seconds ago and took {completed_job_info.time_to_generate:.2f} "
+                        f"Submitted job {job_info.ids[gen_iter]} (model: "
+                        f"{job_info.model}) for {job_submit_response.reward:.2f} "
+                        f"kudos. Job popped {time_taken} seconds ago "
+                        f"and took {completed_job_info.time_to_generate:.2f} "
                         f"to generate. ({kudos_per_second:.2f} kudos/second. 0.4 or greater is ideal)",
                     )
                 # If the job was faulted, log an error
                 else:
                     logger.error(
-                        f"{job_info.ids[gen_iter]} faulted. Reported fault to the horde. Job popped {time_taken} seconds ago and took "
+                        f"{job_info.ids[gen_iter]} faulted. Reported fault to the horde. "
+                        f"Job popped {time_taken} seconds ago and took "
                         f"{completed_job_info.time_to_generate:.2f} to generate.",
                     )
 
@@ -1701,7 +1714,8 @@ class HordeWorkerProcessManager:
                     if job_submit_response.reward > 0 and kudos_per_second < 0.4:
                         logger.warning(
                             f"This job ({job_info.id_}) took longer than is ideal; if this persists consider "
-                            "lowering your max_power, using less threads, disabling post processing and/or controlnets.",
+                            "lowering your max_power, using less threads, "
+                            "disabling post processing and/or controlnets.",
                         )
 
                 self.kudos_generated_this_session += job_submit_response.reward
@@ -1743,8 +1757,13 @@ class HordeWorkerProcessManager:
     _consecutive_failed_jobs = 0
 
     def get_pending_megapixelsteps(self) -> int:
-        """Get the number of megapixelsteps that are pending in the job deque."""
-        job_deque_mps = sum(job.payload.width * job.payload.height * job.payload.ddim_steps for job in self.job_deque)
+        """Get the number of megapixelsteps that are pending in the job deque.
+        Each n_iter batching increases the amount by 20%
+        """
+        job_deque_mps = sum(
+            (job.payload.width * job.payload.height * job.payload.ddim_steps) * (1 + ((job.payload.n_iter - 1) * 0.2))
+            for job in self.job_deque
+        )
 
         for _ in self.completed_jobs:
             job_deque_mps += 1_000_000 * 4
@@ -1914,7 +1933,7 @@ class HordeWorkerProcessManager:
                 allow_post_processing=self.bridge_data.allow_post_processing,
                 allow_controlnet=self.bridge_data.allow_controlnet,
                 allow_lora=self.bridge_data.allow_lora,
-                amount=self.bridge_data.max_batch
+                amount=self.bridge_data.max_batch,
             )
 
             job_pop_response = await self.horde_client_session.submit_request(

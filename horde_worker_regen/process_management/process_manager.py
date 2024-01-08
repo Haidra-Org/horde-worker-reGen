@@ -1569,8 +1569,12 @@ class HordeWorkerProcessManager:
         if job_info.r2_upload is None:  # TODO: r2_upload should be being set somewhere
             raise ValueError("job_info.r2_upload is None")
 
+        # We need to do this because faulted jobs return None for job_image_results
+        iterations = 1
+        if completed_job_info.job_image_results is not None:
+            iterations = len(completed_job_info.job_image_results)
         try:
-            for gen_iter in range(len(completed_job_info.job_image_results)):
+            for gen_iter in range(iterations):
                 if self._consecutive_failed_job_submits >= self._max_consecutive_failed_job_submits:
                     async with self._completed_jobs_lock:
                         self.completed_jobs.remove(completed_job_info)

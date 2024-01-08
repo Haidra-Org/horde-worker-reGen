@@ -20,6 +20,11 @@ max_threads: 1
 # This generally should be or 1, or 1 more the value of max_threads if max_threads is 2 or higher.
 queue_size: 1
 
+# This will try to pull these many jobs per request and perform batched inference.
+# This is way more optimized than doing them 1 by 1, but is slower.
+# Ensure that your worker can perform its max_power * max_batch in a reasonable amount of time.
+max_batch: 1
+
 
 # Enable this on cards with 12gb or more VRAM to increase the rate you complete jobs
 # You can enable this on cards with less VRAM if you do not load SD2.0 or SDXL models, and keep your max_power low (<32)

@@ -1358,6 +1358,7 @@ class HordeWorkerProcessManager:
                 f"with sampler {next_job.payload.sampler_name} "
                 f"for a batch of {next_job.payload.n_iter}",
             )
+            logger.debug(f"All Batch IDs: {next_job.ids}")
             # endregion
 
             self.jobs_in_progress.append((next_job, process_with_model.process_id))

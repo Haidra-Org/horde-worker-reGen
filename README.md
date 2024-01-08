@@ -16,6 +16,7 @@ Please note that **AMD card are not currently well supported**, but may be in th
 
 ## Some important details you should know before you start
 
+- If you are upgrading from `AI-Horde-Worker`, you will have to manually move your models folder to the `horde-worker-reGen` folder. This folder may be named `models` or `nataili` (depending on when you installed) and should contain a folder named `compvis`.
 - When submitting debug information **do not publish `.log` files in the discord server channels - send them to tazlin directly** as we cannot guarantee that your API key would not be in it (though, this warning should relax over time).
 - You will need to monitor the worker a little closer during the beta, as new ways of failing are possible and potentially not yet accounted for.
   - Workers especially interested in logs should note that there is a main log (`bridge.log`) and a log for each subprocess. `bridge_0.log` is the safety process, and all ones after that (`bridge_1.log`, `brige_2.log`, etc) are inference processes.

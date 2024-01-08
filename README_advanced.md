@@ -28,7 +28,7 @@ https://discord.com/channels/781145214752129095/1159154031151812650
 
 Choose one of the two download options
 
-### Download Option 1 (Recommended). 
+### Download Option 1 (Recommended).
 
 * Install [git](https://git-scm.com/) in your system.
 * using git commands, clone the worker to your system

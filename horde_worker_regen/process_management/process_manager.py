@@ -1876,6 +1876,11 @@ class HordeWorkerProcessManager:
         if self._process_map.get_first_available_inference_process() is None:
             return
 
+        if len(self.bridge_data.image_models_to_load) == 0:
+            logger.error("No models are configured to be loaded, please check your config (models_to_load).")
+            await asyncio.sleep(3)
+            return
+
         # If there are long running jobs, don't start any more even if there is space in the deque
         if self.should_wait_for_pending_megapixelsteps():
             if self._triggered_max_pending_megapixelsteps is False:
@@ -1921,7 +1926,7 @@ class HordeWorkerProcessManager:
             job_pop_request = ImageGenerateJobPopRequest(
                 apikey=self.bridge_data.api_key,
                 name=self.bridge_data.dreamer_worker_name,
-                bridge_agent="AI Horde Worker reGen:3.0.4:https://github.com/Haidra-Org/horde-worker-reGen",
+                bridge_agent="AI Horde Worker reGen:3.0.8:https://github.com/Haidra-Org/horde-worker-reGen",
                 models=self.bridge_data.image_models_to_load,
                 nsfw=self.bridge_data.nsfw,
                 threads=self.max_concurrent_inference_processes,
@@ -1945,6 +1950,15 @@ class HordeWorkerProcessManager:
             if isinstance(job_pop_response, RequestErrorResponse):
                 if "maintenance mode" in job_pop_response.message:
                     logger.warning(f"Failed to pop job (Maintenance Mode): {job_pop_response}")
+                elif "we cannot accept workers serving" in job_pop_response.message:
+                    logger.warning(f"Failed to pop job (Unrecognized Model): {job_pop_response}")
+                    logger.error(
+                        "Your worker is configured to use a model that is not accepted by the API. "
+                        "Please check your models_to_load and make sure they are all valid.",
+                    )
+                elif "wrong credentials" in job_pop_response.message:
+                    logger.warning(f"Failed to pop job (Wrong Credentials): {job_pop_response}")
+                    logger.error("Did you forget to set your worker name?")
                 else:
                     logger.error(f"Failed to pop job (API Error): {job_pop_response}")
                 self._job_pop_frequency = self._error_job_pop_frequency

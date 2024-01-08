@@ -1790,6 +1790,8 @@ class HordeWorkerProcessManager:
     """The time at which the number of megapixelsteps in the job deque exceeded the limit."""
     _triggered_max_pending_megapixelsteps = False
     """Whether the number of megapixelsteps in the job deque exceeded the limit."""
+    _batch_wait_log_time = 0.0
+    """The last time we informed that we're waiting for batched jobs to finish."""
 
     _consecutive_failed_jobs = 0
 
@@ -2191,7 +2193,9 @@ class HordeWorkerProcessManager:
 
                         if not self.preload_models():
                             if self._process_map.keep_single_inference():
-                                logger.info("Blocking further inference because batch inference in process.")
+                                if time.time() - self._batch_wait_log_time > 10:
+                                    logger.info("Blocking further inference because batch inference in process.")
+                                    self._batch_wait_log_time = time.time()
                             else:
                                 self.start_inference()
                         await asyncio.sleep(self._loop_interval / 2)

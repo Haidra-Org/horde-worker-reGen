@@ -2,17 +2,17 @@ import asyncio
 import base64
 import collections
 import datetime
+import enum
 import multiprocessing
 import os
 import random
 import sys
 import time
-import enum
-from enum import auto
 from asyncio import CancelledError
 from asyncio import Lock as Lock_Asyncio
 from collections import deque
 from collections.abc import Mapping
+from enum import auto
 from io import BytesIO
 from multiprocessing.context import BaseContext
 from multiprocessing.synchronize import Lock as Lock_MultiProcessing
@@ -309,8 +309,6 @@ class ProcessMap(dict[int, HordeProcessInfo]):
             return True
         return False
 
-
-
     def get_first_available_inference_process(self) -> HordeProcessInfo | None:
         """Return the first available inference process, or None if there are none available."""
         for p in self.values():
@@ -420,7 +418,7 @@ class TorchDeviceMap(RootModel[dict[int, TorchDeviceInfo]]):  # TODO
     """A mapping of device IDs to TorchDeviceInfo objects. Contains some helper methods."""
 
 
-class HordeJobInfo(BaseModel): # TODO: Split into a new file
+class HordeJobInfo(BaseModel):  # TODO: Split into a new file
     """Contains information about a job that has been generated.
 
     It is used to track the state of the job as it goes through the safety process and \
@@ -450,9 +448,10 @@ class HordeJobInfo(BaseModel): # TODO: Split into a new file
             return []
         return [r.image_base64 for r in self.job_image_results]
 
-class JobSubmitState(enum.Enum): # TODO: Split into a new file 
-    """The state of a job submit process.
-    """
+
+class JobSubmitState(enum.Enum):  # TODO: Split into a new file
+    """The state of a job submit process."""
+
     PENDING = auto()
     """The job submit still needs to be done or retried."""
     SUCCESS = auto()
@@ -461,7 +460,7 @@ class JobSubmitState(enum.Enum): # TODO: Split into a new file
     """The job submit faulted for some reason."""
 
 
-class PendingSubmitJob(BaseModel): # TODO: Split into a new file
+class PendingSubmitJob(BaseModel):  # TODO: Split into a new file
     """Information about a job to submit to the horde."""
 
     completed_job_info: HordeJobInfo
@@ -469,7 +468,7 @@ class PendingSubmitJob(BaseModel): # TODO: Split into a new file
     state: JobSubmitState = JobSubmitState.PENDING
     kudos_reward: int = 0
     kudos_per_second: float = 0.0
-    _max_consecutive_failed_job_submits: int  = 10
+    _max_consecutive_failed_job_submits: int = 10
     _consecutive_failed_job_submits: int = 0
 
     @property
@@ -479,32 +478,32 @@ class PendingSubmitJob(BaseModel): # TODO: Split into a new file
         return None
 
     @property
-    def job_id(self):
+    def job_id(self) -> bool:
         return self.completed_job_info.sdk_api_job_info.ids[self.gen_iter]
 
     @property
-    def r2_upload(self):
+    def r2_upload(self) -> bool:
         return self.completed_job_info.sdk_api_job_info.r2_uploads[self.gen_iter]
 
     @property
-    def is_finished(self):
+    def is_finished(self) -> bool:
         return self.state != JobSubmitState.PENDING
 
     @property
-    def is_faulted(self):
+    def is_faulted(self) -> bool:
         return self.state == JobSubmitState.FAULTED
 
-    def retry(self):
+    def retry(self) -> None:
         self._consecutive_failed_job_submits += 1
         if self._consecutive_failed_job_submits > self._max_consecutive_failed_job_submits:
             self.state = JobSubmitState.FAULTED
 
-    def succeed(self, kudos_reward, kudos_per_second):
+    def succeed(self, kudos_reward: int, kudos_per_second: float) -> None:
         self.kudos_reward = kudos_reward
         self.kudos_per_second = kudos_per_second
         self.state = JobSubmitState.SUCCESS
 
-    def fault(self):
+    def fault(self) -> None:
         self.state = JobSubmitState.FAULTED
 
 
@@ -821,7 +820,6 @@ class HordeWorkerProcessManager:
     def is_free_inference_process_available(self) -> bool:
         """Return true if there is an inference process available which can accept a job."""
         return self._process_map.num_available_inference_processes() > 0
-
 
     def get_expected_ram_usage(self, horde_model_name: str) -> int:  # TODO: Use or rework this
         """Return the expected RAM usage of the given model, in bytes."""
@@ -1451,7 +1449,7 @@ class HordeWorkerProcessManager:
             # endregion
 
             self.jobs_in_progress.append((next_job, process_with_model.process_id))
-            # We store the amount of batches this job will do, 
+            # We store the amount of batches this job will do,
             # as we use that later to check if we should start inference in parallel
             process_with_model.batch_amount = next_job.payload.n_iter
             process_with_model.pipe_connection.send(
@@ -1696,8 +1694,7 @@ class HordeWorkerProcessManager:
 
             if "already submitted" in job_submit_response.message:
                 logger.debug(
-                    f"Job {new_submit.job_id} has already been submitted, "
-                    "removing from completed jobs",
+                    f"Job {new_submit.job_id} has already been submitted, " "removing from completed jobs",
                 )
                 new_submit.fault()
 
@@ -1706,9 +1703,7 @@ class HordeWorkerProcessManager:
                 new_submit.fault()
 
             error_string = "Failed to submit job (API Error)"
-            error_string += (
-                f"{self._consecutive_failed_job_submits}/{self._max_consecutive_failed_job_submits}"
-            )
+            error_string += f"{self._consecutive_failed_job_submits}/{self._max_consecutive_failed_job_submits}"
             error_string += f": {job_submit_response}"
             logger.error(error_string)
             self._consecutive_failed_job_submits += 1
@@ -1754,7 +1749,8 @@ class HordeWorkerProcessManager:
 
         if completed_job_info.state == GENERATION_STATE.faulted:
             logger.error(
-                f"Job {job_info.ids[gen_iter]} faulted, removing from completed jobs after submitting the faults to the horde",
+                f"Job {job_info.ids[0]} faulted, "
+                "removing from completed jobs after submitting the faults to the horde",
             )
             self._consecutive_failed_jobs += 1
 
@@ -1763,11 +1759,10 @@ class HordeWorkerProcessManager:
                 logger.warning(
                     f"Needed to generate {completed_job_info.sdk_api_job_info.payload.n_iter} images "
                     f"but only {len(completed_job_info.job_image_results)} returned by the inference process "
-                    "We will continue, but you might get put into maintenance if this keeps happening."
+                    "We will continue, but you might get put into maintenance if this keeps happening.",
                 )
             elif len(completed_job_info.job_image_results) > 1:
                 logger.info("Attempting to return batched jobs results")
-            
 
             if completed_job_info.censored is None:
                 raise ValueError("completed_job_info.censored is None")
@@ -1789,7 +1784,7 @@ class HordeWorkerProcessManager:
         if completed_job_info.job_image_results is not None:
             iterations = len(completed_job_info.job_image_results)
         for gen_iter in range(iterations):
-            new_submit = PendingSubmitJob(completed_job_info=completed_job_info,gen_iter=gen_iter)
+            new_submit = PendingSubmitJob(completed_job_info=completed_job_info, gen_iter=gen_iter)
             submit_tasks.append(asyncio.create_task(self.submit_single_generation(new_submit)))
         while len(submit_tasks) > 0:
             retry_submits: list(PendingSubmitJob) = []
@@ -1808,7 +1803,7 @@ class HordeWorkerProcessManager:
                     if highest_kudos_per_second < result.kudos_per_second:
                         highest_kudos_per_second = result.kudos_per_second
             submit_tasks = retry_submits
-        
+
         # Get the time the job was popped from the job deque
         async with self._job_pop_timestamps_lock:
             time_popped = self.job_pop_timestamps[str(completed_job_info.sdk_api_job_info.id_)]
@@ -1817,12 +1812,14 @@ class HordeWorkerProcessManager:
         if not self.bridge_data.suppress_speed_warnings:
             if highest_reward > 0 and (highest_reward / time_taken) < 0.1:
                 logger.warning(
-                    f"This job ({completed_job_info.sdk_api_job_info.id_}) may have been in the queue for a long time. ",
+                    f"This job ({completed_job_info.sdk_api_job_info.id_}) "
+                    "may have been in the queue for a long time. ",
                 )
 
             if highest_reward > 0 and highest_kudos_per_second < 0.4:
                 logger.warning(
-                    f"This job ({completed_job_info.sdk_api_job_info.id_}) took longer than is ideal; if this persists consider "
+                    f"This job ({completed_job_info.sdk_api_job_info.id_}) "
+                    "took longer than is ideal; if this persists consider "
                     "lowering your max_power, using less threads, "
                     "disabling post processing and/or controlnets.",
                 )
@@ -1842,7 +1839,10 @@ class HordeWorkerProcessManager:
             except ValueError:
                 # This means another fault catch removed the faulted job so it's OK
                 # But we post a log anyway, just in case
-                logger.warning(f"Tried to remove completed_job_info {completed_job_info.sdk_api_job_info.id_} but it has already been removed.")
+                logger.warning(
+                    f"Tried to remove completed_job_info "
+                    f"{completed_job_info.sdk_api_job_info.id_} but it has already been removed.",
+                )
         del self.job_pop_timestamps[str(completed_job_info.sdk_api_job_info.id_)]
 
         await asyncio.sleep(self._api_call_loop_interval)
@@ -2259,8 +2259,7 @@ class HordeWorkerProcessManager:
                 if len(self.jobs_pending_safety_check) > 0:
                     async with self._jobs_safety_check_lock:
                         self.start_evaluate_safety()
-                
-                    
+
                 if self.is_free_inference_process_available() and len(self.job_deque) > 0:
                     async with self._job_deque_lock, self._jobs_safety_check_lock, self._completed_jobs_lock:
                         # So long as we didn't preload a model this cycle, we can start inference

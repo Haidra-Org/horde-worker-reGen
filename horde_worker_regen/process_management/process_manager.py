@@ -1666,7 +1666,9 @@ class HordeWorkerProcessManager:
                     logger.error(f"Failed to upload image to R2: {response}")
                     new_submit.retry()
                     return new_submit
-
+        metadata = []
+        if new_submit.image_result is not None:
+            metadata = new_submit.image_result.generation_faults
         submit_job_request_type = new_submit.completed_job_info.sdk_api_job_info.get_follow_up_default_request_type()
         submit_job_request = submit_job_request_type(
             apikey=self.bridge_data.api_key,
@@ -1675,7 +1677,7 @@ class HordeWorkerProcessManager:
             generation="R2",  # TODO # FIXME
             state=new_submit.completed_job_info.state,
             censored=bool(new_submit.completed_job_info.censored),  # TODO: is this cast problematic?
-            gen_metadata=new_submit.image_result.generation_faults,
+            gen_metadata=metadata,
         )
         job_submit_response = await self.horde_client_session.submit_request(
             submit_job_request,

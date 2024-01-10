@@ -492,6 +492,10 @@ class PendingSubmitJob(BaseModel):  # TODO: Split into a new file
     @property
     def is_faulted(self) -> bool:
         return self.state == JobSubmitState.FAULTED
+    
+    @property
+    def retry_attempts_string(self) -> bool:
+        return f"{self._consecutive_failed_job_submits}/{self._max_consecutive_failed_job_submits}"
 
     def retry(self) -> None:
         self._consecutive_failed_job_submits += 1
@@ -1630,6 +1634,7 @@ class HordeWorkerProcessManager:
             logger.error(f"Failed to convert base64 image to stream buffer: {e}")
             return None
 
+    @logger.catch(reraise=True)
     async def submit_single_generation(self, new_submit: PendingSubmitJob) -> PendingSubmitJob:
         """Tries to upload and submit a single image from a batch
         Returns the same PendingSubmitJob updated with the results
@@ -1696,7 +1701,7 @@ class HordeWorkerProcessManager:
 
             if "already submitted" in job_submit_response.message:
                 logger.debug(
-                    f"Job {new_submit.job_id} has already been submitted, " "removing from completed jobs",
+                    f"Job {new_submit.job_id} has already been submitted, removing from completed jobs",
                 )
                 new_submit.fault()
 
@@ -1704,11 +1709,11 @@ class HordeWorkerProcessManager:
                 logger.error(job_submit_response.message)
                 new_submit.fault()
 
-            error_string = "Failed to submit job (API Error)"
-            error_string += f"{self._consecutive_failed_job_submits}/{self._max_consecutive_failed_job_submits}"
-            error_string += f": {job_submit_response}"
+            error_string = (
+                f"Failed to submit job (API Error) "
+                f"{new_submit.retry_attempts_string}: {job_submit_response}"
+            )
             logger.error(error_string)
-            self._consecutive_failed_job_submits += 1
             new_submit.retry()
             return new_submit
 

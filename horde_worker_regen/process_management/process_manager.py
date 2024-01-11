@@ -825,6 +825,13 @@ class HordeWorkerProcessManager:
         """Return true if there is an inference process available which can accept a job."""
         return self._process_map.num_available_inference_processes() > 0
 
+    def has_queued_jobs(self):
+        jobs_in_progress = {job[0].id_ for job in self.jobs_in_progress}
+        for job in self.job_deque:
+            if job.id_ not in jobs_in_progress:
+                return True
+        return False
+
     def get_expected_ram_usage(self, horde_model_name: str) -> int:  # TODO: Use or rework this
         """Return the expected RAM usage of the given model, in bytes."""
         if self.stable_diffusion_reference is None:
@@ -2280,7 +2287,7 @@ class HordeWorkerProcessManager:
 
                         if not self.preload_models():
                             if self._process_map.keep_single_inference():
-                                if time.time() - self._batch_wait_log_time > 10:
+                                if self.has_queued_jobs() and time.time() - self._batch_wait_log_time > 10:
                                     logger.info("Blocking further inference because batch inference in process.")
                                     self._batch_wait_log_time = time.time()
                             else:

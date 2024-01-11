@@ -69,6 +69,9 @@ def download_all_models(purge_unused_loras: bool = False) -> None:
             logger.error("Failed to load controlnet model manager")
             exit(1)
         SharedModelManager.manager.controlnet.download_all_models()
+        if not SharedModelManager.preload_annotators():
+            logger.error("Failed to download the controlnet annotators")
+            exit(1)
 
     if bridge_data.allow_post_processing:
         if SharedModelManager.manager.gfpgan is None:

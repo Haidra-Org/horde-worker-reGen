@@ -22,7 +22,13 @@ queue_size: 1
 
 # This will try to pull these many jobs per request and perform batched inference.
 # This is way more optimized than doing them 1 by 1, but is slower.
-# Ensure that your worker can perform its max_power * max_batch in a reasonable amount of time.
+# Keep in mind, that the horde will not give your max batch at your max resolution
+# In order to avoid running out of VRAM.
+# The Horde will assume you can fulfil your max batch at HALF you max resolution.
+# So make sure you can generate your max_batch @ max_power/2
+# Over your half max_power, AI Horde will smartly assign only as much batches
+# as it calculates you can achieve. If you start running out of VRAM, reduce
+# max_power or max_batch.
 max_batch: 1
 
 

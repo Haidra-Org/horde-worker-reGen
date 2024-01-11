@@ -33,14 +33,14 @@ KUDOS_REGEX = re.compile(r".*(\d\d\d\d-\d\d-\d\d \d\d:\d\d).* and contributed fo
 
 
 class LogStats:
-    def __init__(self, period:int=PERIOD_ALL, logfile:str=LOG_FILE) -> None:
+    def __init__(self, period: int = PERIOD_ALL, logfile: str = LOG_FILE) -> None:
         self.used_models = {}
         self.unused_models = {}
         self.logfile = logfile
         self.period = period
         self.kudos = {}
 
-    def get_date(self) -> str|None:
+    def get_date(self) -> str | None:
         # Dates in log format for filtering
         if self.period == PERIOD_TODAY:
             adate = datetime.datetime.now()

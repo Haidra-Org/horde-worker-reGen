@@ -8,7 +8,7 @@ import os
 import random
 import sys
 import time
-from asyncio import CancelledError, TimeoutError
+from asyncio import CancelledError, Task, TimeoutError
 from asyncio import Lock as Lock_Asyncio
 from collections import deque
 from collections.abc import Mapping
@@ -478,11 +478,13 @@ class PendingSubmitJob(BaseModel):  # TODO: Split into a new file
         return None
 
     @property
-    def job_id(self) -> str:
+    def job_id(self) -> JobID:
         return self.completed_job_info.sdk_api_job_info.ids[self.gen_iter]
 
     @property
     def r2_upload(self) -> str:
+        if self.completed_job_info.sdk_api_job_info.r2_uploads is None:
+            return ""  # FIXME: Is this ever None? Or just a bad declaration on sdk?
         return self.completed_job_info.sdk_api_job_info.r2_uploads[self.gen_iter]
 
     @property
@@ -1684,11 +1686,14 @@ class HordeWorkerProcessManager:
         metadata = []
         if new_submit.image_result is not None:
             metadata = new_submit.image_result.generation_faults
+        seed = 0
+        if new_submit.completed_job_info.sdk_api_job_info.payload.seed is not None:
+            seed = int(new_submit.completed_job_info.sdk_api_job_info.payload.seed)
         submit_job_request_type = new_submit.completed_job_info.sdk_api_job_info.get_follow_up_default_request_type()
         submit_job_request = submit_job_request_type(
             apikey=self.bridge_data.api_key,
             id=new_submit.job_id,
-            seed=int(new_submit.completed_job_info.sdk_api_job_info.payload.seed),
+            seed=seed,
             generation="R2",  # TODO # FIXME
             state=new_submit.completed_job_info.state,
             censored=bool(new_submit.completed_job_info.censored),  # TODO: is this cast problematic?
@@ -1792,9 +1797,9 @@ class HordeWorkerProcessManager:
             raise ValueError("job_info.r2_upload is None")
 
         highest_reward = 0
-        highest_kudos_per_second = 0
-        submit_tasks: list(PendingSubmitJob) = []
-        finished_submit_jobs: list(PendingSubmitJob) = []
+        highest_kudos_per_second = 0.0
+        submit_tasks: list[Task[PendingSubmitJob]] = []
+        finished_submit_jobs: list[PendingSubmitJob] = []
         iterations = 1
         job_faulted = False
         if completed_job_info.job_image_results is not None:
@@ -1803,7 +1808,7 @@ class HordeWorkerProcessManager:
             new_submit = PendingSubmitJob(completed_job_info=completed_job_info, gen_iter=gen_iter)
             submit_tasks.append(asyncio.create_task(self.submit_single_generation(new_submit)))
         while len(submit_tasks) > 0:
-            retry_submits: list(PendingSubmitJob) = []
+            retry_submits: list[PendingSubmitJob] = []
             results = await asyncio.gather(*submit_tasks, return_exceptions=True)
             for result in results:
                 if isinstance(result, Exception):
@@ -1818,7 +1823,8 @@ class HordeWorkerProcessManager:
                         highest_reward = result.kudos_reward
                     if highest_kudos_per_second < result.kudos_per_second:
                         highest_kudos_per_second = result.kudos_per_second
-            submit_tasks = retry_submits
+            for retry_submit in retry_submits:
+                submit_tasks.append(asyncio.create_task(self.submit_single_generation(retry_submit)))
 
         # Get the time the job was popped from the job deque
         async with self._job_pop_timestamps_lock:

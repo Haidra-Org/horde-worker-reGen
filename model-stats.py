@@ -1,3 +1,5 @@
+# type: ignore
+# FIXME: Remove ignore once script fixed for reGen
 # model-stats.py
 # Calculate some basic model usage statistics from the local worker log file.
 # Or optionally use the central horde stats.

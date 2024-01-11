@@ -492,7 +492,7 @@ class PendingSubmitJob(BaseModel):  # TODO: Split into a new file
     @property
     def is_faulted(self) -> bool:
         return self.state == JobSubmitState.FAULTED
-    
+
     @property
     def retry_attempts_string(self) -> bool:
         return f"{self._consecutive_failed_job_submits}/{self._max_consecutive_failed_job_submits}"
@@ -1722,8 +1722,7 @@ class HordeWorkerProcessManager:
                 new_submit.fault()
 
             error_string = (
-                f"Failed to submit job (API Error) "
-                f"{new_submit.retry_attempts_string}: {job_submit_response}"
+                f"Failed to submit job (API Error) " f"{new_submit.retry_attempts_string}: {job_submit_response}"
             )
             logger.error(error_string)
             new_submit.retry()

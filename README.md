@@ -13,7 +13,7 @@ If you have an 8 gb card, SDXL will only reliably work at max_power values close
 # To run the beta worker (Please read above first)
 ## (Assuming you have python 3.10 installed):
 
-  - If you did not set `cache_home` before, set it to your old `AI-Horde-Worker`folder for now to avoid redownloading models. IE, `cache_home: "C:/Horde/AI-Horde-Worker/nataili"` (or `models`, depending on when you first installed the worker). 
+  - If you did not set `cache_home` before, set it to your old `AI-Horde-Worker`folder for now to avoid redownloading models. IE, `cache_home: "C:/Horde/AI-Horde-Worker/nataili"` (or `models`, depending on when you first installed the worker).
   - If you had previously set `cache_home`, set it to what you were using before.
 
 # Setup venv

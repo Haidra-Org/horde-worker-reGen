@@ -8,7 +8,7 @@ import os
 import random
 import sys
 import time
-from asyncio import CancelledError
+from asyncio import CancelledError, TimeoutError
 from asyncio import Lock as Lock_Asyncio
 from collections import deque
 from collections.abc import Mapping
@@ -1661,16 +1661,21 @@ class HordeWorkerProcessManager:
                         logger.error(f"Failed to submit followup request: {follow_up_response}")
                 new_submit.fault()
                 return new_submit
-            async with self._aiohttp_session.put(
-                yarl.URL(new_submit.r2_upload, encoded=True),
-                data=image_in_buffer.getvalue(),
-                skip_auto_headers=["content-type"],
-                timeout=aiohttp.ClientTimeout(total=10),
-            ) as response:
-                if response.status != 200:
-                    logger.error(f"Failed to upload image to R2: {response}")
-                    new_submit.retry()
-                    return new_submit
+            try:
+                async with self._aiohttp_session.put(
+                    yarl.URL(new_submit.r2_upload, encoded=True),
+                    data=image_in_buffer.getvalue(),
+                    skip_auto_headers=["content-type"],
+                    timeout=aiohttp.ClientTimeout(total=10),
+                ) as response:
+                    if response.status != 200:
+                        logger.error(f"Failed to upload image to R2: {response}")
+                        new_submit.retry()
+                        return new_submit
+            except TimeoutError:
+                logger.warning("Generation Submit to AI Horde timed out. Will retry.")
+                new_submit.retry()
+                return new_submit
         metadata = []
         if new_submit.image_result is not None:
             metadata = new_submit.image_result.generation_faults

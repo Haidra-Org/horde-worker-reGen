@@ -478,11 +478,11 @@ class PendingSubmitJob(BaseModel):  # TODO: Split into a new file
         return None
 
     @property
-    def job_id(self) -> bool:
+    def job_id(self) -> str:
         return self.completed_job_info.sdk_api_job_info.ids[self.gen_iter]
 
     @property
-    def r2_upload(self) -> bool:
+    def r2_upload(self) -> str:
         return self.completed_job_info.sdk_api_job_info.r2_uploads[self.gen_iter]
 
     @property
@@ -494,7 +494,7 @@ class PendingSubmitJob(BaseModel):  # TODO: Split into a new file
         return self.state == JobSubmitState.FAULTED
 
     @property
-    def retry_attempts_string(self) -> bool:
+    def retry_attempts_string(self) -> str:
         return f"{self._consecutive_failed_job_submits}/{self._max_consecutive_failed_job_submits}"
 
     def retry(self) -> None:
@@ -825,12 +825,9 @@ class HordeWorkerProcessManager:
         """Return true if there is an inference process available which can accept a job."""
         return self._process_map.num_available_inference_processes() > 0
 
-    def has_queued_jobs(self):
+    def has_queued_jobs(self) -> bool:
         jobs_in_progress = {job[0].id_ for job in self.jobs_in_progress}
-        for job in self.job_deque:
-            if job.id_ not in jobs_in_progress:
-                return True
-        return False
+        return any(job.id_ not in jobs_in_progress for job in self.job_deque)
 
     def get_expected_ram_usage(self, horde_model_name: str) -> int:  # TODO: Use or rework this
         """Return the expected RAM usage of the given model, in bytes."""
@@ -1236,7 +1233,8 @@ class HordeWorkerProcessManager:
                         num_images_censored += 1
                         if message.safety_evaluations[i].is_csam:
                             num_images_csam += 1
-                del self.job_faults[completed_job_info.sdk_api_job_info.id_]
+                if completed_job_info.sdk_api_job_info.id_ is not None:
+                    del self.job_faults[completed_job_info.sdk_api_job_info.id_]
 
                 logger.debug(
                     f"Job {message.job_id} had {num_images_censored} images censored and took "

@@ -33,14 +33,14 @@ KUDOS_REGEX = re.compile(r".*(\d\d\d\d-\d\d-\d\d \d\d:\d\d).* and contributed fo
 
 
 class LogStats:
-    def __init__(self, period=PERIOD_ALL, logfile=LOG_FILE):
+    def __init__(self, period:int=PERIOD_ALL, logfile:str=LOG_FILE) -> None:
         self.used_models = {}
         self.unused_models = {}
         self.logfile = logfile
         self.period = period
         self.kudos = {}
 
-    def get_date(self):
+    def get_date(self) -> str|None:
         # Dates in log format for filtering
         if self.period == PERIOD_TODAY:
             adate = datetime.datetime.now()
@@ -52,7 +52,7 @@ class LogStats:
             adate = adate.strftime("%Y-%m-%d")
         return adate
 
-    def get_num_lines(self, file_path):
+    def get_num_lines(self, file_path: str) -> int:
         with open(file_path, "r+") as fp:
             buf = mmap.mmap(fp.fileno(), 0)
             lines = 0
@@ -60,16 +60,16 @@ class LogStats:
                 lines += 1
             return lines
 
-    def download_stats(self, period, model_type="img"):
+    def download_stats(self, period: int, model_type: str = "img") -> None:
         self.unused_models = []  # not relevant
 
         req = requests.get(f"https://stablehorde.net/api/v2/stats/{model_type}/models", verify=False)
         self.used_models = req.json()[period] if req.ok else {}
 
-    def parse_log(self):
+    def parse_log(self) -> None:
         self.used_models = {}
         # Grab any statically loaded models
-        with open("bridgeData.yaml", "rt", encoding="utf-8", errors="ignore") as configfile:
+        with open("bridgeData.yaml", encoding="utf-8", errors="ignore") as configfile:
             config = yaml.safe_load(configfile)
         self.unused_models = config["models_to_load"]
         # Models to exclude
@@ -91,7 +91,7 @@ class LogStats:
         total_log_lines = sum(self.get_num_lines(logfile) for logfile in glob.glob(self.logfile))
         progress = tqdm(total=total_log_lines, leave=True, unit=" lines", unit_scale=True)
         for logfile in glob.glob(self.logfile):
-            with open(logfile, "rt", encoding="UTF-8", errors="ignore") as infile:
+            with open(logfile, encoding="UTF-8", errors="ignore") as infile:
                 for line in infile:
                     # Grab the lines we're interested in for models
                     if regex := REGEX.match(line):
@@ -123,7 +123,7 @@ class LogStats:
 
                     progress.update()
 
-    def print_stats(self):
+    def print_stats(self) -> None:
         # Parse our log file if we haven't done that yet
         if not self.used_models:
             self.parse_log()

@@ -1826,6 +1826,7 @@ class HordeWorkerProcessManager:
                         highest_reward = result.kudos_reward
                     if highest_kudos_per_second < result.kudos_per_second:
                         highest_kudos_per_second = result.kudos_per_second
+            submit_tasks = []
             for retry_submit in retry_submits:
                 submit_tasks.append(asyncio.create_task(self.submit_single_generation(retry_submit)))
 

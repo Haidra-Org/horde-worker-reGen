@@ -1713,16 +1713,19 @@ class HordeWorkerProcessManager:
             ):
                 logger.warning(f"Job {new_submit.job_id} does not exist, removing from completed jobs")
                 new_submit.fault()
+                return new_submit
 
             if "already submitted" in job_submit_response.message:
                 logger.debug(
                     f"Job {new_submit.job_id} has already been submitted, removing from completed jobs",
                 )
                 new_submit.fault()
+                return new_submit
 
             if "Please check your worker speed" in job_submit_response.message:
                 logger.error(job_submit_response.message)
                 new_submit.fault()
+                return new_submit
 
             error_string = (
                 f"Failed to submit job (API Error) " f"{new_submit.retry_attempts_string}: {job_submit_response}"

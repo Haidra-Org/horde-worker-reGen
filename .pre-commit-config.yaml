@@ -41,5 +41,5 @@ repos:
         - horde_safety
         - torch
         - ruamel.yaml
-        - hordelib==2.3.4
-        - horde_sdk==0.7.30
+        - hordelib==2.4.0
+        - horde_sdk==0.7.31

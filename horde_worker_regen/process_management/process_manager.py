@@ -1695,8 +1695,8 @@ class HordeWorkerProcessManager:
             if new_submit.is_batch:
                 metadata.append(
                     GenMetadataEntry(
-                        type=METADATA_TYPE.batch_index, value=METADATA_VALUE.see_ref, ref=str(new_submit.gen_iter)
-                    )
+                        type=METADATA_TYPE.batch_index, value=METADATA_VALUE.see_ref, ref=str(new_submit.gen_iter),
+                    ),
                 )
         seed = 0
         if new_submit.completed_job_info.sdk_api_job_info.payload.seed is not None:

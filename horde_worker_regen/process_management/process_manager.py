@@ -499,6 +499,12 @@ class PendingSubmitJob(BaseModel):  # TODO: Split into a new file
     def retry_attempts_string(self) -> str:
         return f"{self._consecutive_failed_job_submits}/{self._max_consecutive_failed_job_submits}"
 
+    @property
+    def is_batch(self) -> bool:
+        if self.completed_job_info.job_image_results is None:
+            return False
+        return len(self.completed_job_info.job_image_results) > 1
+
     def retry(self) -> None:
         self._consecutive_failed_job_submits += 1
         if self._consecutive_failed_job_submits > self._max_consecutive_failed_job_submits:
@@ -1686,6 +1692,12 @@ class HordeWorkerProcessManager:
         metadata = []
         if new_submit.image_result is not None:
             metadata = new_submit.image_result.generation_faults
+            if new_submit.is_batch:
+                metadata.append(
+                    GenMetadataEntry(
+                        type=METADATA_TYPE.batch_index, value=METADATA_VALUE.see_ref, ref=str(new_submit.gen_iter)
+                    )
+                )
         seed = 0
         if new_submit.completed_job_info.sdk_api_job_info.payload.seed is not None:
             seed = int(new_submit.completed_job_info.sdk_api_job_info.payload.seed)

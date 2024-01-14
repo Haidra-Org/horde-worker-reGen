@@ -39,7 +39,7 @@ from horde_sdk.ai_horde_api.apimodels import (
     ImageGenerateJobPopResponse,
     JobSubmitResponse,
 )
-from horde_sdk.ai_horde_api.consts import METADATA_TYPE, METADATA_VALUE
+from horde_sdk.ai_horde_api.consts import METADATA_TYPE, METADATA_VALUE, KNOWN_UPSCALERS
 from horde_sdk.ai_horde_api.fields import JobID
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, RootModel, ValidationError
@@ -1915,11 +1915,25 @@ class HordeWorkerProcessManager:
         """Get the number of megapixelsteps that are pending in the job deque.
         Each n_iter batching increases the amount by 20%
         """
-        job_deque_mps = sum(
-            (job.payload.width * job.payload.height * job.payload.ddim_steps) * (1 + ((job.payload.n_iter - 1) * 0.2))
-            for job in self.job_deque
-        )
-
+        job_deque_mps = 0
+        for job in self.job_deque:
+            has_upscaler = False #TODO: Move this to a ImageGenerateJobPopResponse.has_upscaler property in the sdk
+            for pp in job.payload.post_processing:
+                if pp in [u.value for u in KNOWN_UPSCALERS]:
+                    has_upscaler = True
+                    break
+            upscaler_multiplier = 0
+            if has_upscaler:
+               upscaler_multiplier = 1 
+            job_mp = job.payload.width * job.payload.height
+            # Each extra batched image increases our difficulty by 20%
+            batching_multiplier = 1 + ((job.payload.n_iter - 1) * 0.2)
+            # If upscaling was requested, due to it being serial, each extra image in the batch
+            # Further increases our difficulty.
+            # In this calculation we treat each upscaler as adding 20 steps per image
+            upscaling_mp = job_mp * 20 * upscaler_multiplier * job.payload.n_iter
+            job_deque_mps += job_mp * batching_multiplier * job.payload.ddim_steps
+            job_deque_mps += upscaling_mp
         for _ in self.completed_jobs:
             job_deque_mps += 1_000_000 * 4
 

@@ -38,5 +38,9 @@ if [ -z "$LD_PRELOAD" ]; then
 fi
 
 
-./runtime.sh python -s download_models.py
-./runtime.sh python -s run_worker.py $*
+if ./runtime.sh python -s download_models.py; then
+    echo "Model Download OK. Starting worker..."
+    ./runtime.sh python -s run_worker.py $*
+else
+    echo "download_models.py exited with error code. Aborting"
+fi

@@ -500,10 +500,8 @@ class PendingSubmitJob(BaseModel):  # TODO: Split into a new file
         return f"{self._consecutive_failed_job_submits}/{self._max_consecutive_failed_job_submits}"
 
     @property
-    def is_batch(self) -> bool:
-        if self.completed_job_info.job_image_results is None:
-            return False
-        return len(self.completed_job_info.job_image_results) > 1
+    def batch_count(self) -> int:
+        return len(self.completed_job_info.sdk_api_job_info.ids)
 
     def retry(self) -> None:
         self._consecutive_failed_job_submits += 1
@@ -1692,7 +1690,7 @@ class HordeWorkerProcessManager:
         metadata = []
         if new_submit.image_result is not None:
             metadata = new_submit.image_result.generation_faults
-            if new_submit.is_batch:
+            if new_submit.batch_count > 1:
                 metadata.append(
                     GenMetadataEntry(
                         type=METADATA_TYPE.batch_index,
@@ -1763,7 +1761,8 @@ class HordeWorkerProcessManager:
                 f"{new_submit.completed_job_info.sdk_api_job_info.model}) for {job_submit_response.reward:.2f} "
                 f"kudos. Job popped {time_taken} seconds ago "
                 f"and took {new_submit.completed_job_info.time_to_generate:.2f} "
-                f"to generate. ({kudos_per_second:.2f} kudos/second. 0.4 or greater is ideal)",
+                f"to generate. ({kudos_per_second * new_submit.batch_count:.2f} "
+                "kudos/second for the whole batch. 0.4 or greater is ideal)",
             )
         # If the job was faulted, log an error
         else:

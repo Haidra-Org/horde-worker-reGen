@@ -15,6 +15,7 @@ def dummy_job_factory(model_name: str) -> ImageGenerateJobPopResponse:
     # sampler = random.choice(list(KNOWN_SAMPLERS.__members__.keys()))
     sampler = KNOWN_SAMPLERS.k_euler
     return ImageGenerateJobPopResponse(
+        ids=[JobID(root=uuid.uuid4())],
         id=JobID(root=uuid.uuid4()),
         ids=[JobID(root=uuid.uuid4())],
         source_processing=KNOWN_SOURCE_PROCESSING.txt2img,

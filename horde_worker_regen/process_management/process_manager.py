@@ -39,7 +39,7 @@ from horde_sdk.ai_horde_api.apimodels import (
     ImageGenerateJobPopResponse,
     JobSubmitResponse,
 )
-from horde_sdk.ai_horde_api.consts import METADATA_TYPE, METADATA_VALUE, KNOWN_UPSCALERS
+from horde_sdk.ai_horde_api.consts import KNOWN_UPSCALERS, METADATA_TYPE, METADATA_VALUE
 from horde_sdk.ai_horde_api.fields import JobID
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, RootModel, ValidationError
@@ -1915,7 +1915,7 @@ class HordeWorkerProcessManager:
         """Get the number of megapixelsteps that are pending in the job deque.
         Each n_iter batching increases the amount by 20%
         """
-        job_deque_mps = 0
+        job_deque_mps = 0.0
         for job in self.job_deque:
             has_upscaler = False  # TODO: Move this to a ImageGenerateJobPopResponse.has_upscaler property in the sdk
             for pp in job.payload.post_processing:

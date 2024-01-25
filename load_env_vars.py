@@ -45,3 +45,11 @@ def load_env_vars() -> None:  # FIXME: there is a dynamic way to do this
                 "AIWORKER_LORA_CACHE_SIZE environment variable already set. "
                 "This will override the value for `max_lora_cache_size` in the config file.",
             )
+    if "civitai_api_token" in config:
+        if os.getenv("CIVIT_API_TOKEN") is None:
+            os.environ["CIVIT_API_TOKEN"] = config["civitai_api_token"]
+        else:
+            print(
+                "CIVIT_API_TOKEN environment variable already set. "
+                "This will override the value for `civitai_api_token` in the config file.",
+            )

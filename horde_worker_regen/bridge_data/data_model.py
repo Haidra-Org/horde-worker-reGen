@@ -29,6 +29,11 @@ class reGenBridgeData(CombinedHordeBridgeData):
         default=False,
     )
 
+    CIVIT_API_TOKEN: str | None = Field(
+        default=None,
+        alias="civitai_api_token",
+    )
+
     def load_env_vars(self) -> None:
         """Load the environment variables into the config model."""
         if self.models_folder_parent and os.getenv("AIWORKER_CACHE_HOME") is None:

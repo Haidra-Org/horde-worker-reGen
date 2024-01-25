@@ -43,6 +43,14 @@ safety_on_gpu: false
 # Users in priority_usernames and trusted users will bypass this restriction
 require_upfront_kudos: false
 
+# If set, this worker will use this civitai API token when downloading any resources from civitai.
+# This is required in order to provide LoRas/TIs (or other resources)
+# which are marked as requiring a civitai token to download.
+#
+# You can get your civitai API Key from https://civitai.com/user/account (look for 'Add API Key')
+#
+# Remove the # from the line below and add your civitai API token to enable this feature.
+# civitai_api_token:
 
 #######################################
 ## Dreamer (Stable Diffusion Worker) ##

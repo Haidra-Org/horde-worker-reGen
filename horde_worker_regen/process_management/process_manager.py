@@ -18,6 +18,7 @@ from multiprocessing.context import BaseContext
 from multiprocessing.synchronize import Lock as Lock_MultiProcessing
 from multiprocessing.synchronize import Semaphore
 from asyncio.exceptions import TimeoutError as AsyncioTimeoutError
+from aiohttp.client_exceptions import ClientOSError as AsyncioClientOSError
 
 import aiohttp
 import PIL
@@ -1684,7 +1685,7 @@ class HordeWorkerProcessManager:
                         logger.error(f"Failed to upload image to R2: {response}")
                         new_submit.retry()
                         return new_submit
-            except (TimeoutError, AsyncioTimeoutError):
+            except (TimeoutError, AsyncioTimeoutError, AsyncioClientOSError):
                 logger.warning("Generation Submit to AI Horde timed out. Will retry.")
                 new_submit.retry()
                 return new_submit

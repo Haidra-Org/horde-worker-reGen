@@ -1,4 +1,5 @@
 import asyncio
+import asyncio.exceptions
 import base64
 import collections
 import datetime
@@ -17,16 +18,14 @@ from io import BytesIO
 from multiprocessing.context import BaseContext
 from multiprocessing.synchronize import Lock as Lock_MultiProcessing
 from multiprocessing.synchronize import Semaphore
-from asyncio.exceptions import TimeoutError as AsyncioTimeoutError
-from aiohttp.client_exceptions import ClientOSError as AsyncioClientOSError
 
 import aiohttp
+import aiohttp.client_exceptions
 import PIL
 import PIL.Image
 import psutil
 import yarl
 from aiohttp import ClientSession
-from aiohttp.client_exceptions import ClientError
 from horde_model_reference.meta_consts import MODEL_REFERENCE_CATEGORY, STABLE_DIFFUSION_BASELINE_CATEGORY
 from horde_model_reference.model_reference_manager import ModelReferenceManager
 from horde_model_reference.model_reference_records import StableDiffusion_ModelReference
@@ -72,10 +71,18 @@ from horde_worker_regen.process_management.messages import (
 )
 from horde_worker_regen.process_management.worker_entry_points import start_inference_process, start_safety_process
 
+# This is due to Linux/Windows differences in the multiprocessing module
 try:
     from multiprocessing.connection import PipeConnection as Connection  # type: ignore
 except Exception:
     from multiprocessing.connection import Connection  # type: ignore
+
+
+# As of 3.11, asyncio.TimeoutError is deprecated and is an alias for builtins.TimeoutError
+_async_client_exceptions: tuple[type[Exception], ...] = (TimeoutError, aiohttp.client_exceptions.ClientError, OSError)
+
+if sys.version_info == (3, 10):
+    _async_client_exceptions = (asyncio.exceptions.TimeoutError, aiohttp.client_exceptions.ClientError, OSError)
 
 
 class HordeProcessInfo:
@@ -1685,8 +1692,9 @@ class HordeWorkerProcessManager:
                         logger.error(f"Failed to upload image to R2: {response}")
                         new_submit.retry()
                         return new_submit
-            except (TimeoutError, AsyncioTimeoutError, AsyncioClientOSError):
+            except _async_client_exceptions as e:
                 logger.warning("Generation Submit to AI Horde timed out. Will retry.")
+                logger.debug(f"{type(e).__name__}: {e}")
                 new_submit.retry()
                 return new_submit
         metadata = []
@@ -2224,7 +2232,7 @@ class HordeWorkerProcessManager:
 
                 logger.info(f"Worker Kudos Accumulated: {self.user_info.kudos_details.accumulated:.2f}")
 
-        except ClientError as e:
+        except _async_client_exceptions as e:
             self._user_info_failed = True
             self._user_info_failed_reason = f"HTTP error (({type(e).__name__}) {e})"
 

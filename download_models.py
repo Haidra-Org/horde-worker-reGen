@@ -13,7 +13,7 @@ from horde_worker_regen.bridge_data.load_config import BridgeDataLoader, reGenBr
 from horde_worker_regen.consts import BRIDGE_CONFIG_FILENAME
 
 
-def download_all_models(purge_unused_loras: bool = False) -> None:
+def download_all_models(purge_unused_loras: bool = False, amd: bool = True) -> None:
     """Download all models specified in the config file."""
     horde_model_reference_manager = ModelReferenceManager(
         download_and_convert_legacy_dbs=True,
@@ -43,7 +43,9 @@ def download_all_models(purge_unused_loras: bool = False) -> None:
     _ = get_interrogator_no_blip()
     del _
 
-    hordelib.initialise()
+    hordelib.initialise(
+        extra_comfyui_args=None if not amd else ["--directml"],
+    )
     from hordelib.shared_model_manager import SharedModelManager
 
     SharedModelManager.load_model_managers()
@@ -126,7 +128,12 @@ if __name__ == "__main__":
         action="store_true",
         help="Purge unused LORAs from the cache",
     )
+    parser.add_argument(
+        "--amd",
+        action="store_true",
+        help="Support AMD GPUs (experimental)",
+    )
 
     args = parser.parse_args()
 
-    download_all_models(purge_unused_loras=args.purge_unused_loras)
+    download_all_models(purge_unused_loras=args.purge_unused_loras, amd=args.amd)

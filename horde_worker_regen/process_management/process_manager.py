@@ -2439,8 +2439,7 @@ class HordeWorkerProcessManager:
             except CancelledError:
                 self._shutting_down = True
 
-    @staticmethod
-    def _handle_exception(future: asyncio.Future) -> None:
+    def _handle_exception(self, future: asyncio.Future) -> None:
         """
         Logs exceptions from asyncio tasks.
 
@@ -2449,7 +2448,10 @@ class HordeWorkerProcessManager:
         """
         ex = future.exception()
         if ex is not None:
-            logger.error(f"exception thrown by a main loop task: {ex}")
+            if self._shutting_down:
+                logger.debug(f"exception thrown by a main loop task: {ex}")
+            else:
+                logger.error(f"exception thrown by a main loop task: {ex}")
 
     async def _main_loop(self) -> None:
         # Run both loops concurrently

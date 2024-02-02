@@ -51,7 +51,7 @@ This option is recommended as it will make keeping your repository up to date mu
     - Note that the folder you are in will create a folder named `horde-worker-reGen`. This folder should not exist before you run the following commands.
     - If you want it to be installed in `C:\horde\`, run the following:
       - `cd C:\horde`
-      - (if the `horde` folder doesn't exist) 
+      - (if the `horde` folder doesn't exist)
          ```bash
          cd C:\
          mkdir horde

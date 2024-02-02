@@ -679,6 +679,8 @@ class HordeWorkerProcessManager:
 
     _lru: LRUCache
 
+    _amd: bool = False
+
     def __init__(
         self,
         *,
@@ -689,6 +691,7 @@ class HordeWorkerProcessManager:
         target_vram_overhead_bytes_map: Mapping[int, int] | None = None,  # FIXME
         max_safety_processes: int = 1,
         max_download_processes: int = 1,
+        amd: bool = False,
     ) -> None:
         """Initialise the process manager.
 
@@ -705,6 +708,8 @@ class HordeWorkerProcessManager:
             max_download_processes (int, optional): The maximum number of download processes that can run at once. \
                 Defaults to 1.
         """
+        self._amd = amd
+
         self.session_start_time = time.time()
 
         self.bridge_data = bridge_data
@@ -952,6 +957,7 @@ class HordeWorkerProcessManager:
                 child_pipe_connection,
                 self._inference_semaphore,
                 self._disk_lock,
+                self._amd,
             ),
         )
         process.start()

@@ -11,12 +11,14 @@ def start_working(
     ctx: BaseContext,
     bridge_data: reGenBridgeData,
     horde_model_reference_manager: ModelReferenceManager,
+    amd: bool = False,
 ) -> None:
     """Create and start process manager."""
     process_manager = HordeWorkerProcessManager(
         ctx=ctx,
         bridge_data=bridge_data,
         horde_model_reference_manager=horde_model_reference_manager,
+        amd=amd,
     )
 
     process_manager.start()

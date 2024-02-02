@@ -18,6 +18,7 @@ def start_inference_process(
     pipe_connection: Connection,
     inference_semaphore: Semaphore,
     disk_lock: Lock,
+    amd: bool = False,
 ) -> None:
     """Start an inference process.
 
@@ -46,6 +47,7 @@ def start_inference_process(
                     setup_logging=None,
                     process_id=process_id,
                     logging_verbosity=0,
+                    extra_comfyui_args=None if not amd else ["--directml"],
                 )
         except Exception as e:
             logger.critical(f"Failed to initialise hordelib: {type(e).__name__} {e}")

@@ -72,6 +72,7 @@ def start_safety_process(
     pipe_connection: Connection,
     disk_lock: Lock,
     cpu_only: bool = True,
+    amd: bool = False,
 ) -> None:
     """Start a safety process.
 
@@ -99,6 +100,7 @@ def start_safety_process(
                     setup_logging=None,
                     process_id=process_id,
                     logging_verbosity=0,
+                    extra_comfyui_args=None if not amd else ["--directml"],
                 )
         except Exception as e:
             logger.critical(f"Failed to initialise hordelib: {type(e).__name__} {e}")

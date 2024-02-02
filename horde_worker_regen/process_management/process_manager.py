@@ -900,6 +900,7 @@ class HordeWorkerProcessManager:
                     child_pipe_connection,
                     self._disk_lock,
                     cpu_only,
+                    self._amd,
                 ),
             )
 

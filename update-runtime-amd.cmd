@@ -57,6 +57,7 @@ if defined hordelib (
     python -s -m pip install -r requirements-scribe.txt
   ) else (
     python -s -m pip install -r requirements.amd.txt
+    python -s -m pip install hordelib --no-deps
   )
 )
 call micromamba deactivate

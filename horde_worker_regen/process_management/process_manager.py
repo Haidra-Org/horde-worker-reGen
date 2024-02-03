@@ -81,7 +81,7 @@ except Exception:
 # As of 3.11, asyncio.TimeoutError is deprecated and is an alias for builtins.TimeoutError
 _async_client_exceptions: tuple[type[Exception], ...] = (TimeoutError, aiohttp.client_exceptions.ClientError, OSError)
 
-if sys.version_info == (3, 10):
+if sys.version_info[:2] == (3, 10):
     _async_client_exceptions = (asyncio.exceptions.TimeoutError, aiohttp.client_exceptions.ClientError, OSError)
 
 

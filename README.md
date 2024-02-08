@@ -1,6 +1,5 @@
 This repository allows you to set up a AI Horde Worker to generate, post-process or analyze images for others
 
-> Note: **This worker is still in beta testing**
 
 If you want the latest information or have questions, come to [the thread in discord](https://discord.com/channels/781145214752129095/1159154031151812650)
 
@@ -47,13 +46,25 @@ Use these instructions if you have installed [git for windows](https://gitforwin
 
 This option is recommended as it will make keeping your repository up to date much easier.
 
-1. Use your start menu to open `git GUI`
-1. Select "Clone Existing Repository".
-1. In the Source location put `https://github.com/Haidra-Org/horde-worker-reGen.git`
-1. In the target directory, browse to any folder you want to put the horde worker folder.
-1. Press `Clone`
-1. Open powershell (also referred to as terminal) or `cmd` from the start menu.
-c. Continue with the [Basic Usage](#Basic-Usage) instructions
+1. Open `powershell` (also referred to as terminal) or `cmd` from the start menu.
+2. Using `cd`, navigate to a folder that you want the worker installed in.
+    - Note that the folder you are in will create a folder named `horde-worker-reGen`. This folder should not exist before you run the following commands.
+    - If you want it to be installed in `C:\horde\`, run the following:
+      - `cd C:\horde`
+      - (if the `horde` folder doesn't exist)
+         ```bash
+         cd C:\
+         mkdir horde
+         cd C:\horde
+         ```
+    - If you are using `cmd` and wish to install on a different drive, include the `/d` option, as so:
+      - `cd /d G:\horde`
+3. Run the following commands within the folder chosen (the folder `horde` if using the example above)
+    ```bash
+    git clone https://github.com/Haidra-Org/horde-worker-reGen.git
+    cd horde-worker-reGen
+    ```
+4. Continue with the [Basic Usage](#Basic-Usage) instructions
 
 #### Without git
 

@@ -1,28 +1,31 @@
 import asyncio
+import asyncio.exceptions
 import base64
 import collections
 import datetime
+import enum
 import multiprocessing
 import os
 import random
 import sys
 import time
-from asyncio import CancelledError
+from asyncio import CancelledError, Task
 from asyncio import Lock as Lock_Asyncio
 from collections import deque
 from collections.abc import Mapping
+from enum import auto
 from io import BytesIO
 from multiprocessing.context import BaseContext
 from multiprocessing.synchronize import Lock as Lock_MultiProcessing
 from multiprocessing.synchronize import Semaphore
 
 import aiohttp
+import aiohttp.client_exceptions
 import PIL
 import PIL.Image
 import psutil
 import yarl
 from aiohttp import ClientSession
-from aiohttp.client_exceptions import ClientError
 from horde_model_reference.meta_consts import MODEL_REFERENCE_CATEGORY, STABLE_DIFFUSION_BASELINE_CATEGORY
 from horde_model_reference.model_reference_manager import ModelReferenceManager
 from horde_model_reference.model_reference_records import StableDiffusion_ModelReference
@@ -37,7 +40,7 @@ from horde_sdk.ai_horde_api.apimodels import (
     ImageGenerateJobPopResponse,
     JobSubmitResponse,
 )
-from horde_sdk.ai_horde_api.consts import METADATA_TYPE, METADATA_VALUE
+from horde_sdk.ai_horde_api.consts import KNOWN_UPSCALERS, METADATA_TYPE, METADATA_VALUE
 from horde_sdk.ai_horde_api.fields import JobID
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, RootModel, ValidationError
@@ -68,10 +71,18 @@ from horde_worker_regen.process_management.messages import (
 )
 from horde_worker_regen.process_management.worker_entry_points import start_inference_process, start_safety_process
 
+# This is due to Linux/Windows differences in the multiprocessing module
 try:
     from multiprocessing.connection import PipeConnection as Connection  # type: ignore
 except Exception:
     from multiprocessing.connection import Connection  # type: ignore
+
+
+# As of 3.11, asyncio.TimeoutError is deprecated and is an alias for builtins.TimeoutError
+_async_client_exceptions: tuple[type[Exception], ...] = (TimeoutError, aiohttp.client_exceptions.ClientError, OSError)
+
+if sys.version_info[:2] == (3, 10):
+    _async_client_exceptions = (asyncio.exceptions.TimeoutError, aiohttp.client_exceptions.ClientError, OSError)
 
 
 class HordeProcessInfo:
@@ -100,6 +111,8 @@ class HordeProcessInfo:
     """The amount of VRAM used by this process."""
     total_vram_bytes: int
     """The total amount of VRAM available to this process."""
+    batch_amount: int
+    """The total amount of batching being run by this process."""
 
     # TODO: VRAM usage
 
@@ -132,6 +145,7 @@ class HordeProcessInfo:
         self.ram_usage_bytes = 0
         self.vram_usage_bytes = 0
         self.total_vram_bytes = 0
+        self.batch_amount = 1
 
     def is_process_busy(self) -> bool:
         """Return true if the process is actively engaged in a task.
@@ -239,6 +253,7 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         ram_usage_bytes: int | None = None,
         vram_usage_bytes: int | None = None,
         total_vram_bytes: int | None = None,
+        batch_amount: int | None = None,
     ) -> None:
         """Update the entry for the given process ID. If the process does not exist, it will be created.
 
@@ -258,6 +273,9 @@ class ProcessMap(dict[int, HordeProcessInfo]):
 
         if loaded_horde_model_name is not None:
             self[process_id].loaded_horde_model_name = loaded_horde_model_name
+
+        if batch_amount is not None:
+            self[process_id].batch_amount = batch_amount
 
         if ram_usage_bytes is not None:
             self[process_id].ram_usage_bytes = ram_usage_bytes
@@ -282,9 +300,23 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         """Return the number of inference processes that are available to accept jobs."""
         count = 0
         for p in self.values():
-            if p.process_type == HordeProcessType.INFERENCE and not p.is_process_busy():
+            if p.process_type != HordeProcessType.INFERENCE and not p.is_process_busy():
                 count += 1
         return count
+
+    def keep_single_inference(self) -> bool:
+        """Return True, if we need to keep the VRAM available for one single inference
+        Typically used if the currently running inference is batching
+        So we cannot adequately estimate if we have enough VRAM free.
+        """
+        for p in self.values():
+            # We only parallelizing if we have a currently running inference with n_iter > 1
+            if p.batch_amount == 1:
+                continue
+            if p.can_accept_job():
+                continue
+            return True
+        return False
 
     def get_first_available_inference_process(self) -> HordeProcessInfo | None:
         """Return the first available inference process, or None if there are none available."""
@@ -395,7 +427,7 @@ class TorchDeviceMap(RootModel[dict[int, TorchDeviceInfo]]):  # TODO
     """A mapping of device IDs to TorchDeviceInfo objects. Contains some helper methods."""
 
 
-class HordeJobInfo(BaseModel):
+class HordeJobInfo(BaseModel):  # TODO: Split into a new file
     """Contains information about a job that has been generated.
 
     It is used to track the state of the job as it goes through the safety process and \
@@ -424,6 +456,74 @@ class HordeJobInfo(BaseModel):
         if self.job_image_results is None:
             return []
         return [r.image_base64 for r in self.job_image_results]
+
+
+class JobSubmitState(enum.Enum):  # TODO: Split into a new file
+    """The state of a job submit process."""
+
+    PENDING = auto()
+    """The job submit still needs to be done or retried."""
+    SUCCESS = auto()
+    """The job submit finished succesfully."""
+    FAULTED = auto()
+    """The job submit faulted for some reason."""
+
+
+class PendingSubmitJob(BaseModel):  # TODO: Split into a new file
+    """Information about a job to submit to the horde."""
+
+    completed_job_info: HordeJobInfo
+    gen_iter: int
+    state: JobSubmitState = JobSubmitState.PENDING
+    kudos_reward: int = 0
+    kudos_per_second: float = 0.0
+    _max_consecutive_failed_job_submits: int = 10
+    _consecutive_failed_job_submits: int = 0
+
+    @property
+    def image_result(self) -> HordeImageResult | None:
+        if self.completed_job_info.job_image_results is not None:
+            return self.completed_job_info.job_image_results[self.gen_iter]
+        return None
+
+    @property
+    def job_id(self) -> JobID:
+        return self.completed_job_info.sdk_api_job_info.ids[self.gen_iter]
+
+    @property
+    def r2_upload(self) -> str:
+        if self.completed_job_info.sdk_api_job_info.r2_uploads is None:
+            return ""  # FIXME: Is this ever None? Or just a bad declaration on sdk?
+        return self.completed_job_info.sdk_api_job_info.r2_uploads[self.gen_iter]
+
+    @property
+    def is_finished(self) -> bool:
+        return self.state != JobSubmitState.PENDING
+
+    @property
+    def is_faulted(self) -> bool:
+        return self.state == JobSubmitState.FAULTED
+
+    @property
+    def retry_attempts_string(self) -> str:
+        return f"{self._consecutive_failed_job_submits}/{self._max_consecutive_failed_job_submits}"
+
+    @property
+    def batch_count(self) -> int:
+        return len(self.completed_job_info.sdk_api_job_info.ids)
+
+    def retry(self) -> None:
+        self._consecutive_failed_job_submits += 1
+        if self._consecutive_failed_job_submits > self._max_consecutive_failed_job_submits:
+            self.state = JobSubmitState.FAULTED
+
+    def succeed(self, kudos_reward: int, kudos_per_second: float) -> None:
+        self.kudos_reward = kudos_reward
+        self.kudos_per_second = kudos_per_second
+        self.state = JobSubmitState.SUCCESS
+
+    def fault(self) -> None:
+        self.state = JobSubmitState.FAULTED
 
 
 class LRUCache:
@@ -740,6 +840,10 @@ class HordeWorkerProcessManager:
         """Return true if there is an inference process available which can accept a job."""
         return self._process_map.num_available_inference_processes() > 0
 
+    def has_queued_jobs(self) -> bool:
+        jobs_in_progress = {job[0].id_ for job in self.jobs_in_progress}
+        return any(job.id_ not in jobs_in_progress for job in self.job_deque)
+
     def get_expected_ram_usage(self, horde_model_name: str) -> int:  # TODO: Use or rework this
         """Return the expected RAM usage of the given model, in bytes."""
         if self.stable_diffusion_reference is None:
@@ -884,6 +988,7 @@ class HordeWorkerProcessManager:
             process_id=process_info.process_id,
             last_process_state=None,
             loaded_horde_model_name=None,
+            batch_amount=1,
         )
         try:
             process_info.pipe_connection.send(HordeControlMessage(control_flag=HordeControlFlag.END_PROCESS))
@@ -978,6 +1083,11 @@ class HordeWorkerProcessManager:
                     if loaded_model_name is None:
                         raise ValueError(
                             f"Process {message.process_id} has no model loaded, but is starting inference",
+                        )
+                    batch_amount = self._process_map[message.process_id].batch_amount
+                    if batch_amount is None:
+                        raise ValueError(
+                            f"Process {message.process_id} has batch_amount, but is starting inference",
                         )
                     self._horde_model_map.update_entry(
                         horde_model_name=loaded_model_name,
@@ -1123,7 +1233,6 @@ class HordeWorkerProcessManager:
                     completed_job_info.job_image_results[i].generation_faults += self.job_faults[
                         completed_job_info.sdk_api_job_info.id_
                     ]
-                    del self.job_faults[completed_job_info.sdk_api_job_info.id_]
                     replacement_image = message.safety_evaluations[i].replacement_image_base64
 
                     if message.safety_evaluations[i].failed:
@@ -1139,6 +1248,8 @@ class HordeWorkerProcessManager:
                         num_images_censored += 1
                         if message.safety_evaluations[i].is_csam:
                             num_images_csam += 1
+                if completed_job_info.sdk_api_job_info.id_ is not None:
+                    del self.job_faults[completed_job_info.sdk_api_job_info.id_]
 
                 logger.debug(
                     f"Job {message.job_id} had {num_images_censored} images censored and took "
@@ -1355,11 +1466,16 @@ class HordeWorkerProcessManager:
 
             logger.info(
                 f"{next_job.payload.width}x{next_job.payload.height} for {next_job.payload.ddim_steps} steps "
-                f"with sampler {next_job.payload.sampler_name}",
+                f"with sampler {next_job.payload.sampler_name} "
+                f"for a batch of {next_job.payload.n_iter}",
             )
+            logger.debug(f"All Batch IDs: {next_job.ids}")
             # endregion
 
             self.jobs_in_progress.append((next_job, process_with_model.process_id))
+            # We store the amount of batches this job will do,
+            # as we use that later to check if we should start inference in parallel
+            process_with_model.batch_amount = next_job.payload.n_iter
             process_with_model.pipe_connection.send(
                 HordeInferenceControlMessage(
                     control_flag=HordeControlFlag.START_INFERENCE,
@@ -1484,9 +1600,6 @@ class HordeWorkerProcessManager:
         if completed_job_info.job_image_results is None:
             raise ValueError("completed_job_info.job_image_results is None")
 
-        if len(completed_job_info.job_image_results) > 1:
-            raise NotImplementedError("Only single image jobs are supported right now")  # TODO
-
         if completed_job_info.sdk_api_job_info.id_ is None:
             raise ValueError("completed_job_info.sdk_api_job_info.id_ is None")
 
@@ -1541,10 +1654,137 @@ class HordeWorkerProcessManager:
             logger.error(f"Failed to convert base64 image to stream buffer: {e}")
             return None
 
-    _consecutive_failed_job_submits = 0
-    """The number of consecutive failed attempts to submit a job result to the API."""
-    _max_consecutive_failed_job_submits = 10
-    """The maximum number of consecutive failed attempts to submit a job result to the API."""
+    @logger.catch(reraise=True)
+    async def submit_single_generation(self, new_submit: PendingSubmitJob) -> PendingSubmitJob:
+        """Tries to upload and submit a single image from a batch
+        Returns the same PendingSubmitJob updated with the results
+        of the operation which tells us whether to retry to submit."""
+        logger.debug(f"Preparing to submit job {new_submit.job_id}")
+        if new_submit.image_result is not None:
+            image_in_buffer = self.base64_image_to_stream_buffer(
+                new_submit.image_result.image_base64,
+            )
+            if image_in_buffer is None:
+                logger.critical(
+                    f"There is an invalid image in the job results for {new_submit.job_id}, "
+                    "removing from completed jobs",
+                )
+                for (
+                    follow_up_request
+                ) in new_submit.completed_job_info.sdk_api_job_info.get_follow_up_failure_cleanup_request():
+                    follow_up_response = await self.horde_client_session.submit_request(
+                        follow_up_request,
+                        JobSubmitResponse,
+                    )
+
+                    if isinstance(follow_up_response, RequestErrorResponse):
+                        logger.error(f"Failed to submit followup request: {follow_up_response}")
+                new_submit.fault()
+                return new_submit
+            try:
+                async with self._aiohttp_session.put(
+                    yarl.URL(new_submit.r2_upload, encoded=True),
+                    data=image_in_buffer.getvalue(),
+                    skip_auto_headers=["content-type"],
+                    timeout=aiohttp.ClientTimeout(total=10),
+                ) as response:
+                    if response.status != 200:
+                        logger.error(f"Failed to upload image to R2: {response}")
+                        new_submit.retry()
+                        return new_submit
+            except _async_client_exceptions as e:
+                logger.warning("Generation Submit to AI Horde timed out. Will retry.")
+                logger.debug(f"{type(e).__name__}: {e}")
+                new_submit.retry()
+                return new_submit
+        metadata = []
+        if new_submit.image_result is not None:
+            metadata = new_submit.image_result.generation_faults
+            if new_submit.batch_count > 1:
+                metadata.append(
+                    GenMetadataEntry(
+                        type=METADATA_TYPE.batch_index,
+                        value=METADATA_VALUE.see_ref,
+                        ref=str(new_submit.gen_iter),
+                    ),
+                )
+        seed = 0
+        if new_submit.completed_job_info.sdk_api_job_info.payload.seed is not None:
+            seed = int(new_submit.completed_job_info.sdk_api_job_info.payload.seed)
+        submit_job_request_type = new_submit.completed_job_info.sdk_api_job_info.get_follow_up_default_request_type()
+        submit_job_request = submit_job_request_type(
+            apikey=self.bridge_data.api_key,
+            id=new_submit.job_id,
+            seed=seed,
+            generation="R2",  # TODO # FIXME
+            state=new_submit.completed_job_info.state,
+            censored=bool(new_submit.completed_job_info.censored),  # TODO: is this cast problematic?
+            gen_metadata=metadata,
+        )
+        job_submit_response = await self.horde_client_session.submit_request(
+            submit_job_request,
+            JobSubmitResponse,
+        )
+
+        # If the job submit response is an error,
+        # log it and increment the number of consecutive failed job submits
+        if isinstance(job_submit_response, RequestErrorResponse):
+            if (
+                "Processing Job with ID" in job_submit_response.message
+                and "does not exist" in job_submit_response.message
+            ):
+                logger.warning(f"Job {new_submit.job_id} does not exist, removing from completed jobs")
+                new_submit.fault()
+                return new_submit
+
+            if "already submitted" in job_submit_response.message:
+                logger.debug(
+                    f"Job {new_submit.job_id} has already been submitted, removing from completed jobs",
+                )
+                new_submit.fault()
+                return new_submit
+
+            if "Please check your worker speed" in job_submit_response.message:
+                logger.error(job_submit_response.message)
+                new_submit.fault()
+                return new_submit
+
+            error_string = (
+                f"Failed to submit job (API Error) " f"{new_submit.retry_attempts_string}: {job_submit_response}"
+            )
+            logger.error(error_string)
+            new_submit.retry()
+            return new_submit
+
+        # Get the time the job was popped from the job deque
+        async with self._job_pop_timestamps_lock:
+            time_popped = self.job_pop_timestamps[str(new_submit.completed_job_info.sdk_api_job_info.id_)]
+
+        time_taken = round(time.time() - time_popped, 2)
+
+        kudos_per_second = job_submit_response.reward / new_submit.completed_job_info.time_to_generate
+
+        # If the job was not faulted, log the job submission as a success
+        if new_submit.completed_job_info.state != GENERATION_STATE.faulted:
+            logger.success(
+                f"Submitted job {new_submit.job_id} (model: "
+                f"{new_submit.completed_job_info.sdk_api_job_info.model}) for {job_submit_response.reward:.2f} "
+                f"kudos. Job popped {time_taken} seconds ago "
+                f"and took {new_submit.completed_job_info.time_to_generate:.2f} "
+                f"to generate. ({kudos_per_second * new_submit.batch_count:.2f} "
+                "kudos/second for the whole batch. 0.4 or greater is ideal)",
+            )
+        # If the job was faulted, log an error
+        else:
+            logger.error(
+                f"{new_submit.job_id} faulted. Reported fault to the horde. "
+                f"Job popped {time_taken} seconds ago and took "
+                f"{new_submit.completed_job_info.time_to_generate:.2f} to generate.",
+            )
+
+        self.kudos_generated_this_session += job_submit_response.reward
+        new_submit.succeed(new_submit.kudos_reward, new_submit.kudos_per_second)
+        return new_submit
 
     async def api_submit_job(self) -> None:
         """Submit a job result to the API, if any are completed (safety checked too) and ready to be submitted."""
@@ -1554,11 +1794,22 @@ class HordeWorkerProcessManager:
         completed_job_info = self.completed_jobs[0]
         job_info = completed_job_info.sdk_api_job_info
 
-        submit_job_request_type = job_info.get_follow_up_default_request_type()
+        if completed_job_info.state == GENERATION_STATE.faulted:
+            logger.error(
+                f"Job {job_info.ids[0]} faulted, "
+                "removing from completed jobs after submitting the faults to the horde",
+            )
+            self._consecutive_failed_jobs += 1
 
         if completed_job_info.job_image_results is not None:
-            if len(completed_job_info.job_image_results) > 1:
-                raise NotImplementedError("Only single image jobs are supported right now")
+            if len(completed_job_info.job_image_results) != completed_job_info.sdk_api_job_info.payload.n_iter:
+                logger.warning(
+                    f"Needed to generate {completed_job_info.sdk_api_job_info.payload.n_iter} images "
+                    f"but only {len(completed_job_info.job_image_results)} returned by the inference process "
+                    "We will continue, but you might get put into maintenance if this keeps happening.",
+                )
+            elif len(completed_job_info.job_image_results) > 1:
+                logger.info("Attempting to return batched jobs results")
 
             if completed_job_info.censored is None:
                 raise ValueError("completed_job_info.censored is None")
@@ -1571,151 +1822,77 @@ class HordeWorkerProcessManager:
         if job_info.r2_upload is None:  # TODO: r2_upload should be being set somewhere
             raise ValueError("job_info.r2_upload is None")
 
-        # TODO: n_iter support
+        highest_reward = 0
+        highest_kudos_per_second = 0.0
+        submit_tasks: list[Task[PendingSubmitJob]] = []
+        finished_submit_jobs: list[PendingSubmitJob] = []
+        iterations = 1
+        job_faulted = False
+        if completed_job_info.job_image_results is not None:
+            iterations = len(completed_job_info.job_image_results)
+        for gen_iter in range(iterations):
+            new_submit = PendingSubmitJob(completed_job_info=completed_job_info, gen_iter=gen_iter)
+            submit_tasks.append(asyncio.create_task(self.submit_single_generation(new_submit)))
+        while len(submit_tasks) > 0:
+            retry_submits: list[PendingSubmitJob] = []
+            results = await asyncio.gather(*submit_tasks, return_exceptions=True)
+            for result in results:
+                if isinstance(result, Exception):
+                    logger.exception(f"Exception in job submit task: {result}")
+                    job_faulted = True
+                elif isinstance(result, PendingSubmitJob):
+                    if not result.is_finished:
+                        retry_submits.append(result)
+                    else:
+                        finished_submit_jobs.append(result)
+                    if highest_reward < result.kudos_reward:
+                        highest_reward = result.kudos_reward
+                    if highest_kudos_per_second < result.kudos_per_second:
+                        highest_kudos_per_second = result.kudos_per_second
+            submit_tasks = []
+            for retry_submit in retry_submits:
+                submit_tasks.append(asyncio.create_task(self.submit_single_generation(retry_submit)))
 
-        try:
-            if self._consecutive_failed_job_submits >= self._max_consecutive_failed_job_submits:
-                async with self._completed_jobs_lock:
-                    self.completed_jobs.remove(completed_job_info)
-                    self._consecutive_failed_job_submits = 0
+        # Get the time the job was popped from the job deque
+        async with self._job_pop_timestamps_lock:
+            time_popped = self.job_pop_timestamps[str(completed_job_info.sdk_api_job_info.id_)]
+        time_taken = round(time.time() - time_popped, 2)
+        # If the job took a long time to generate, log a warning (unless speed warnings are suppressed)
+        if not self.bridge_data.suppress_speed_warnings:
+            if highest_reward > 0 and (highest_reward / time_taken) < 0.1:
+                logger.warning(
+                    f"This job ({completed_job_info.sdk_api_job_info.id_}) "
+                    "may have been in the queue for a long time. ",
+                )
+
+            if highest_reward > 0 and highest_kudos_per_second < 0.4:
+                logger.warning(
+                    f"This job ({completed_job_info.sdk_api_job_info.id_}) "
+                    "took longer than is ideal; if this persists consider "
+                    "lowering your max_power, using less threads, "
+                    "disabling post processing and/or controlnets.",
+                )
+
+        # Finally, remove the job from the completed jobs list and reset the number of consecutive failed job
+        async with self._completed_jobs_lock:
+            for submit_job in finished_submit_jobs:
+                if submit_job.is_faulted:
+                    job_faulted = True
                     self._consecutive_failed_jobs += 1
-                    return
-            gen_metadata = []
-            if completed_job_info.job_image_results is not None:
-                image_in_buffer = self.base64_image_to_stream_buffer(
-                    completed_job_info.job_image_results[0].image_base64,
-                )
-                gen_metadata = completed_job_info.job_image_results[0].generation_faults
-
-                if image_in_buffer is None:
-                    logger.critical(
-                        f"There is an invalid image in the job results for {job_info.id_}, "
-                        "removing from completed jobs",
-                    )
-                    async with self._completed_jobs_lock:
-                        self.completed_jobs.remove(completed_job_info)
-                        self._consecutive_failed_job_submits = 0
-
-                        for (
-                            follow_up_request
-                        ) in completed_job_info.sdk_api_job_info.get_follow_up_failure_cleanup_request():
-                            follow_up_response = await self.horde_client_session.submit_request(
-                                follow_up_request,
-                                JobSubmitResponse,
-                            )
-
-                            if isinstance(follow_up_response, RequestErrorResponse):
-                                logger.error(f"Failed to submit followup request: {follow_up_response}")
-                        return
-
-                async with self._aiohttp_session.put(
-                    yarl.URL(job_info.r2_upload, encoded=True),
-                    data=image_in_buffer.getvalue(),
-                    skip_auto_headers=["content-type"],
-                    timeout=aiohttp.ClientTimeout(total=10),
-                ) as response:
-                    if response.status != 200:
-                        logger.error(f"Failed to upload image to R2: {response}")
-                        self._consecutive_failed_job_submits += 1
-                        return
-
-            if completed_job_info.state == GENERATION_STATE.faulted:
-                logger.error(
-                    f"Job {job_info.id_} faulted, removing from completed jobs",
-                )
-                self._consecutive_failed_jobs += 1
-
-            submit_job_request = submit_job_request_type(
-                apikey=self.bridge_data.api_key,
-                id=job_info.id_,
-                seed=int(job_info.payload.seed),
-                generation="R2",  # TODO # FIXME
-                state=completed_job_info.state,
-                censored=bool(completed_job_info.censored),  # TODO: is this cast problematic?
-                gen_metadata=gen_metadata,
-            )
-
-            job_submit_response = await self.horde_client_session.submit_request(submit_job_request, JobSubmitResponse)
-
-            # If the job submit response is an error, log it and increment the number of consecutive failed job submits
-            if isinstance(job_submit_response, RequestErrorResponse):
-                if (
-                    "Processing Job with ID" in job_submit_response.message
-                    and "does not exist" in job_submit_response.message
-                ):
-                    logger.warning(f"Job {job_info.id_} does not exist, removing from completed jobs")
-                    async with self._completed_jobs_lock:
-                        self.completed_jobs.remove(completed_job_info)
-                        self._consecutive_failed_job_submits = 0
-                    return
-
-                if "already submitted" in job_submit_response.message:
-                    logger.debug(f"Job {job_info.id_} has already been submitted, removing from completed jobs")
-                    async with self._completed_jobs_lock:
-                        self.completed_jobs.remove(completed_job_info)
-                        self._consecutive_failed_job_submits = 0
-                    return
-
-                if "Please check your worker speed" in job_submit_response.message:
-                    logger.error(job_submit_response.message)
-                    async with self._completed_jobs_lock:
-                        self.completed_jobs.remove(completed_job_info)
-                        self._consecutive_failed_job_submits = 0
-                    return
-
-                error_string = "Failed to submit job (API Error)"
-                error_string += f"{self._consecutive_failed_job_submits}/{self._max_consecutive_failed_job_submits} "
-                error_string += f": {job_submit_response}"
-                logger.error(error_string)
-                self._consecutive_failed_job_submits += 1
-                return
-
-            # Get the time the job was popped from the job deque
-            async with self._job_pop_timestamps_lock:
-                time_popped = self.job_pop_timestamps.pop(str(completed_job_info.sdk_api_job_info.id_))
-
-            time_taken = round(time.time() - time_popped, 2)
-
-            kudos_per_second = job_submit_response.reward / completed_job_info.time_to_generate
-
-            # If the job was not faulted, log the job submission as a success
-            if completed_job_info.state != GENERATION_STATE.faulted:
-                logger.success(
-                    f"Submitted job {job_info.id_} (model: {job_info.model}) for {job_submit_response.reward:.2f} "
-                    f"kudos. Job popped {time_taken} seconds ago and took {completed_job_info.time_to_generate:.2f} "
-                    f"to generate. ({kudos_per_second:.2f} kudos/second. 0.4 or greater is ideal)",
-                )
-            # If the job was faulted, log an error
-            else:
-                logger.error(
-                    f"{job_info.id_} faulted, not submitting for kudos. Job popped {time_taken} seconds ago and took "
-                    f"{completed_job_info.time_to_generate:.2f} to generate.",
-                )
-
-            # If the job took a long time to generate, log a warning (unless speed warnings are suppressed)
-            if not self.bridge_data.suppress_speed_warnings:
-                if job_submit_response.reward > 0 and (job_submit_response.reward / time_taken) < 0.1:
-                    logger.warning(
-                        f"This job ({job_info.id_}) may have been in the queue for a long time. ",
-                    )
-
-                if job_submit_response.reward > 0 and kudos_per_second < 0.4:
-                    logger.warning(
-                        f"This job ({job_info.id_}) took longer than is ideal; if this persists consider "
-                        "lowering your max_power, using less threads, disabling post processing and/or controlnets.",
-                    )
-
-            self.kudos_generated_this_session += job_submit_response.reward
-
-            # Finally, remove the job from the completed jobs list and reset the number of consecutive failed job
-            async with self._completed_jobs_lock:
+                    break
+            if not job_faulted:
+                # If any of the submits failed, we consider the whole job failed
+                self._consecutive_failed_jobs = 0
+            try:
                 self.completed_jobs.remove(completed_job_info)
-                self._consecutive_failed_job_submits = 0
-
-        except Exception as e:
-            logger.error(f"Failed to submit job (Unexpected Error): {e}")
-            self._consecutive_failed_job_submits += 1
-            return
+            except ValueError:
+                # This means another fault catch removed the faulted job so it's OK
+                # But we post a log anyway, just in case
+                logger.warning(
+                    f"Tried to remove completed_job_info "
+                    f"{completed_job_info.sdk_api_job_info.id_} but it has already been removed.",
+                )
+        del self.job_pop_timestamps[str(completed_job_info.sdk_api_job_info.id_)]
 
         await asyncio.sleep(self._api_call_loop_interval)
 
@@ -1738,13 +1915,34 @@ class HordeWorkerProcessManager:
     """The time at which the number of megapixelsteps in the job deque exceeded the limit."""
     _triggered_max_pending_megapixelsteps = False
     """Whether the number of megapixelsteps in the job deque exceeded the limit."""
+    _batch_wait_log_time = 0.0
+    """The last time we informed that we're waiting for batched jobs to finish."""
 
     _consecutive_failed_jobs = 0
 
     def get_pending_megapixelsteps(self) -> int:
-        """Get the number of megapixelsteps that are pending in the job deque."""
-        job_deque_mps = sum(job.payload.width * job.payload.height * job.payload.ddim_steps for job in self.job_deque)
-
+        """Get the number of megapixelsteps that are pending in the job deque.
+        Each n_iter batching increases the amount by 20%
+        """
+        job_deque_mps = 0.0
+        for job in self.job_deque:
+            has_upscaler = False  # TODO: Move this to a ImageGenerateJobPopResponse.has_upscaler property in the sdk
+            for pp in job.payload.post_processing:
+                if pp in [u.value for u in KNOWN_UPSCALERS]:
+                    has_upscaler = True
+                    break
+            upscaler_multiplier = 0
+            if has_upscaler:
+                upscaler_multiplier = 1
+            job_mp = job.payload.width * job.payload.height
+            # Each extra batched image increases our difficulty by 20%
+            batching_multiplier = 1 + ((job.payload.n_iter - 1) * 0.2)
+            # If upscaling was requested, due to it being serial, each extra image in the batch
+            # Further increases our difficulty.
+            # In this calculation we treat each upscaler as adding 20 steps per image
+            upscaling_mp = job_mp * 20 * upscaler_multiplier * job.payload.n_iter
+            job_deque_mps += job_mp * batching_multiplier * job.payload.ddim_steps
+            job_deque_mps += upscaling_mp
         for _ in self.completed_jobs:
             job_deque_mps += 1_000_000 * 4
 
@@ -1906,7 +2104,7 @@ class HordeWorkerProcessManager:
             job_pop_request = ImageGenerateJobPopRequest(
                 apikey=self.bridge_data.api_key,
                 name=self.bridge_data.dreamer_worker_name,
-                bridge_agent="AI Horde Worker reGen:4.0.1:https://github.com/Haidra-Org/horde-worker-reGen",
+                bridge_agent="AI Horde Worker reGen:4.1.3:https://github.com/Haidra-Org/horde-worker-reGen",
                 models=self.bridge_data.image_models_to_load,
                 nsfw=self.bridge_data.nsfw,
                 threads=self.max_concurrent_inference_processes,
@@ -1917,7 +2115,8 @@ class HordeWorkerProcessManager:
                 allow_unsafe_ipaddr=self.bridge_data.allow_unsafe_ip,
                 allow_post_processing=self.bridge_data.allow_post_processing,
                 allow_controlnet=self.bridge_data.allow_controlnet,
-                allow_lora=self.bridge_data.allow_lora,  # TODO loras broken
+                allow_lora=self.bridge_data.allow_lora,
+                amount=self.bridge_data.max_batch,
             )
 
             job_pop_response = await self.horde_client_session.submit_request(
@@ -2033,7 +2232,7 @@ class HordeWorkerProcessManager:
 
                 logger.info(f"Worker Kudos Accumulated: {self.user_info.kudos_details.accumulated:.2f}")
 
-        except ClientError as e:
+        except _async_client_exceptions as e:
             self._user_info_failed = True
             self._user_info_failed_reason = f"HTTP error (({type(e).__name__}) {e})"
 
@@ -2129,8 +2328,14 @@ class HordeWorkerProcessManager:
                         # So long as we didn't preload a model this cycle, we can start inference
                         # We want to get any messages next cycle from preloading processes to make sure
                         # the state of everything is up to date
+
                         if not self.preload_models():
-                            self.start_inference()
+                            if self._process_map.keep_single_inference():
+                                if self.has_queued_jobs() and time.time() - self._batch_wait_log_time > 10:
+                                    logger.info("Blocking further inference because batch inference in process.")
+                                    self._batch_wait_log_time = time.time()
+                            else:
+                                self.start_inference()
                         await asyncio.sleep(self._loop_interval / 2)
 
                 async with self._job_deque_lock, self._jobs_safety_check_lock, self._completed_jobs_lock:
@@ -2234,8 +2439,7 @@ class HordeWorkerProcessManager:
             except CancelledError:
                 self._shutting_down = True
 
-    @staticmethod
-    def _handle_exception(future: asyncio.Future) -> None:
+    def _handle_exception(self, future: asyncio.Future) -> None:
         """
         Logs exceptions from asyncio tasks.
 
@@ -2244,7 +2448,10 @@ class HordeWorkerProcessManager:
         """
         ex = future.exception()
         if ex is not None:
-            logger.error(f"exception thrown by a main loop task: {ex}")
+            if self._shutting_down:
+                logger.debug(f"exception thrown by a main loop task: {ex}")
+            else:
+                logger.error(f"exception thrown by a main loop task: {ex}")
 
     async def _main_loop(self) -> None:
         # Run both loops concurrently

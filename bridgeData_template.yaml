@@ -20,6 +20,17 @@ max_threads: 1
 # This generally should be or 1, or 1 more the value of max_threads if max_threads is 2 or higher.
 queue_size: 1
 
+# This will try to pull these many jobs per request and perform batched inference.
+# This is way more optimized than doing them 1 by 1, but is slower.
+# Keep in mind, that the horde will not give your max batch at your max resolution
+# In order to avoid running out of VRAM.
+# The Horde will assume you can fulfil your max batch at HALF you max resolution.
+# So make sure you can generate your max_batch @ max_power/2
+# Over your half max_power, AI Horde will smartly assign only as much batches
+# as it calculates you can achieve. If you start running out of VRAM, reduce
+# max_power or max_batch.
+max_batch: 1
+
 
 # When Enabled will run CLIP model (Checking for potential CSAM or NSFW) on GPU insted of CPU
 # Enable this on cards with 12gb or more VRAM to increase the rate you complete jobs
@@ -32,6 +43,14 @@ safety_on_gpu: false
 # Users in priority_usernames and trusted users will bypass this restriction
 require_upfront_kudos: false
 
+# If set, this worker will use this civitai API token when downloading any resources from civitai.
+# This is required in order to provide LoRas/TIs (or other resources)
+# which are marked as requiring a civitai token to download.
+#
+# You can get your civitai API Key from https://civitai.com/user/account (look for 'Add API Key')
+#
+# Remove the # from the line below and add your civitai API token to enable this feature.
+# civitai_api_token:
 
 #######################################
 ## Dreamer (Stable Diffusion Worker) ##

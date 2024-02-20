@@ -90,20 +90,37 @@ class HordeSafetyProcess(HordeProcess):
 
         super().__init__(process_id, process_message_queue, pipe_connection, disk_lock)
 
-        from horde_safety.deep_danbooru_model import get_deep_danbooru_model
-        from horde_safety.interrogate import get_interrogator_no_blip
+        try:
+            from horde_safety.deep_danbooru_model import get_deep_danbooru_model
+            from horde_safety.interrogate import get_interrogator_no_blip
+        except Exception as e:
+            logger.error(f"Failed to import horde_safety: {type(e).__name__} {e}")
+            raise
 
-        self._deep_danbooru_model = get_deep_danbooru_model(device="cpu" if cpu_only else "cuda")
-        self._interrogator = get_interrogator_no_blip(device="cpu" if cpu_only else "cuda")
+        try:
+            logger.debug(f"Initialising horde_safety with cpu_only={cpu_only}")
+            self._deep_danbooru_model = get_deep_danbooru_model(device="cpu" if cpu_only else "cuda")
+            self._interrogator = get_interrogator_no_blip(device="cpu" if cpu_only else "cuda")
+        except Exception as e:
+            logger.error(f"Failed to initialise horde_safety: {type(e).__name__} {e}")
+            raise
 
-        from horde_safety.nsfw_checker_class import NSFWChecker
+        try:
+            from horde_safety.nsfw_checker_class import NSFWChecker
 
-        self._nsfw_checker = NSFWChecker(
-            self._interrogator,
-            self._deep_danbooru_model,  # Optional, significantly improves results for anime images
-        )
+            self._nsfw_checker = NSFWChecker(
+                self._interrogator,
+                self._deep_danbooru_model,  # Optional, significantly improves results for anime images
+            )
+        except Exception as e:
+            logger.error(f"Failed to initialise NSFWChecker: {type(e).__name__} {e}")
+            raise
 
-        self.load_censor_files()
+        try:
+            self.load_censor_files()
+        except Exception as e:
+            logger.error(f"Failed to load censor files: {type(e).__name__} {e}")
+            raise
 
         info_message = "Horde safety process started."
 

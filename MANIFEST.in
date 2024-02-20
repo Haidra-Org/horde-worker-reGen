@@ -1,7 +1,11 @@
+graft horde-worker-reGen/assets
+
 include *.md
+
 recursive-include horde-worker-reGen *.py
 recursive-include horde-worker-reGen *.md
 recursive-include horde-worker-reGen *.typed
+recursive-include horde-worker-reGen *.png
 
 recursive-include tests *.py
 recursive-include tests *.md

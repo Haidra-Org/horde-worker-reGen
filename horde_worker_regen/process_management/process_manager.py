@@ -1693,7 +1693,7 @@ class HordeWorkerProcessManager:
                         new_submit.retry()
                         return new_submit
             except _async_client_exceptions as e:
-                logger.warning("Generation Submit to AI Horde timed out. Will retry.")
+                logger.warning("Upload to AI Horde R2 timed out. Will retry.")
                 logger.debug(f"{type(e).__name__}: {e}")
                 new_submit.retry()
                 return new_submit

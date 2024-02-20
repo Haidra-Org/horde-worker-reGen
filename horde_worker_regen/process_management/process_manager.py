@@ -2104,7 +2104,7 @@ class HordeWorkerProcessManager:
             job_pop_request = ImageGenerateJobPopRequest(
                 apikey=self.bridge_data.api_key,
                 name=self.bridge_data.dreamer_worker_name,
-                bridge_agent="AI Horde Worker reGen:4.1.7:https://github.com/Haidra-Org/horde-worker-reGen",
+                bridge_agent="AI Horde Worker reGen:4.1.8:https://github.com/Haidra-Org/horde-worker-reGen",
                 models=self.bridge_data.image_models_to_load,
                 nsfw=self.bridge_data.nsfw,
                 threads=self.max_concurrent_inference_processes,
@@ -2361,7 +2361,7 @@ class HordeWorkerProcessManager:
                     logger.info(f"Number of jobs in progress: {len(self.jobs_in_progress)}")
                     logger.info(f"Number of jobs pending safety check: {len(self.jobs_pending_safety_check)}")
                     logger.info(f"Number of jobs being safety checked: {len(self.jobs_being_safety_checked)}")
-                    logger.info(f"Number of jobs completed: {len(self.completed_jobs)}")
+                    logger.debug(f"Number of jobs completed (but un-submitted): {len(self.completed_jobs)}")
                     # TODO: Faulted
                     logger.info(f"Number of jobs submitted: {self.total_num_completed_jobs}")
 

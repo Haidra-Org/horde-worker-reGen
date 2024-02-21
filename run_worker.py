@@ -1,4 +1,5 @@
 """The main entry point for the reGen worker."""
+
 import os
 
 os.environ["HORDE_SDK_DISABLE_CUSTOM_SINKS"] = "1"

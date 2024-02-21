@@ -1,4 +1,5 @@
 """Contains the functions to load the environment variables from the config file."""
+
 import os
 import pathlib
 

@@ -1,4 +1,5 @@
 """Contains the entry point for the process manager."""
+
 from multiprocessing.context import BaseContext
 
 from horde_model_reference.model_reference_manager import ModelReferenceManager

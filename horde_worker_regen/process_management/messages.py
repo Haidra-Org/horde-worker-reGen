@@ -1,4 +1,5 @@
 """Contains messages (and associated helper types) used for communication between the main process and the child processes."""  # noqa: E501
+
 from __future__ import annotations
 
 import enum

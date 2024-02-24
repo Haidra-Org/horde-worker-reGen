@@ -2,6 +2,8 @@ import json
 
 from pydantic import BaseModel
 
+from horde_worker_regen.consts import VERSION_META_REMOTE_URL
+
 
 class RequiredVersionInfo(BaseModel):
     reason_for_update: str
@@ -25,8 +27,8 @@ def get_local_version_meta() -> VersionMeta:
         return VersionMeta(**data)
 
 
-if __name__ == "__main__":
-    with open("horde_worker_regen/_version_meta.json") as f:
-        data = json.load(f)
-        version_meta = VersionMeta(**data)
-        print(version_meta)
+def get_remote_version_meta() -> VersionMeta:
+    import requests
+
+    data = requests.get(VERSION_META_REMOTE_URL).json()
+    return VersionMeta(**data)

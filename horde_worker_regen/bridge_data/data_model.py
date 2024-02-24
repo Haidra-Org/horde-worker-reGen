@@ -1,4 +1,5 @@
 """The config model and initializers for the reGen configuration model."""
+
 import os
 
 from horde_sdk.ai_horde_worker.bridge_data import CombinedHordeBridgeData

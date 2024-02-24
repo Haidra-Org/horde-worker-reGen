@@ -18,6 +18,8 @@ def start_inference_process(
     pipe_connection: Connection,
     inference_semaphore: Semaphore,
     disk_lock: Lock,
+    *,
+    high_memory_mode: bool = False,
 ) -> None:
     """Start an inference process.
 
@@ -41,11 +43,14 @@ def start_inference_process(
                 verbosity_count=5,  # FIXME
             )
 
+            logger.debug(f"Initialising hordelib with process_id={process_id} and high_memory_mode={high_memory_mode}")
+
             with logger.catch(reraise=True):
                 hordelib.initialise(
                     setup_logging=None,
                     process_id=process_id,
                     logging_verbosity=0,
+                    extra_comfyui_args=["--disable-smart-memory"] if not high_memory_mode else [],
                 )
         except Exception as e:
             logger.critical(f"Failed to initialise hordelib: {type(e).__name__} {e}")
@@ -70,6 +75,8 @@ def start_safety_process(
     pipe_connection: Connection,
     disk_lock: Lock,
     cpu_only: bool = True,
+    *,
+    high_memory_mode: bool = False,
 ) -> None:
     """Start a safety process.
 
@@ -92,11 +99,15 @@ def start_safety_process(
                 process_id=process_id,
                 verbosity_count=5,  # FIXME
             )
+
+            logger.debug(f"Initialising hordelib with process_id={process_id} and high_memory_mode={high_memory_mode}")
+
             with logger.catch(reraise=True):
                 hordelib.initialise(
                     setup_logging=None,
                     process_id=process_id,
                     logging_verbosity=0,
+                    extra_comfyui_args=["--disable-smart-memory"] if not high_memory_mode else [],
                 )
         except Exception as e:
             logger.critical(f"Failed to initialise hordelib: {type(e).__name__} {e}")

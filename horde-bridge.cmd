@@ -7,3 +7,6 @@ call runtime python -s run_worker.py %*
 
 @REM :ABORT
 @REM echo "download_models.py exited with error code. Aborting"
+
+# Press any key to continue . . .
+pause

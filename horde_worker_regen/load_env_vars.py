@@ -1,4 +1,5 @@
 """Contains the functions to load the environment variables from the config file."""
+
 import os
 import pathlib
 import time
@@ -9,7 +10,7 @@ from loguru import logger
 from ruamel.yaml import YAML
 
 import horde_worker_regen
-from horde_worker_regen.version_meta import VersionMeta, get_local_version_meta
+from horde_worker_regen.version_meta import VersionMeta, get_local_version_meta, get_remote_version_meta
 
 load_dotenv()
 
@@ -59,7 +60,15 @@ def load_env_vars() -> None:  # FIXME: there is a dynamic way to do this
                 "CIVIT_API_TOKEN environment variable already set. "
                 "This will override the value for `civitai_api_token` in the config file.",
             )
-    version_meta: VersionMeta = get_local_version_meta()
+
+    version_meta: VersionMeta
+    try:
+        version_meta = get_remote_version_meta()
+    except Exception as e:
+        logger.warning(f"Failed to get remote version meta: {e}")
+        logger.warning("Using local version meta instead.")
+        logger.warning("If this keeps happening, please check your internet connection and try again.")
+        version_meta = get_local_version_meta()
 
     # If the required_min_version is not satisfied, raise an error
     if not semver.compare(horde_worker_regen.__version__, version_meta.required_min_version) >= 0:

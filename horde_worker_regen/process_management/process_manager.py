@@ -46,6 +46,7 @@ from loguru import logger
 from pydantic import BaseModel, ConfigDict, RootModel, ValidationError
 from typing_extensions import Any
 
+import horde_worker_regen
 from horde_worker_regen.bridge_data.data_model import reGenBridgeData
 from horde_worker_regen.bridge_data.load_config import BridgeDataLoader
 from horde_worker_regen.consts import BRIDGE_CONFIG_FILENAME
@@ -2104,7 +2105,7 @@ class HordeWorkerProcessManager:
             job_pop_request = ImageGenerateJobPopRequest(
                 apikey=self.bridge_data.api_key,
                 name=self.bridge_data.dreamer_worker_name,
-                bridge_agent="AI Horde Worker reGen:4.1.8:https://github.com/Haidra-Org/horde-worker-reGen",
+                bridge_agent=f"AI Horde Worker reGen:f{horde_worker_regen.__version__}:https://github.com/Haidra-Org/horde-worker-reGen",
                 models=self.bridge_data.image_models_to_load,
                 nsfw=self.bridge_data.nsfw,
                 threads=self.max_concurrent_inference_processes,

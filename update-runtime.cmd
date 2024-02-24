@@ -62,3 +62,5 @@ if defined hordelib (
 call micromamba deactivate
 
 echo If there are no errors above everything should be correctly installed (If not, try deleting the folder /conda/envs/ and try again).
+
+pause

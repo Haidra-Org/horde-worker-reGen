@@ -666,7 +666,7 @@ class HordeWorkerProcessManager:
     """A deque of jobs that are waiting to be processed."""
     _job_deque_lock: Lock_Asyncio
 
-    job_pop_timestamps: dict[str, float]
+    job_pop_timestamps: dict[ImageGenerateJobPopResponse, float]
     _job_pop_timestamps_lock: Lock_Asyncio
 
     _inference_semaphore: Semaphore
@@ -771,7 +771,7 @@ class HordeWorkerProcessManager:
         self.job_deque = deque()
         self._job_deque_lock = Lock_Asyncio()
 
-        self.job_pop_timestamps = {}
+        self.job_pop_timestamps: dict[ImageGenerateJobPopResponse, float] = {}
         self._job_pop_timestamps_lock = Lock_Asyncio()
 
         self._process_message_queue = multiprocessing.Queue()
@@ -1020,7 +1020,11 @@ class HordeWorkerProcessManager:
                     time_to_generate=self.bridge_data.process_timeout,
                 ),
             )
-            del self.job_pop_timestamps[str(job.id_)]
+            if job in self.job_pop_timestamps:
+                del self.job_pop_timestamps[job]
+            else:
+                logger.warning(f"Job {job.id_} not found in job_pop_timestamps")
+
         if process_info.last_process_state == HordeProcessState.INFERENCE_STARTING:
             self._inference_semaphore.release()
         self._start_inference_process(process_info.process_id)
@@ -1772,7 +1776,13 @@ class HordeWorkerProcessManager:
 
         # Get the time the job was popped from the job deque
         async with self._job_pop_timestamps_lock:
-            time_popped = self.job_pop_timestamps[str(new_submit.completed_job_info.sdk_api_job_info.id_)]
+            time_popped = self.job_pop_timestamps.get(new_submit.completed_job_info.sdk_api_job_info)
+            if time_popped is None:
+                logger.warning(
+                    f"Failed to get time_popped for job {new_submit.completed_job_info.sdk_api_job_info.id_}. "
+                    "This is likely a bug.",
+                )
+                time_popped = time.time()
 
         time_taken = round(time.time() - time_popped, 2)
 
@@ -1869,7 +1879,13 @@ class HordeWorkerProcessManager:
 
         # Get the time the job was popped from the job deque
         async with self._job_pop_timestamps_lock:
-            time_popped = self.job_pop_timestamps[str(completed_job_info.sdk_api_job_info.id_)]
+            time_popped = self.job_pop_timestamps.get(completed_job_info.sdk_api_job_info)
+            if time_popped is None:
+                logger.warning(
+                    f"Failed to get time_popped for job {completed_job_info.sdk_api_job_info.id_}. "
+                    "This is likely a bug.",
+                )
+                time_popped = time.time()
         time_taken = round(time.time() - time_popped, 2)
         # If the job took a long time to generate, log a warning (unless speed warnings are suppressed)
         if not self.bridge_data.suppress_speed_warnings:
@@ -1902,11 +1918,18 @@ class HordeWorkerProcessManager:
             except ValueError:
                 # This means another fault catch removed the faulted job so it's OK
                 # But we post a log anyway, just in case
-                logger.warning(
+                logger.debug(
                     f"Tried to remove completed_job_info "
                     f"{completed_job_info.sdk_api_job_info.id_} but it has already been removed.",
                 )
-        del self.job_pop_timestamps[str(completed_job_info.sdk_api_job_info.id_)]
+
+        if str(completed_job_info.sdk_api_job_info) in self.job_pop_timestamps:
+            del self.job_pop_timestamps[completed_job_info.sdk_api_job_info]
+        else:
+            logger.debug(
+                f"Tried to remove job_pop_timestamps "
+                f"{completed_job_info.sdk_api_job_info.id_} but it has already been removed or was missing.",
+            )
 
         await asyncio.sleep(self._api_call_loop_interval)
 
@@ -2033,6 +2056,8 @@ class HordeWorkerProcessManager:
 
         return ImageGenerateJobPopResponse(**new_response_dict)
 
+    _last_pop_no_jobs_available: bool = False
+
     async def api_job_pop(self) -> None:
         """If the job deque is not full, add any jobs that are available to the job deque."""
         if self._shutting_down:
@@ -2126,7 +2151,11 @@ class HordeWorkerProcessManager:
             len(self.bridge_data.image_models_to_load) > self.max_inference_processes
             and len(loaded_models) == self.max_inference_processes
         ):
-            if self.bridge_data.model_stickiness > 0 and random.random() < self.bridge_data.model_stickiness:
+            if (
+                (not self._last_pop_no_jobs_available)
+                and self.bridge_data.model_stickiness > 0
+                and random.random() < self.bridge_data.model_stickiness
+            ):
                 free_models = {
                     process.loaded_horde_model_name
                     for process in self._process_map.values()
@@ -2213,6 +2242,8 @@ class HordeWorkerProcessManager:
             return
         self.job_faults[job_pop_response.id_] = []
 
+        self._last_pop_no_jobs_available = False
+
         logger.info(f"Popped job {job_pop_response.id_} (model: {job_pop_response.model})")
 
         # region TODO: move to horde_sdk
@@ -2245,7 +2276,7 @@ class HordeWorkerProcessManager:
             jobs = [f"<{x.id_}: {x.model}>" for x in self.job_deque]
             logger.info(f'Job queue: {", ".join(jobs)}')
             # self._testing_jobs_added += 1
-            self.job_pop_timestamps[str(job_pop_response.id_)] = time.time()
+            self.job_pop_timestamps[job_pop_response] = time.time()
 
     _user_info_failed = False
     _user_info_failed_reason: str | None = None

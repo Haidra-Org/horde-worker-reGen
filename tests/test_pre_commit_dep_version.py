@@ -1,5 +1,5 @@
 from pathlib import Path
-import pytest
+
 import yaml
 
 PRECOMMIT_FILE_PATH = Path(__file__).parent.parent / ".pre-commit-config.yaml"

@@ -68,7 +68,7 @@ Choose one of the two download options
 # Get worker beta
 - `git clone https://github.com/Haidra-Org/horde-worker-reGen.git`
 - `cd .\horde-worker-reGen\`
-- `pip install -r requirements.txt`
+- `pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu121`
 
 # Run worker
 - (Set your config now, adding `SDXL 1.0` if desired)

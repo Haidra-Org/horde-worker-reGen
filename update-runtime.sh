@@ -34,7 +34,7 @@ bin/micromamba create --no-shortcuts -r conda -n linux -f ${CONDA_ENVIRONMENT_FI
 
 if [ "$hordelib" = true ]; then
  bin/micromamba run -r conda -n linux python -s -m pip uninstall -y hordelib horde_model_reference
- bin/micromamba run -r conda -n linux python -s -m pip install hordelib horde_model_reference
+ bin/micromamba run -r conda -n linux python -s -m pip install hordelib horde_model_reference --extra-index-url https://download.pytorch.org/whl/cu121
 else
- bin/micromamba run -r conda -n linux python -s -m pip install -r requirements.txt -U
+ bin/micromamba run -r conda -n linux python -s -m pip install -r requirements.txt -U --extra-index-url https://download.pytorch.org/whl/cu121
 fi

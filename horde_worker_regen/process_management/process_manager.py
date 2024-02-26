@@ -615,6 +615,8 @@ class HordeWorkerProcessManager:
 
     jobs_being_safety_checked: list[HordeJobInfo]
 
+    _num_jobs_faulted: int = 0
+
     completed_jobs: list[HordeJobInfo]
     """A list of 3 tuples containing the job, the state, and whether or not the job was censored."""
 
@@ -1805,6 +1807,7 @@ class HordeWorkerProcessManager:
                 f"Job popped {time_taken} seconds ago and took "
                 f"{new_submit.completed_job_info.time_to_generate:.2f} to generate.",
             )
+            self._num_jobs_faulted += 1
 
         self.kudos_generated_this_session += job_submit_response.reward
         new_submit.succeed(new_submit.kudos_reward, new_submit.kudos_per_second)
@@ -1820,7 +1823,7 @@ class HordeWorkerProcessManager:
 
         if completed_job_info.state == GENERATION_STATE.faulted:
             logger.error(
-                f"Job {job_info.ids[0]} faulted, "
+                f"Job {job_info.ids} faulted, "
                 "removing from completed jobs after submitting the faults to the horde",
             )
             self._consecutive_failed_jobs += 1
@@ -2164,8 +2167,13 @@ class HordeWorkerProcessManager:
                 if len(loaded_models) >= 1:
                     models = free_models
                 logger.debug(f"Sticky models -- popping only {models}")
-            else:
-                logger.debug("Models unstuck: asking to pop for all available models")
+                if len(self.bridge_data.image_models_to_load) > 10:
+                    logger.warning(
+                        "Model stickiness is intended mostly for slow disks and works best with few models. "
+                        f"You have {len(self.bridge_data.image_models_to_load)} models configured.",
+                    )
+            elif self.bridge_data.model_stickiness > 0:
+                logger.debug("Models unstuck: asking to pop for all available models.")
 
         # We'll only allow one running plus one queued for a given model.
         models_to_remove = {
@@ -2281,6 +2289,8 @@ class HordeWorkerProcessManager:
     _user_info_failed = False
     _user_info_failed_reason: str | None = None
 
+    _current_worker_id: str | None = None
+
     async def api_get_user_info(self) -> None:
         """Get the information associated with this API key from the API."""
         if self._shutting_down:
@@ -2311,6 +2321,11 @@ class HordeWorkerProcessManager:
                     )
 
                 logger.info(f"Worker Kudos Accumulated: {self.user_info.kudos_details.accumulated:.2f}")
+                if (
+                    self.user_info.kudos_details.accumulated is not None
+                    and self.user_info.kudos_details.accumulated < 0
+                ):
+                    logger.info("Negative kudos means you've requested more than you've earned. This can be normal.")
 
         except _async_client_exceptions as e:
             self._user_info_failed = True
@@ -2440,16 +2455,51 @@ class HordeWorkerProcessManager:
 
                 if time.time() - self._last_status_message_time > self._status_message_frequency:
                     logger.info(f"{self._process_map}")
-                    logger.info(f"Threads being used: {self._max_concurrent_inference_processes}")
-                    logger.info(f"Number of jobs popped: {len(self.job_deque)}")
+                    logger.info(
+                        " | ".join(
+                            [
+                                f"dreamer_name: {self.bridge_data.dreamer_worker_name}",
+                                f"max_power: {self.bridge_data.max_power}",
+                                f"max_threads: {self.max_concurrent_inference_processes}",
+                                f"queue_size: {self.bridge_data.queue_size}",
+                                f"safety_on_gpu: {self.bridge_data.safety_on_gpu}",
+                            ],
+                        ),
+                    )
+                    logger.debug(
+                        " | ".join(
+                            [
+                                f"allow_img2img: {self.bridge_data.allow_img2img}",
+                                f"allow_lora: {self.bridge_data.allow_lora}",
+                                f"allow_controlnet: {self.bridge_data.allow_controlnet}",
+                                f"allow_post_processing: {self.bridge_data.allow_post_processing}",
+                            ],
+                        ),
+                    )
                     jobs = [f"<{x.id_}: {x.model}>" for x in self.job_deque]
-                    logger.info(f'Job queue: {", ".join(jobs)}')
-                    logger.info(f"Number of jobs in progress: {len(self.jobs_in_progress)}")
-                    logger.info(f"Number of jobs pending safety check: {len(self.jobs_pending_safety_check)}")
-                    logger.info(f"Number of jobs being safety checked: {len(self.jobs_being_safety_checked)}")
-                    logger.debug(f"Number of jobs completed (but un-submitted): {len(self.completed_jobs)}")
-                    # TODO: Faulted
-                    logger.info(f"Number of jobs submitted: {self.total_num_completed_jobs}")
+                    logger.info(f'Jobs: {", ".join(jobs)}')
+
+                    active_models = {
+                        process.loaded_horde_model_name
+                        for process in self._process_map.values()
+                        if process.loaded_horde_model_name is not None
+                    }
+
+                    logger.info(f"Active models: {active_models}")
+
+                    num_jobs_safety_checking = len(self.jobs_pending_safety_check)
+                    num_jobs_safety_checking += len(self.jobs_being_safety_checked)
+
+                    job_info_message = "Session job info: " + " | ".join(
+                        [
+                            f"popped: {len(self.job_deque)}",
+                            f"safety checking: {num_jobs_safety_checking}",
+                            f"faulted: {self._num_jobs_faulted}",
+                            f"submitted: {self.total_num_completed_jobs}",
+                        ],
+                    )
+
+                    logger.info(job_info_message)
 
                     self._last_status_message_time = time.time()
 

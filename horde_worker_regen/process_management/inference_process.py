@@ -309,6 +309,13 @@ class HordeInferenceProcess(HordeProcess):
         with self._inference_semaphore:
             self._is_busy = True
             try:
+                logger.info(f"Starting inference for job(s) {job_info.ids}")
+                logger.debug(
+                    f"has source_image: {job_info.source_image is not None} "
+                    f"has source_mask: {job_info.source_mask is not None}",
+                )
+                logger.debug(f"{job_info.payload.model_dump(exclude={'prompt'})}")
+
                 with logger.catch(reraise=True):
                     results = self._horde.basic_inference(job_info)
             except Exception as e:

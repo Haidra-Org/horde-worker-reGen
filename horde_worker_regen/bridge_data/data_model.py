@@ -47,6 +47,12 @@ class reGenBridgeData(CombinedHordeBridgeData):
 
     high_memory_mode: bool = Field(default=False)
 
+    high_performance_mode: bool = Field(default=False)
+    """If you have a 4090 or better, set this to true to enable high performance mode."""
+
+    moderate_performance_mode: bool = Field(default=False)
+    """If you have a 3080 or better, set this to true to enable moderate performance mode."""
+
     def load_env_vars(self) -> None:
         """Load the environment variables into the config model."""
         if self.models_folder_parent and os.getenv("AIWORKER_CACHE_HOME") is None:

@@ -49,7 +49,7 @@ from typing_extensions import Any
 import horde_worker_regen
 from horde_worker_regen.bridge_data.data_model import reGenBridgeData
 from horde_worker_regen.bridge_data.load_config import BridgeDataLoader
-from horde_worker_regen.consts import BRIDGE_CONFIG_FILENAME
+from horde_worker_regen.consts import BRIDGE_CONFIG_FILENAME, KNOWN_SLOW_MODELS_DIFFICULTIES
 from horde_worker_regen.process_management._aliased_types import ProcessQueue
 from horde_worker_regen.process_management.horde_process import HordeProcessType
 from horde_worker_regen.process_management.messages import (
@@ -214,9 +214,11 @@ class HordeModelMap(RootModel[dict[str, ModelInfo]]):
 
         if load_state is not None:
             self.root[horde_model_name].horde_model_load_state = load_state
+            logger.debug(f"Updated load state for {horde_model_name} to {load_state}")
 
         if process_id is not None:
             self.root[horde_model_name].process_id = process_id
+            logger.debug(f"Updated process ID for {horde_model_name} to {process_id}")
 
     def expire_entry(self, horde_model_name: str) -> ModelInfo | None:
         """
@@ -225,6 +227,7 @@ class HordeModelMap(RootModel[dict[str, ModelInfo]]):
         :param horde_model_name: Name of model to remove
         :return: model name if removed; 'none' string otherwise
         """
+
         return self.root.pop(horde_model_name, None)
 
     def is_model_loaded(self, horde_model_name: str) -> bool:
@@ -756,6 +759,8 @@ class HordeWorkerProcessManager:
         logger.debug(f"Total RAM: {self.total_ram_bytes / 1024 / 1024 / 1024} GB")
         logger.debug(f"Target RAM overhead: {self.target_ram_overhead_bytes / 1024 / 1024 / 1024} GB")
 
+        self.enable_performance_mode()
+
         # Get the total memory of each GPU
         import torch
 
@@ -796,6 +801,26 @@ class HordeWorkerProcessManager:
             except Exception as e:
                 logger.error(e)
                 time.sleep(5)
+
+    def enable_performance_mode(self) -> None:
+        """Enable performance mode."""
+        if self.bridge_data.high_performance_mode:
+            self._max_pending_megapixelsteps = 80
+            logger.info("High performance mode enabled")
+            if not self.bridge_data.safety_on_gpu:
+                logger.warning(
+                    "If you have a high-end GPU, you should enable safety on GPU (safety_on_gpu in the config).",
+                )
+
+        elif self.bridge_data.moderate_performance_mode:
+            self._max_pending_megapixelsteps = 60
+            logger.info("Moderate performance mode enabled")
+        else:
+            self._max_pending_megapixelsteps = 45
+            logger.info("Normal performance mode enabled")
+
+        if self.bridge_data.high_performance_mode and self.bridge_data.moderate_performance_mode:
+            logger.warning("Both high and moderate performance modes are enabled. Using high performance mode.")
 
     def is_time_for_shutdown(self) -> bool:
         """Return true if it is time to shut down."""
@@ -1409,6 +1434,7 @@ class HordeWorkerProcessManager:
         if next_job.model is None:
             raise ValueError(f"next_job.model is None ({next_job})")
 
+        process_with_model = self._process_map.get_process_by_horde_model_name(next_job.model)
         if self._horde_model_map.is_model_loaded(next_job.model):
             process_with_model = self._process_map.get_process_by_horde_model_name(next_job.model)
 
@@ -1800,6 +1826,13 @@ class HordeWorkerProcessManager:
                 f"to generate. ({kudos_per_second * new_submit.batch_count:.2f} "
                 "kudos/second for the whole batch. 0.4 or greater is ideal)",
             )
+            # If slower than 0.4 kudos per second, log a warning
+            if (kudos_per_second * new_submit.batch_count) < 0.4:
+                logger.warning(
+                    f"Job {new_submit.job_id} took longer than is ideal; if this persists consider "
+                    "lowering your max_power, using less threads, disabling post processing and/or controlnets.",
+                )
+                logger.warning("Be sure your models are on an SSD. Freeing up RAM or VRAM may also help.")
         # If the job was faulted, log an error
         else:
             logger.error(
@@ -1928,11 +1961,7 @@ class HordeWorkerProcessManager:
 
         if str(completed_job_info.sdk_api_job_info) in self.job_pop_timestamps:
             del self.job_pop_timestamps[completed_job_info.sdk_api_job_info]
-        else:
-            logger.debug(
-                f"Tried to remove job_pop_timestamps "
-                f"{completed_job_info.sdk_api_job_info.id_} but it has already been removed or was missing.",
-            )
+            logger.debug(f"Removed {completed_job_info.sdk_api_job_info} from job_pop_timestamps")
 
         await asyncio.sleep(self._api_call_loop_interval)
 
@@ -1961,32 +1990,38 @@ class HordeWorkerProcessManager:
     _consecutive_failed_jobs = 0
 
     def get_pending_megapixelsteps(self) -> int:
-        """Get the number of megapixelsteps that are pending in the job deque.
-        Each n_iter batching increases the amount by 20%
+        """Return the number of megapixelsteps that are pending in the job deque.
+
+        - `n_iter` batch increases the amount by 20% per image requested.
+        - Upscaling increases the amount by 20% per image requested.
+        - Known slow models increase the amount by a factor defined in consts.py
         """
-        job_deque_mps = 0.0
+        job_deque_megapixelsteps = 0.0
         for job in self.job_deque:
-            has_upscaler = False  # TODO: Move this to a ImageGenerateJobPopResponse.has_upscaler property in the sdk
-            for pp in job.payload.post_processing:
-                if pp in [u.value for u in KNOWN_UPSCALERS]:
-                    has_upscaler = True
-                    break
-            upscaler_multiplier = 0
-            if has_upscaler:
-                upscaler_multiplier = 1
-            job_mp = job.payload.width * job.payload.height
+            has_upscaler = any(pp in [u.value for u in KNOWN_UPSCALERS] for pp in job.payload.post_processing)
+            upscaler_multiplier = 1 if has_upscaler else 0
+            job_megapixels = job.payload.width * job.payload.height
+
             # Each extra batched image increases our difficulty by 20%
             batching_multiplier = 1 + ((job.payload.n_iter - 1) * 0.2)
+
             # If upscaling was requested, due to it being serial, each extra image in the batch
             # Further increases our difficulty.
             # In this calculation we treat each upscaler as adding 20 steps per image
-            upscaling_mp = job_mp * 20 * upscaler_multiplier * job.payload.n_iter
-            job_deque_mps += job_mp * batching_multiplier * job.payload.ddim_steps
-            job_deque_mps += upscaling_mp
-        for _ in self.completed_jobs:
-            job_deque_mps += 1_000_000 * 4
+            upscaling_mp = job_megapixels * 20 * upscaler_multiplier * job.payload.n_iter
+            job_megapixelsteps = job_megapixels * batching_multiplier * job.payload.ddim_steps + upscaling_mp
 
-        return int((job_deque_mps) / 1_000_000)
+            # Hard model difficulty is increased due to variations in the performance
+            # of different architectures. This look up is a rough estimate based on a median case
+            if job.model in KNOWN_SLOW_MODELS_DIFFICULTIES:
+                job_megapixelsteps *= KNOWN_SLOW_MODELS_DIFFICULTIES[job.model]
+
+            job_deque_megapixelsteps += job_megapixelsteps
+
+        for _ in self.completed_jobs:
+            job_deque_megapixelsteps += 1_000_000 * 4
+
+        return int(job_deque_megapixelsteps / 1_000_000)
 
     def should_wait_for_pending_megapixelsteps(self) -> bool:
         """Check if the number of megapixelsteps in the job deque is above the limit."""
@@ -2103,27 +2138,39 @@ class HordeWorkerProcessManager:
 
         # If there are long running jobs, don't start any more even if there is space in the deque
         if self.should_wait_for_pending_megapixelsteps():
-            if self._triggered_max_pending_megapixelsteps is False:
-                self._triggered_max_pending_megapixelsteps = True
-                self._triggered_max_pending_megapixelsteps_time = time.time()
-                logger.info(
-                    f"Paused job pops for pending megapixelsteps to decrease below {self._max_pending_megapixelsteps}",
-                )
-                return
-
             # Assuming a megapixelstep takes 0.75 seconds, if 2/3 of the time has passed since the limit was triggered,
             # we can assume that the pending megapixelsteps will be below the limit soon. Otherwise we continue to wait
-
             seconds_to_wait = (self._max_pending_megapixelsteps * 0.75) * (2 / 3)
+
+            if self.bridge_data.high_performance_mode:
+                seconds_to_wait *= 0.35
+                logger.debug("High performance mode is enabled, reducing the wait time by 70%")
+            elif self.bridge_data.moderate_performance_mode:
+                seconds_to_wait *= 0.5
+                logger.debug("Moderate performance mode is enabled, reducing the wait time by 50%")
 
             if self.get_pending_megapixelsteps() > 200:
                 seconds_to_wait = self._max_pending_megapixelsteps * 0.75
+
+            if self._triggered_max_pending_megapixelsteps is False:
+                self._triggered_max_pending_megapixelsteps = True
+                self._triggered_max_pending_megapixelsteps_time = time.time()
+                logger.info("Pausing job pops so some long running jobs can make some progress.")
+                logger.debug(
+                    f"Paused job pops for pending megapixelsteps to decrease below {self._max_pending_megapixelsteps}",
+                )
+                logger.debug(
+                    f"Pending megapixelsteps: {self.get_pending_megapixelsteps()} | "
+                    f"Max pending megapixelsteps: {self._max_pending_megapixelsteps} | ",
+                    f"Scheduled to wait for {seconds_to_wait} seconds",
+                )
+                return
 
             if not (time.time() - self._triggered_max_pending_megapixelsteps_time) > seconds_to_wait:
                 return
 
             self._triggered_max_pending_megapixelsteps = False
-            logger.info(
+            logger.debug(
                 f"Pending megapixelsteps decreased below {self._max_pending_megapixelsteps}, continuing with job pops",
             )
 
@@ -2571,6 +2618,7 @@ class HordeWorkerProcessManager:
                     self.get_bridge_data_from_disk()
                     self._last_bridge_data_reload_time = time.time()
                     logger.success(f"Reloaded {BRIDGE_CONFIG_FILENAME}")
+                    self.enable_performance_mode()
                 await asyncio.sleep(self._bridge_data_loop_interval)
             except CancelledError:
                 self._shutting_down = True

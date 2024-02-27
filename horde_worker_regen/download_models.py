@@ -84,14 +84,19 @@ def download_all_models(purge_unused_loras: bool = False) -> None:
             logger.error("Failed to load codeformer model manager")
             exit(1)
 
+        SharedModelManager.manager.gfpgan.download_all_models()
         if not SharedModelManager.manager.gfpgan.download_all_models():
             logger.error("Failed to download all GFPGAN models")
         else:
             logger.success("Downloaded all GFPGAN models")
-        if not SharedModelManager.manager.esrgan.download_all_models():
+
+        SharedModelManager.manager.esrgan.download_all_models()
+        if SharedModelManager.manager.esrgan.download_all_models():
             logger.error("Failed to download all ESRGAN models")
         else:
             logger.success("Downloaded all ESRGAN models")
+
+        SharedModelManager.manager.codeformer.download_all_models()
         if not SharedModelManager.manager.codeformer.download_all_models():
             logger.error("Failed to download all codeformer models")
         else:
@@ -101,19 +106,19 @@ def download_all_models(purge_unused_loras: bool = False) -> None:
         logger.error("Failed to load compvis model manager")
         exit(1)
 
-    any_model_failed_to_download = False
+    any_compvis_model_failed_to_download = False
     for model in bridge_data.image_models_to_load:
         if not SharedModelManager.manager.compvis.download_model(model):
             logger.error(f"Failed to download model {model}")
-            any_model_failed_to_download = True
+            any_compvis_model_failed_to_download = True
 
         # This will check the SHA of the model and redownload it if it's corrupted or the model reference entry changed
         if not SharedModelManager.manager.compvis.validate_model(model):  # noqa: SIM102
             if not SharedModelManager.manager.compvis.download_model(model):
                 logger.error(f"Failed to redownload model {model}")
-                any_model_failed_to_download = True
+                any_compvis_model_failed_to_download = True
 
-    if any_model_failed_to_download:
+    if any_compvis_model_failed_to_download:
         logger.error("Failed to download all models.")
     else:
         logger.success("Downloaded all compvis (Stable Diffusion) models.")

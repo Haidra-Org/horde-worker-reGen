@@ -1015,6 +1015,9 @@ class HordeWorkerProcessManager:
             loaded_horde_model_name=None,
             batch_amount=1,
         )
+        if process_info.loaded_horde_model_name is not None:
+            self._horde_model_map.expire_entry(process_info.loaded_horde_model_name)
+
         try:
             process_info.pipe_connection.send(HordeControlMessage(control_flag=HordeControlFlag.END_PROCESS))
         except BrokenPipeError:
@@ -1378,7 +1381,6 @@ class HordeWorkerProcessManager:
                 # available, so we'll wait for it to become ready before scheduling a model
                 # to be loaded on it.
                 self._replace_inference_process(available_process)
-                self._horde_model_map.expire_entry(available_process.loaded_horde_model_name)
                 return False
 
             logger.debug(f"Preloading model {job.model} on process {available_process.process_id}")
@@ -2698,8 +2700,26 @@ class HordeWorkerProcessManager:
         """
         now = datetime.datetime.now()
         for process_info in self._process_map.values():
-            if (now - process_info.last_timestamp) > datetime.timedelta(
-                seconds=self.bridge_data.process_timeout,
-            ) and process_info.is_process_busy():
+            time_elapsed = now - process_info.last_timestamp
+            if (
+                time_elapsed
+                > datetime.timedelta(
+                    seconds=self.bridge_data.process_timeout,
+                )
+                and process_info.is_process_busy()
+            ):
                 logger.error(f"{process_info} has exceeded its timeout and will be replaced")
+                self._replace_inference_process(process_info)
+            if (
+                time_elapsed
+                > datetime.timedelta(
+                    seconds=self.bridge_data.preload_timeout,
+                )
+                and process_info.last_process_state == HordeProcessState.PRELOADING_MODEL
+            ):
+                logger.error(f"{process_info} seems to be stuck preloading a model, replacing it")
+                logger.error(
+                    "If you have a slow disk, reduce the number of models to load to 1 and possibly"
+                    " raise preload_timeout in your config.",
+                )
                 self._replace_inference_process(process_info)

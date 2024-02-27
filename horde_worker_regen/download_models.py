@@ -85,22 +85,32 @@ def download_all_models(purge_unused_loras: bool = False) -> None:
             exit(1)
 
         SharedModelManager.manager.gfpgan.download_all_models()
-        if not SharedModelManager.manager.gfpgan.download_all_models():
-            logger.error("Failed to download all GFPGAN models")
+        for model in SharedModelManager.manager.gfpgan.model_reference:
+            if not SharedModelManager.manager.gfpgan.validate_model(
+                model,
+            ) and not SharedModelManager.manager.gfpgan.download_model(model):
+                logger.error(f"Failed to download model {model}")
+                exit(1)
         else:
             logger.success("Downloaded all GFPGAN models")
 
         SharedModelManager.manager.esrgan.download_all_models()
-        if SharedModelManager.manager.esrgan.download_all_models():
-            logger.error("Failed to download all ESRGAN models")
+        for model in SharedModelManager.manager.esrgan.model_reference:
+            if not SharedModelManager.manager.esrgan.validate_model(
+                model,
+            ) and not SharedModelManager.manager.esrgan.download_model(model):
+                logger.error(f"Failed to download model {model}")
+                exit(1)
         else:
             logger.success("Downloaded all ESRGAN models")
 
         SharedModelManager.manager.codeformer.download_all_models()
-        if not SharedModelManager.manager.codeformer.download_all_models():
-            logger.error("Failed to download all codeformer models")
-        else:
-            logger.success("Downloaded all codeformer models")
+        for model in SharedModelManager.manager.codeformer.model_reference:
+            if not SharedModelManager.manager.codeformer.validate_model(
+                model,
+            ) and not SharedModelManager.manager.codeformer.download_model(model):
+                logger.error(f"Failed to download model {model}")
+                exit(1)
 
     if SharedModelManager.manager.compvis is None:
         logger.error("Failed to load compvis model manager")

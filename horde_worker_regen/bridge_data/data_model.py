@@ -39,6 +39,8 @@ class reGenBridgeData(CombinedHordeBridgeData):
     process_timeout: int = Field(default=900)
     """The maximum amount of time to allow a job to run before it is killed"""
 
+    preload_timeout: int = Field(default=60)
+
     model_stickiness: float = Field(default=0.0, le=1.0, ge=0.0)
     """
     A percent chance (expressed as a decimal between 0 and 1) that the currently loaded models will

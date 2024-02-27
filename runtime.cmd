@@ -20,4 +20,3 @@ micromamba.exe shell hook -s cmd.exe -p "%MAMBA_ROOT_PREFIX%" -v
 call "%MAMBA_ROOT_PREFIX%\condabin\mamba_hook.bat"
 call "%MAMBA_ROOT_PREFIX%\condabin\micromamba.bat" activate windows
 %*
-call micromamba deactivate

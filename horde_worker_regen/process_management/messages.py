@@ -8,6 +8,8 @@ from horde_sdk.ai_horde_api import GENERATION_STATE
 from horde_sdk.ai_horde_api.apimodels import (
     GenMetadataEntry,
     ImageGenerateJobPopResponse,
+    LorasPayloadEntry,
+    TIPayloadEntry,
 )
 from horde_sdk.ai_horde_api.fields import JobID
 from loguru import logger
@@ -76,6 +78,11 @@ class HordeProcessState(enum.Enum):
     """The process is downloading a model."""
     DOWNLOAD_COMPLETE = auto()
     """The process has finished downloading a model."""
+
+    DOWNLOADING_AUX_MODEL = auto()
+    """The process is downloading an auxiliary model. (e.g., LORA)"""
+    DOWNLOAD_AUX_COMPLETE = auto()
+    """The process has finished downloading an auxiliary model. (e.g., LORA)"""
 
     PRELOADING_MODEL = auto()
     """The process is preloading a model."""
@@ -151,6 +158,16 @@ class HordeModelStateChangeMessage(HordeProcessStateChangeMessage):
     """The name of the model as defined in the horde model reference."""
     horde_model_state: ModelLoadState
     """The state of the model."""
+
+
+class HordeAuxModelStateChangeMessage(HordeProcessStateChangeMessage):
+    """Auxiliary model state change messages that are sent from the child processes to the main process.
+
+    See also `ModelLoadState`.
+    """
+
+    sdk_api_job_info: ImageGenerateJobPopResponse | None = None
+    """If the model state change is related to a job, the job as sent by the API."""
 
 
 class HordeDownloadProgressMessage(HordeModelStateChangeMessage):
@@ -264,6 +281,8 @@ class HordePreloadInferenceModelMessage(HordeControlModelMessage):
     """If the model will be patched with LoRa(s)."""
     seamless_tiling_enabled: bool
     """If seamless tiling will be enabled."""
+
+    sdk_api_job_info: ImageGenerateJobPopResponse
 
 
 class HordeInferenceControlMessage(HordeControlModelMessage):

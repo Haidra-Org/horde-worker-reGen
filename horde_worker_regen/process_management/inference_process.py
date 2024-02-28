@@ -17,6 +17,8 @@ from typing import TYPE_CHECKING
 from horde_sdk.ai_horde_api import GENERATION_STATE
 from horde_sdk.ai_horde_api.apimodels import (
     ImageGenerateJobPopResponse,
+    LorasPayloadEntry,
+    TIPayloadEntry,
 )
 from loguru import logger
 from typing_extensions import override
@@ -24,6 +26,7 @@ from typing_extensions import override
 from horde_worker_regen.process_management._aliased_types import ProcessQueue
 from horde_worker_regen.process_management.horde_process import HordeProcess
 from horde_worker_regen.process_management.messages import (
+    HordeAuxModelStateChangeMessage,
     HordeControlFlag,
     HordeControlMessage,
     HordeControlModelMessage,
@@ -236,11 +239,63 @@ class HordeInferenceProcess(HordeProcess):
             horde_model_state=ModelLoadState.ON_DISK,
         )
 
+    def download_aux_models(self, job_info: ImageGenerateJobPopResponse) -> float | None:
+        """Download auxiliary models required for the job.
+
+        Args:
+            job_info (ImageGenerateJobPopResponse): The job to download auxiliary models for.
+
+        Returns:
+            float | None: The time elapsed during downloading, or None if no models were downloaded.
+        """
+
+        time_start = time.time()
+
+        lora_manager = self._shared_model_manager.manager.lora
+        if lora_manager is None:
+            raise RuntimeError("Failed to load LORA model manager")
+
+        ti_manager = self._shared_model_manager.manager.ti
+        if ti_manager is None:
+            raise RuntimeError("Failed to load TI model manager")
+
+        performed_a_download = False
+
+        loras = job_info.payload.loras
+        tis = job_info.payload.tis
+
+        for lora_entry in loras:
+            if not lora_manager.is_model_available(lora_entry.name):
+                if not performed_a_download:
+                    self.send_aux_model_message(
+                        process_state=HordeProcessState.DOWNLOADING_AUX_MODEL,
+                        info="Downloading auxiliary models",
+                        time_elapsed=0.0,
+                        job_info=job_info,
+                    )
+                    performed_a_download = True
+                lora_manager.fetch_adhoc_lora(lora_entry.name, timeout=45, is_version=lora_entry.is_version)
+                lora_manager.wait_for_downloads(45)
+
+        for ti_entry in tis:
+            if not ti_manager.is_model_available(ti_entry.name):
+                performed_a_download = True
+                ti_manager.fetch_adhoc_ti(ti_entry.name, timeout=45)
+                ti_manager.wait_for_downloads(45)
+
+        time_elapsed = round(time.time() - time_start, 2)
+        if performed_a_download:
+            logger.info(f"Downloaded auxiliary models in {time_elapsed} seconds")
+            return time_elapsed
+
+        return None
+
     def preload_model(
         self,
         horde_model_name: str,
         will_load_loras: bool,
         seamless_tiling_enabled: bool,
+        job_info: ImageGenerateJobPopResponse,
     ) -> None:
         """Preload a model into RAM.
 
@@ -289,6 +344,16 @@ class HordeInferenceProcess(HordeProcess):
             horde_model_state=ModelLoadState.LOADED_IN_RAM,
             time_elapsed=time.time() - time_start,
         )
+
+        download_time = self.download_aux_models(job_info)
+
+        if download_time is not None:
+            self.send_aux_model_message(
+                process_state=HordeProcessState.DOWNLOAD_AUX_COMPLETE,
+                info="Downloaded auxiliary models",
+                time_elapsed=download_time,
+                job_info=job_info,
+            )
 
         self.send_process_state_change_message(
             process_state=HordeProcessState.WAITING_FOR_JOB,
@@ -380,6 +445,28 @@ class HordeInferenceProcess(HordeProcess):
             info="Process ended",
         )
 
+    def send_aux_model_message(
+        self,
+        job_info: ImageGenerateJobPopResponse,
+        time_elapsed: float,
+        process_state: HordeProcessState,
+        info: str,
+    ) -> None:
+        """Send an auxiliary model download complete message to the main process.
+
+        Args:
+            job_info (ImageGenerateJobPopResponse): The job that was inferred.
+            time_elapsed (float): The time elapsed during the last operation.
+        """
+        message = HordeAuxModelStateChangeMessage(
+            process_state=process_state,
+            process_id=self.process_id,
+            info=info,
+            time_elapsed=time_elapsed,
+            sdk_api_job_info=job_info,
+        )
+        self.process_message_queue.put(message)
+
     def send_inference_result_message(
         self,
         process_state: HordeProcessState,
@@ -447,6 +534,7 @@ class HordeInferenceProcess(HordeProcess):
                 horde_model_name=message.horde_model_name,
                 will_load_loras=message.will_load_loras,
                 seamless_tiling_enabled=message.seamless_tiling_enabled,
+                job_info=message.sdk_api_job_info,
             )
         elif isinstance(message, HordeInferenceControlMessage):
             if message.control_flag == HordeControlFlag.START_INFERENCE:
@@ -493,7 +581,9 @@ class HordeInferenceProcess(HordeProcess):
                             active_model_name,
                             will_load_loras=True,
                             seamless_tiling_enabled=False,
+                            job_info=message.sdk_api_job_info,
                         )
+                        logger.warning("A non-blocking LoRas/TIs preload didn't occur!. This is a bug.")
 
                     self.send_process_state_change_message(
                         process_state=HordeProcessState.WAITING_FOR_JOB,

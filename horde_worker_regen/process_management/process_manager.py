@@ -2028,6 +2028,65 @@ class HordeWorkerProcessManager:
                 # If any of the submits failed, we consider the whole job failed
                 self._consecutive_failed_jobs = 0
             try:
+                self.jobs_lookup[completed_job_info.sdk_api_job_info].time_submitted = time.time()
+
+                if self.bridge_data.capture_kudos_training_data:
+                    if self.bridge_data.kudos_training_data_file is None:
+                        self.bridge_data.kudos_training_data_file = "kudos_training_data.json"
+                        logger.warning(
+                            "Kudos training data capture is enabled but no file has been specified. "
+                            f"Defaulting to {self.bridge_data.kudos_training_data_file}",
+                        )
+                    # if the file self.bridge_data.kudos_training_data_file exists
+                    # we will append the entry from the jobs lookup to it as a new json entry
+                    # if the file does not exist, we will create it and write the first entry
+
+                    try:
+                        excludes = {
+                            "job_image_results": ...,
+                            "sdk_api_job_info": {
+                                "payload": {
+                                    "prompt",
+                                },
+                                "skipped": ...,
+                                "source_image": ...,
+                                "source_mask": ...,
+                                "r2_upload": ...,
+                                "r2_uploads": ...,
+                            },
+                        }
+
+                        with logger.catch():
+                            if not os.path.exists(self.bridge_data.kudos_training_data_file):
+                                with open(self.bridge_data.kudos_training_data_file, "w") as f:
+                                    json.dump(
+                                        [
+                                            self.jobs_lookup[completed_job_info.sdk_api_job_info].model_dump(
+                                                exclude=excludes,
+                                            ),
+                                        ],
+                                        f,
+                                        indent=4,
+                                    )
+
+                            elif os.path.exists(self.bridge_data.kudos_training_data_file):
+                                data = []
+                                with open(self.bridge_data.kudos_training_data_file) as f:
+                                    data = json.load(f)
+                                    if not isinstance(data, list):
+                                        logger.warning(
+                                            f"Kudos training data file {self.bridge_data.kudos_training_data_file} "
+                                            "is not a list",
+                                        )
+                                        data = []
+                                data.append(
+                                    self.jobs_lookup[completed_job_info.sdk_api_job_info].model_dump(exclude=excludes),
+                                )
+                                with open(self.bridge_data.kudos_training_data_file, "w") as f:
+                                    json.dump(data, f, indent=4)
+                    except Exception as e:
+                        logger.error(f"Failed to write kudos training data: {e}")
+
                 self.completed_jobs.remove(completed_job_info)
                 self.jobs_lookup.pop(completed_job_info.sdk_api_job_info)
             except ValueError:

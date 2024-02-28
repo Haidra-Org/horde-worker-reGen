@@ -55,6 +55,9 @@ class reGenBridgeData(CombinedHordeBridgeData):
     moderate_performance_mode: bool = Field(default=False)
     """If you have a 3080 or better, set this to true to enable moderate performance mode."""
 
+    capture_kudos_training_data: bool = Field(default=False)
+    kudos_training_data_file: str | None = Field(default=None)
+
     def load_env_vars(self) -> None:
         """Load the environment variables into the config model."""
         if self.models_folder_parent and os.getenv("AIWORKER_CACHE_HOME") is None:

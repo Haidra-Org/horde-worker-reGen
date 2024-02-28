@@ -4,7 +4,6 @@ from horde_worker_regen.load_env_vars import load_env_vars
 
 load_env_vars()
 
-import argparse
 
 from horde_model_reference.model_reference_manager import ModelReferenceManager
 from loguru import logger
@@ -132,16 +131,3 @@ def download_all_models(purge_unused_loras: bool = False) -> None:
         logger.error("Failed to download all models.")
     else:
         logger.success("Downloaded all compvis (Stable Diffusion) models.")
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Download all models specified in the config file.")
-    parser.add_argument(
-        "--purge-unused-loras",
-        action="store_true",
-        help="Purge unused LORAs from the cache",
-    )
-
-    args = parser.parse_args()
-
-    download_all_models(purge_unused_loras=args.purge_unused_loras)

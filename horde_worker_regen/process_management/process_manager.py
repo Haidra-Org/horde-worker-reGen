@@ -1049,6 +1049,7 @@ class HordeWorkerProcessManager:
         logger.debug(f"Replacing {process_info}")
         self._end_inference_process(process_info)
         # job = next(((job, pid) for job, pid in self.jobs_in_progress if pid == process_info.process_id), None)
+        job = None
         for in_process_job, in_progress_process_info in self.jobs_lookup.items():
             if in_process_job in self.jobs_in_progress and in_progress_process_info == process_info:
                 job = in_process_job
@@ -2047,6 +2048,7 @@ class HordeWorkerProcessManager:
                             "sdk_api_job_info": {
                                 "payload": {
                                     "prompt",
+                                    "special",
                                 },
                                 "skipped": ...,
                                 "source_image": ...,
@@ -2057,19 +2059,25 @@ class HordeWorkerProcessManager:
                         }
 
                         with logger.catch():
+                            hji = self.jobs_lookup[
+                                completed_job_info.sdk_api_job_info
+                            ]
+                            model_dump = hji.model_dump(
+                                exclude=excludes,
+                            )
+                            model_dump['sdk_api_job_info']['model_baseline'] = self.stable_diffusion_reference.root[hji.sdk_api_job_info.model].baseline
+                            # Preparation for multiple schedulers
+                            if hji.sdk_api_job_info.payload.karras:
+                                model_dump['sdk_api_job_info']['payload']['scheduler'] = 'karras'
+                            else:
+                                model_dump['sdk_api_job_info']['payload']['scheduler'] = 'simple'
+                            del model_dump['sdk_api_job_info']['payload']['karras']
+                            model_dump['sdk_api_job_info']['payload']['lora_count'] = len(model_dump['sdk_api_job_info']['payload']['loras'])
+                            model_dump['sdk_api_job_info']['payload']['ti_count'] = len(model_dump['sdk_api_job_info']['payload']['tis'])
                             if not os.path.exists(self.bridge_data.kudos_training_data_file):
                                 with open(self.bridge_data.kudos_training_data_file, "w") as f:
-                                    json.dump(
-                                        [
-                                            self.jobs_lookup[completed_job_info.sdk_api_job_info].model_dump(
-                                                exclude=excludes,
-                                            ),
-                                        ],
-                                        f,
-                                        indent=4,
-                                    )
-
-                            elif os.path.exists(self.bridge_data.kudos_training_data_file):
+                                    json.dump([model_dump],f,indent=4)
+                            elif hji.sdk_api_job_info.payload.n_iter == 1:
                                 data = []
                                 with open(self.bridge_data.kudos_training_data_file) as f:
                                     data = json.load(f)
@@ -2079,9 +2087,7 @@ class HordeWorkerProcessManager:
                                             "is not a list",
                                         )
                                         data = []
-                                data.append(
-                                    self.jobs_lookup[completed_job_info.sdk_api_job_info].model_dump(exclude=excludes),
-                                )
+                                data.append(model_dump)
                                 with open(self.bridge_data.kudos_training_data_file, "w") as f:
                                     json.dump(data, f, indent=4)
                     except Exception as e:

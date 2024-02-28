@@ -4,6 +4,7 @@ import base64
 import collections
 import datetime
 import enum
+import json
 import multiprocessing
 import os
 import random
@@ -53,6 +54,7 @@ from horde_worker_regen.consts import BRIDGE_CONFIG_FILENAME, KNOWN_SLOW_MODELS_
 from horde_worker_regen.process_management._aliased_types import ProcessQueue
 from horde_worker_regen.process_management.horde_process import HordeProcessType
 from horde_worker_regen.process_management.messages import (
+    HordeAuxModelStateChangeMessage,
     HordeControlFlag,
     HordeControlMessage,
     HordeControlModelMessage,
@@ -157,6 +159,7 @@ class HordeProcessInfo:
             self.last_process_state == HordeProcessState.INFERENCE_STARTING
             or self.last_process_state == HordeProcessState.ALCHEMY_STARTING
             or self.last_process_state == HordeProcessState.DOWNLOADING_MODEL
+            or self.last_process_state == HordeProcessState.DOWNLOADING_AUX_MODEL
             or self.last_process_state == HordeProcessState.PRELOADING_MODEL
             or self.last_process_state == HordeProcessState.JOB_RECEIVED
             or self.last_process_state == HordeProcessState.EVALUATING_SAFETY
@@ -352,7 +355,6 @@ class ProcessMap(dict[int, HordeProcessInfo]):
             if (
                 p.last_process_state == HordeProcessState.WAITING_FOR_JOB
                 or p.last_process_state == HordeProcessState.PROCESS_STARTING
-                or p.last_process_state == HordeProcessState.DOWNLOADING_MODEL
                 or p.last_process_state == HordeProcessState.INFERENCE_COMPLETE
             ):
                 return p
@@ -446,8 +448,14 @@ class HordeJobInfo(BaseModel):  # TODO: Split into a new file
     """The state of the job to send to the API."""
     censored: bool | None = None
     """Whether or not the job was censored. This is set by the safety process."""
-    time_to_generate: float
+
+    time_popped: float
+    time_submitted: float | None = None
+
+    time_to_generate: float | None = None
     """The time it took to generate the job. This is set by the inference process."""
+
+    time_to_download_aux_models: float | None = None
 
     @property
     def is_job_checked_for_safety(self) -> bool:
@@ -607,7 +615,9 @@ class HordeWorkerProcessManager:
             total += process_info.ram_usage_bytes
         return total
 
-    jobs_in_progress: list[tuple[ImageGenerateJobPopResponse, int]]
+    jobs_lookup: dict[ImageGenerateJobPopResponse, HordeJobInfo]
+
+    jobs_in_progress: list[ImageGenerateJobPopResponse]
     """A list of jobs that are currently in progress."""
 
     job_faults: dict[JobID, list[GenMetadataEntry]]
@@ -731,6 +741,8 @@ class HordeWorkerProcessManager:
             self.max_inference_processes = 1
 
         self._disk_lock = Lock_MultiProcessing(ctx=ctx)
+
+        self.jobs_lookup = {}
 
         self.completed_jobs = []
         self._completed_jobs_lock = Lock_Asyncio()
@@ -865,8 +877,7 @@ class HordeWorkerProcessManager:
         return self._process_map.num_available_inference_processes() > 0
 
     def has_queued_jobs(self) -> bool:
-        jobs_in_progress = {job[0].id_ for job in self.jobs_in_progress}
-        return any(job.id_ not in jobs_in_progress for job in self.job_deque)
+        return any(job not in self.jobs_in_progress for job in self.job_deque)
 
     def get_expected_ram_usage(self, horde_model_name: str) -> int:  # TODO: Use or rework this
         """Return the expected RAM usage of the given model, in bytes."""
@@ -1037,19 +1048,22 @@ class HordeWorkerProcessManager:
         """
         logger.debug(f"Replacing {process_info}")
         self._end_inference_process(process_info)
-        job_tuple = next(((job, pid) for job, pid in self.jobs_in_progress if pid == process_info.process_id), None)
-        if job_tuple is not None:
-            job, _ = job_tuple
-            self.jobs_in_progress.remove(job_tuple)
+        # job = next(((job, pid) for job, pid in self.jobs_in_progress if pid == process_info.process_id), None)
+        for in_process_job, in_progress_process_info in self.jobs_lookup.items():
+            if in_process_job in self.jobs_in_progress and in_progress_process_info == process_info:
+                job = in_process_job
+                break
+
+        if job is not None:
+            job_info = self.jobs_lookup.pop(job)
             self.job_deque.remove(job)
-            self.completed_jobs.append(
-                HordeJobInfo(
-                    sdk_api_job_info=job,
-                    job_image_results=None,
-                    state=GENERATION_STATE.faulted,
-                    time_to_generate=self.bridge_data.process_timeout,
-                ),
-            )
+
+            job_info.state = GENERATION_STATE.faulted
+            job_info.time_to_generate = self.bridge_data.process_timeout
+            job_info.job_image_results = None
+
+            self.completed_jobs.append(job_info)
+
             if job in self.job_pop_timestamps:
                 del self.job_pop_timestamps[job]
             else:
@@ -1144,6 +1158,19 @@ class HordeWorkerProcessManager:
                         process_id=message.process_id,
                     )
 
+            if isinstance(message, HordeAuxModelStateChangeMessage):
+                if message.process_state == HordeProcessState.DOWNLOADING_AUX_MODEL:
+                    logger.info(f"Process {message.process_id} is downloading extra models (LoRas, etc.)")
+
+                if message.process_state == HordeProcessState.DOWNLOAD_AUX_COMPLETE:
+                    logger.info(
+                        f"Process {message.process_id} finished downloading extra models in {message.time_elapsed}",
+                    )
+                    if message.sdk_api_job_info not in self.jobs_lookup:
+                        raise ValueError(f"Job {message.sdk_api_job_info} not found in jobs_lookup")
+
+                    self.jobs_lookup[message.sdk_api_job_info].time_to_download_aux_models = message.time_elapsed
+
             # If The model state has changed, update the model map
             if isinstance(message, HordeModelStateChangeMessage):
                 self._horde_model_map.update_entry(
@@ -1202,19 +1229,8 @@ class HordeWorkerProcessManager:
             # - if its a faulted job, log an error and add it to the list of completed jobs to be sent to the API
             # - if its a completed job, add it to the list of jobs pending safety checks
             if isinstance(message, HordeInferenceResultMessage):
-                _num_jobs_in_progress = len(self.jobs_in_progress)
-
-                # Remove the job from the jobs in progress by matching the job ID (.id_)
-                self.jobs_in_progress = [
-                    job for job in self.jobs_in_progress if job[0].id_ != message.sdk_api_job_info.id_
-                ]
-
-                if len(self.jobs_in_progress) != _num_jobs_in_progress - 1:
-                    logger.warning(
-                        "Expected to remove 1 job from the jobs in progress, but removed "
-                        f"{len(self.jobs_in_progress) - _num_jobs_in_progress} jobs",
-                    )
-                    logger.debug(f"Jobs in progress: {self.jobs_in_progress}")
+                job_info = self.jobs_lookup[message.sdk_api_job_info]
+                self.jobs_in_progress.remove(message.sdk_api_job_info)
 
                 for job in self.job_deque:
                     if job.id_ == message.sdk_api_job_info.id_:
@@ -1232,14 +1248,11 @@ class HordeWorkerProcessManager:
                     logger.info(f"Inference finished for job {message.sdk_api_job_info.id_}")
                     logger.debug(f"Job didn't include time_elapsed: {message.sdk_api_job_info}")
                 if message.state != GENERATION_STATE.faulted:
-                    self.jobs_pending_safety_check.append(
-                        HordeJobInfo(
-                            sdk_api_job_info=message.sdk_api_job_info,
-                            job_image_results=message.job_image_results,
-                            state=message.state,
-                            time_to_generate=message.time_elapsed if message.time_elapsed is not None else 0,
-                        ),
-                    )
+                    job_info.state = message.state
+                    job_info.time_to_generate = message.time_elapsed
+                    job_info.job_image_results = message.job_image_results
+
+                    self.jobs_pending_safety_check.append(job_info)
                 else:
                     logger.error(
                         f"Job {message.sdk_api_job_info.id_} faulted on process {message.process_id}: {message.info}",
@@ -1249,14 +1262,7 @@ class HordeWorkerProcessManager:
                         f"Job data: {message.sdk_api_job_info.model_dump(exclude={'payload': {'prompt'}})}",
                     )
 
-                    self.completed_jobs.append(
-                        HordeJobInfo(
-                            sdk_api_job_info=message.sdk_api_job_info,
-                            job_image_results=None,
-                            state=message.state,
-                            time_to_generate=message.time_elapsed if message.time_elapsed is not None else 0,
-                        ),
-                    )
+                    self.completed_jobs.append(job_info)
 
             # If the process is sending us a safety job result:
             # - if an unexpected error occurred, log an error a
@@ -1344,7 +1350,7 @@ class HordeWorkerProcessManager:
             for model in self._horde_model_map.root.values()
             if model.horde_model_load_state.is_loaded() or model.horde_model_load_state == ModelLoadState.LOADING
         )
-        queued_models = {job.model for job in self.job_deque if job not in [j for j, _ in self.jobs_in_progress]}
+        queued_models = {job.model for job in self.job_deque if job not in self.jobs_in_progress}
 
         # logger.debug(f"Loaded models: {loaded_models}, queued: {queued_models}")
         # Starting from the left of the deque, preload models that are not yet loaded up to the
@@ -1352,6 +1358,29 @@ class HordeWorkerProcessManager:
         for job in self.job_deque:
             if job.model is None:
                 raise ValueError(f"job.model is None ({job})")
+
+            if len(job.payload.loras) > 0:
+                for p in self._process_map.values():
+                    if (
+                        p.loaded_horde_model_name == job.model
+                        and (
+                            p.last_process_state == HordeProcessState.INFERENCE_COMPLETE
+                            or p.last_process_state == HordeProcessState.WAITING_FOR_JOB
+                        )
+                        and p.last_control_flag != HordeControlFlag.PRELOAD_MODEL
+                    ):
+                        logger.info(f"Preloading LoRas for job {job.id_} on process {p.process_id}")
+                        p.pipe_connection.send(
+                            HordePreloadInferenceModelMessage(
+                                control_flag=HordeControlFlag.PRELOAD_MODEL,
+                                horde_model_name=job.model,
+                                will_load_loras=True,
+                                seamless_tiling_enabled=job.payload.tiling,
+                                sdk_api_job_info=job,
+                            ),
+                        )
+                        p.last_control_flag = HordeControlFlag.PRELOAD_MODEL
+                        return True
 
             if job.model in loaded_models:
                 continue
@@ -1396,6 +1425,7 @@ class HordeWorkerProcessManager:
                     horde_model_name=job.model,
                     will_load_loras=will_load_loras,
                     seamless_tiling_enabled=seamless_tiling_enabled,
+                    sdk_api_job_info=job,
                 ),
             )
             available_process.last_control_flag = HordeControlFlag.PRELOAD_MODEL
@@ -1422,19 +1452,29 @@ class HordeWorkerProcessManager:
 
         # Get the first job in the deque that is not already in progress
         next_job: ImageGenerateJobPopResponse | None = None
+        next_n_jobs: list[ImageGenerateJobPopResponse] = []
         # ImageGenerateJobPopResponse itself is unhashable, so we'll check the ids instead.
-        jobs_in_progress = {job[0].id_ for job in self.jobs_in_progress}
-        for job in self.job_deque:
-            if job.id_ in jobs_in_progress:
+        for candidate_small_job in self.job_deque:
+            if candidate_small_job in self.jobs_in_progress:
                 continue
-            next_job = job
-            break
+            if next_job is None:
+                next_job = candidate_small_job
+
+            next_n_jobs.append(candidate_small_job)
 
         if next_job is None:
             return
 
         if next_job.model is None:
             raise ValueError(f"next_job.model is None ({next_job})")
+
+        # Check if we're running jobs equal to or greater than the max concurrent inference processes allowed
+        if len(self.jobs_in_progress) >= self.max_concurrent_inference_processes:
+            logger.debug(
+                f"Waiting for {len(self.jobs_in_progress)} jobs to finish before starting inference for job "
+                f"{next_job.id_}",
+            )
+            return
 
         process_with_model = self._process_map.get_process_by_horde_model_name(next_job.model)
         if self._horde_model_map.is_model_loaded(next_job.model):
@@ -1451,7 +1491,30 @@ class HordeWorkerProcessManager:
                 return
 
             if not process_with_model.can_accept_job():
-                return
+                if process_with_model.last_process_state == HordeProcessState.DOWNLOADING_AUX_MODEL:
+                    # If any of the next n jobs (other than this one) aren't using the same model, see if that job
+                    # has a model that's already loaded.
+                    # If it does, we'll start inference on that job instead.
+                    for candidate_small_job in next_n_jobs:
+                        if candidate_small_job.model is not None and candidate_small_job.model != next_job.model:
+                            process_with_model = self._process_map.get_process_by_horde_model_name(
+                                candidate_small_job.model,
+                            )
+                            if (
+                                process_with_model is not None
+                                and self.get_single_job_megapixelsteps(candidate_small_job) <= 25
+                            ):
+                                logger.info(
+                                    f"Job {candidate_small_job.id_} skipped the line and will be run on process "
+                                    f"{process_with_model.process_id} before job {next_job.id_}, which is currently "
+                                    "downloading extra models.",
+                                )
+                                next_job = candidate_small_job
+                                break
+                    else:
+                        return
+                else:
+                    return
 
             # Unload all models from vram from any other process that isn't running a job if configured to do so
             if self.bridge_data.unload_models_from_vram:
@@ -1485,6 +1548,9 @@ class HordeWorkerProcessManager:
 
             logger.info(f"Starting inference for job {next_job.id_} on process {process_with_model.process_id}")
             # region Log job info
+            if next_job.model is None:
+                raise ValueError(f"next_job.model is None ({next_job})")
+
             logger.info(f"Model: {next_job.model}")
             if next_job.source_image is not None:
                 logger.info(f"Using {next_job.source_processing}")
@@ -1520,7 +1586,10 @@ class HordeWorkerProcessManager:
             logger.debug(f"All Batch IDs: {next_job.ids}")
             # endregion
 
-            self.jobs_in_progress.append((next_job, process_with_model.process_id))
+            self.jobs_lookup[next_job].state = GENERATION_STATE.processing
+
+            self.jobs_in_progress.append(next_job)
+
             # We store the amount of batches this job will do,
             # as we use that later to check if we should start inference in parallel
             process_with_model.batch_amount = next_job.payload.n_iter
@@ -1816,7 +1885,14 @@ class HordeWorkerProcessManager:
 
         time_taken = round(time.time() - time_popped, 2)
 
-        kudos_per_second = job_submit_response.reward / new_submit.completed_job_info.time_to_generate
+        kudos_per_second = 0.0
+
+        if new_submit.completed_job_info.time_to_generate is None:
+            logger.error(
+                f"Job {new_submit.job_id} has no time_to_generate, ignoring.",
+            )
+        else:
+            kudos_per_second = job_submit_response.reward / new_submit.completed_job_info.time_to_generate
 
         # If the job was not faulted, log the job submission as a success
         if new_submit.completed_job_info.state != GENERATION_STATE.faulted:
@@ -1953,6 +2029,7 @@ class HordeWorkerProcessManager:
                 self._consecutive_failed_jobs = 0
             try:
                 self.completed_jobs.remove(completed_job_info)
+                self.jobs_lookup.pop(completed_job_info.sdk_api_job_info)
             except ValueError:
                 # This means another fault catch removed the faulted job so it's OK
                 # But we post a log anyway, just in case
@@ -1964,6 +2041,13 @@ class HordeWorkerProcessManager:
         if str(completed_job_info.sdk_api_job_info) in self.job_pop_timestamps:
             del self.job_pop_timestamps[completed_job_info.sdk_api_job_info]
             logger.debug(f"Removed {completed_job_info.sdk_api_job_info} from job_pop_timestamps")
+
+        if completed_job_info.sdk_api_job_info in self.jobs_lookup:
+            del self.jobs_lookup[completed_job_info.sdk_api_job_info]
+        else:
+            logger.debug(
+                f"Tried to remove {completed_job_info.sdk_api_job_info} from jobs_lookup but it was not there.",
+            )
 
         await asyncio.sleep(self._api_call_loop_interval)
 
@@ -1991,39 +2075,39 @@ class HordeWorkerProcessManager:
 
     _consecutive_failed_jobs = 0
 
+    def get_single_job_megapixelsteps(self, job: ImageGenerateJobPopResponse) -> int:
+        """Return the number of megapixelsteps for a single job."""
+        has_upscaler = any(pp in [u.value for u in KNOWN_UPSCALERS] for pp in job.payload.post_processing)
+        upscaler_multiplier = 1 if has_upscaler else 0
+        job_megapixels = job.payload.width * job.payload.height
+
+        # Each extra batched image increases our difficulty by 20%
+        batching_multiplier = 1 + ((job.payload.n_iter - 1) * 0.2)
+
+        # If upscaling was requested, due to it being serial, each extra image in the batch
+        # Further increases our difficulty.
+        # In this calculation we treat each upscaler as adding 20 steps per image
+        upscaling_mp = job_megapixels * 20 * upscaler_multiplier * job.payload.n_iter
+        job_megapixelsteps = job_megapixels * batching_multiplier * job.payload.ddim_steps + upscaling_mp
+
+        # Hard model difficulty is increased due to variations in the performance
+        # of different architectures. This look up is a rough estimate based on a median case
+        if job.model in KNOWN_SLOW_MODELS_DIFFICULTIES:
+            job_megapixelsteps *= KNOWN_SLOW_MODELS_DIFFICULTIES[job.model]
+
+        return int(job_megapixelsteps / 1_000_000)
+
     def get_pending_megapixelsteps(self) -> int:
-        """Return the number of megapixelsteps that are pending in the job deque.
-
-        - `n_iter` batch increases the amount by 20% per image requested.
-        - Upscaling increases the amount by 20% per image requested.
-        - Known slow models increase the amount by a factor defined in consts.py
-        """
-        job_deque_megapixelsteps = 0.0
+        """Return the number of megapixelsteps that are pending in the job deque."""
+        job_deque_megapixelsteps = 0
         for job in self.job_deque:
-            has_upscaler = any(pp in [u.value for u in KNOWN_UPSCALERS] for pp in job.payload.post_processing)
-            upscaler_multiplier = 1 if has_upscaler else 0
-            job_megapixels = job.payload.width * job.payload.height
-
-            # Each extra batched image increases our difficulty by 20%
-            batching_multiplier = 1 + ((job.payload.n_iter - 1) * 0.2)
-
-            # If upscaling was requested, due to it being serial, each extra image in the batch
-            # Further increases our difficulty.
-            # In this calculation we treat each upscaler as adding 20 steps per image
-            upscaling_mp = job_megapixels * 20 * upscaler_multiplier * job.payload.n_iter
-            job_megapixelsteps = job_megapixels * batching_multiplier * job.payload.ddim_steps + upscaling_mp
-
-            # Hard model difficulty is increased due to variations in the performance
-            # of different architectures. This look up is a rough estimate based on a median case
-            if job.model in KNOWN_SLOW_MODELS_DIFFICULTIES:
-                job_megapixelsteps *= KNOWN_SLOW_MODELS_DIFFICULTIES[job.model]
-
+            job_megapixelsteps = self.get_single_job_megapixelsteps(job)
             job_deque_megapixelsteps += job_megapixelsteps
 
         for _ in self.completed_jobs:
-            job_deque_megapixelsteps += 1_000_000 * 4
+            job_deque_megapixelsteps += 4
 
-        return int(job_deque_megapixelsteps / 1_000_000)
+        return job_deque_megapixelsteps
 
     def should_wait_for_pending_megapixelsteps(self) -> bool:
         """Check if the number of megapixelsteps in the job deque is above the limit."""
@@ -2151,8 +2235,8 @@ class HordeWorkerProcessManager:
                 seconds_to_wait *= 0.5
                 logger.debug("Moderate performance mode is enabled, reducing the wait time by 50%")
 
-            if self.get_pending_megapixelsteps() > 200:
-                seconds_to_wait = self._max_pending_megapixelsteps * 0.75
+            # if self.get_pending_megapixelsteps() > 200:
+            # seconds_to_wait = self._max_pending_megapixelsteps * 0.75
 
             if self._triggered_max_pending_megapixelsteps is False:
                 self._triggered_max_pending_megapixelsteps = True
@@ -2334,6 +2418,11 @@ class HordeWorkerProcessManager:
             logger.info(f'Job queue: {", ".join(jobs)}')
             # self._testing_jobs_added += 1
             self.job_pop_timestamps[job_pop_response] = time.time()
+            self.jobs_lookup[job_pop_response] = HordeJobInfo(
+                sdk_api_job_info=job_pop_response,
+                state=GENERATION_STATE.processing,
+                time_popped=self.job_pop_timestamps[job_pop_response],
+            )
 
     _user_info_failed = False
     _user_info_failed_reason: str | None = None

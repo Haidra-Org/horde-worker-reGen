@@ -2,6 +2,8 @@ bridgeData.yaml
 testing
 dummy
 
+kudos_training_data.json
+
 .vscode/
 
 micromamba.exe

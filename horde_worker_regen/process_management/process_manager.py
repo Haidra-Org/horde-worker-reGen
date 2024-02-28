@@ -2105,7 +2105,7 @@ class HordeWorkerProcessManager:
             del self.jobs_lookup[completed_job_info.sdk_api_job_info]
         else:
             logger.debug(
-                f"Tried to remove {completed_job_info.sdk_api_job_info} from jobs_lookup but it was not there.",
+                f"Tried to remove {completed_job_info.sdk_api_job_info.id_} from jobs_lookup but it was not there.",
             )
 
         await asyncio.sleep(self._api_call_loop_interval)

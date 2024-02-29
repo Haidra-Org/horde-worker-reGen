@@ -8,8 +8,6 @@ from horde_sdk.ai_horde_api import GENERATION_STATE
 from horde_sdk.ai_horde_api.apimodels import (
     GenMetadataEntry,
     ImageGenerateJobPopResponse,
-    LorasPayloadEntry,
-    TIPayloadEntry,
 )
 from horde_sdk.ai_horde_api.fields import JobID
 from loguru import logger

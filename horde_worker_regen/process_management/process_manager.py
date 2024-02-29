@@ -2059,24 +2059,29 @@ class HordeWorkerProcessManager:
                         }
 
                         with logger.catch():
-                            hji = self.jobs_lookup[
-                                completed_job_info.sdk_api_job_info
-                            ]
+                            hji = self.jobs_lookup[completed_job_info.sdk_api_job_info]
                             model_dump = hji.model_dump(
                                 exclude=excludes,
                             )
-                            model_dump['sdk_api_job_info']['model_baseline'] = self.stable_diffusion_reference.root[hji.sdk_api_job_info.model].baseline
+                            if self.stable_diffusion_reference is not None and hji.sdk_api_job_info.model is not None:
+                                model_dump["sdk_api_job_info"][
+                                    "model_baseline"
+                                ] = self.stable_diffusion_reference.root[hji.sdk_api_job_info.model].baseline
                             # Preparation for multiple schedulers
                             if hji.sdk_api_job_info.payload.karras:
-                                model_dump['sdk_api_job_info']['payload']['scheduler'] = 'karras'
+                                model_dump["sdk_api_job_info"]["payload"]["scheduler"] = "karras"
                             else:
-                                model_dump['sdk_api_job_info']['payload']['scheduler'] = 'simple'
-                            del model_dump['sdk_api_job_info']['payload']['karras']
-                            model_dump['sdk_api_job_info']['payload']['lora_count'] = len(model_dump['sdk_api_job_info']['payload']['loras'])
-                            model_dump['sdk_api_job_info']['payload']['ti_count'] = len(model_dump['sdk_api_job_info']['payload']['tis'])
+                                model_dump["sdk_api_job_info"]["payload"]["scheduler"] = "simple"
+                            del model_dump["sdk_api_job_info"]["payload"]["karras"]
+                            model_dump["sdk_api_job_info"]["payload"]["lora_count"] = len(
+                                model_dump["sdk_api_job_info"]["payload"]["loras"],
+                            )
+                            model_dump["sdk_api_job_info"]["payload"]["ti_count"] = len(
+                                model_dump["sdk_api_job_info"]["payload"]["tis"],
+                            )
                             if not os.path.exists(self.bridge_data.kudos_training_data_file):
                                 with open(self.bridge_data.kudos_training_data_file, "w") as f:
-                                    json.dump([model_dump],f,indent=4)
+                                    json.dump([model_dump], f, indent=4)
                             elif hji.sdk_api_job_info.payload.n_iter == 1:
                                 data = []
                                 with open(self.bridge_data.kudos_training_data_file) as f:

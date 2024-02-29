@@ -74,6 +74,7 @@ ignore = [
   "D408",
   "D409",
   "D413",]
+extend-exclude = ["conda"]
 
 
 [tool.black]
@@ -90,8 +91,10 @@ exclude = '''
  | buck-out
  | build
  | dist
+ | conda
 )/
 '''
+
 
 [tool.mypy]
 plugins = [

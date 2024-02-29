@@ -1828,6 +1828,10 @@ class HordeWorkerProcessManager:
         if new_submit.completed_job_info.sdk_api_job_info.payload.seed is not None:
             seed = int(new_submit.completed_job_info.sdk_api_job_info.payload.seed)
         submit_job_request_type = new_submit.completed_job_info.sdk_api_job_info.get_follow_up_default_request_type()
+        if new_submit.completed_job_info.state is None:
+            logger.error(f"Job {new_submit.job_id} has no state, assuming faulted")
+            new_submit.completed_job_info.state = GENERATION_STATE.faulted
+            return new_submit
         submit_job_request = submit_job_request_type(
             apikey=self.bridge_data.api_key,
             id=new_submit.job_id,

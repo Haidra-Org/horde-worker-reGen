@@ -2667,6 +2667,7 @@ class HordeWorkerProcessManager:
                         " | ".join(
                             [
                                 f"dreamer_name: {self.bridge_data.dreamer_worker_name}",
+                                f"(v{horde_worker_regen.__version__})",
                                 f"max_power: {self.bridge_data.max_power}",
                                 f"max_threads: {self.max_concurrent_inference_processes}",
                                 f"queue_size: {self.bridge_data.queue_size}",

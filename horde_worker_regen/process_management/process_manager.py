@@ -444,7 +444,7 @@ class HordeJobInfo(BaseModel):  # TODO: Split into a new file
     """The API response which has all of the information about the job as sent by the API."""
     job_image_results: list[HordeImageResult] | None = None
     """A list of base64 encoded images and their generation faults that are the result of the job."""
-    state: GENERATION_STATE
+    state: GENERATION_STATE | None
     """The state of the job to send to the API."""
     censored: bool | None = None
     """Whether or not the job was censored. This is set by the safety process."""
@@ -1587,8 +1587,6 @@ class HordeWorkerProcessManager:
             logger.debug(f"All Batch IDs: {next_job.ids}")
             # endregion
 
-            self.jobs_lookup[next_job].state = GENERATION_STATE.processing
-
             self.jobs_in_progress.append(next_job)
 
             # We store the amount of batches this job will do,
@@ -1932,6 +1930,10 @@ class HordeWorkerProcessManager:
 
         completed_job_info = self.completed_jobs[0]
         job_info = completed_job_info.sdk_api_job_info
+
+        if completed_job_info.state is None:
+            logger.error(f"Job {job_info.ids} has no state, assuming faulted")
+            completed_job_info.state = GENERATION_STATE.faulted
 
         if completed_job_info.state == GENERATION_STATE.faulted:
             logger.error(
@@ -2490,7 +2492,7 @@ class HordeWorkerProcessManager:
             self.job_pop_timestamps[job_pop_response] = time.time()
             self.jobs_lookup[job_pop_response] = HordeJobInfo(
                 sdk_api_job_info=job_pop_response,
-                state=GENERATION_STATE.processing,
+                state=None,
                 time_popped=self.job_pop_timestamps[job_pop_response],
             )
 

@@ -17,8 +17,6 @@ from typing import TYPE_CHECKING
 from horde_sdk.ai_horde_api import GENERATION_STATE
 from horde_sdk.ai_horde_api.apimodels import (
     ImageGenerateJobPopResponse,
-    LorasPayloadEntry,
-    TIPayloadEntry,
 )
 from loguru import logger
 from typing_extensions import override

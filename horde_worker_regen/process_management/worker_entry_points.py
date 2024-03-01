@@ -50,7 +50,7 @@ def start_inference_process(
                     setup_logging=None,
                     process_id=process_id,
                     logging_verbosity=0,
-                    extra_comfyui_args=["--disable-smart-memory"] if not high_memory_mode else [],
+                    force_normal_vram_mode=not high_memory_mode,
                 )
         except Exception as e:
             logger.critical(f"Failed to initialise hordelib: {type(e).__name__} {e}")

@@ -156,8 +156,6 @@ To update:
     2. Navigate to the folder you have the AI Horde Worker repository installed if you're not already there.
     3. run `git pull`
 
-    Afterwards run the `horde-bridge` script for your OS as usual.
-
     ### zip method
 
     Use this approach if you downloaded the git repository as a zip file and extracted it somewhere.

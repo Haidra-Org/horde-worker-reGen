@@ -432,17 +432,35 @@ class ProcessMap(dict[int, HordeProcessInfo]):
 
     def __repr__(self) -> str:
         base_string = "Processes: "
-        for process_id, process_info in self.items():
-            if process_info.process_type == HordeProcessType.INFERENCE:
-                base_string += (
-                    f"{process_id}: ({process_info.loaded_horde_model_name} "
-                    f"[last event: {process_info.last_timestamp}]) "
-                )
-            else:
-                base_string += f"{process_id}: ({process_info.process_type.name}) "
-            base_string += f"{process_info.last_process_state.name}; "
+        for string in self.get_process_info_strings():
+            base_string += string
 
         return base_string
+
+    def get_process_info_strings(self) -> list[str]:
+        """Return a list of strings containing information about each process."""
+        info_strings = []
+        current_time = datetime.datetime.now()
+        for process_id, process_info in self.items():
+            if process_info.process_type == HordeProcessType.INFERENCE:
+                time_passed_seconds = round((current_time - process_info.last_timestamp).total_seconds(), 2)
+                safe_last_control_flag = (
+                    process_info.last_control_flag.name if process_info.last_control_flag is not None else None
+                )
+                info_strings.append(
+                    f"Process {process_id} ({process_info.last_process_state.name}): "
+                    f" ({process_info.loaded_horde_model_name} "
+                    # f"[last event: {process_info.last_timestamp} "
+                    f"[last event: {time_passed_seconds} secs ago: {safe_last_control_flag}]",
+                    # f"ram: {process_info.ram_usage_bytes} vram: {process_info.vram_usage_bytes} ",
+                )
+            else:
+                info_strings.append(
+                    f"Process {process_id}: ({process_info.process_type.name}) "
+                    f"{process_info.last_process_state.name} ",
+                )
+
+        return info_strings
 
 
 class TorchDeviceInfo(BaseModel):
@@ -2390,8 +2408,8 @@ class HordeWorkerProcessManager:
         ):
             if (
                 (not self._last_pop_no_jobs_available)
-                and self.bridge_data.model_stickiness > 0
-                and random.random() < self.bridge_data.model_stickiness
+                and self.bridge_data.horde_model_stickiness > 0
+                and random.random() < self.bridge_data.horde_model_stickiness
             ):
                 free_models = {
                     process.loaded_horde_model_name
@@ -2406,7 +2424,7 @@ class HordeWorkerProcessManager:
                         "Model stickiness is intended mostly for slow disks and works best with few models. "
                         f"You have {len(self.bridge_data.image_models_to_load)} models configured.",
                     )
-            elif self.bridge_data.model_stickiness > 0:
+            elif self.bridge_data.horde_model_stickiness > 0:
                 logger.debug("Models unstuck: asking to pop for all available models.")
 
         # We'll only allow one running plus one queued for a given model.
@@ -2694,7 +2712,10 @@ class HordeWorkerProcessManager:
                         break
 
                 if time.time() - self._last_status_message_time > self._status_message_frequency:
-                    logger.info(f"{self._process_map}")
+                    process_info_strings = self._process_map.get_process_info_strings()
+                    logger.info("Process info:")
+                    for process_info_string in process_info_strings:
+                        logger.info(process_info_string)
                     logger.info(
                         " | ".join(
                             [
@@ -2733,14 +2754,14 @@ class HordeWorkerProcessManager:
 
                     job_info_message = "Session job info: " + " | ".join(
                         [
-                            f"popped: {len(self.job_deque)}",
+                            f"popped: {len(self.job_deque)} (eMPS: {self.get_pending_megapixelsteps()})",
                             f"safety checking: {num_jobs_safety_checking}",
                             f"faulted: {self._num_jobs_faulted}",
                             f"submitted: {self.total_num_completed_jobs}",
                         ],
                     )
 
-                    logger.info(job_info_message)
+                    logger.success(job_info_message)
 
                     self._last_status_message_time = time.time()
 

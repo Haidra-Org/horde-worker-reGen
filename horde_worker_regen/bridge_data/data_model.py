@@ -41,7 +41,7 @@ class reGenBridgeData(CombinedHordeBridgeData):
 
     preload_timeout: int = Field(default=60)
 
-    model_stickiness: float = Field(default=0.0, le=1.0, ge=0.0)
+    horde_model_stickiness: float = Field(default=0.0, le=1.0, ge=0.0, alias="model_stickiness")
     """
     A percent chance (expressed as a decimal between 0 and 1) that the currently loaded models will
     be favored when popping a job.

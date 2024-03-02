@@ -1,5 +1,7 @@
 """The main entry point for the reGen worker."""
+import io
 import os
+import sys
 
 os.environ["HORDE_SDK_DISABLE_CUSTOM_SINKS"] = "1"
 
@@ -75,6 +77,27 @@ def main(ctx: BaseContext) -> None:
     )
 
 
+class LogConsoleRewriter(io.StringIO):
+    """Makes the console output more readable by shortening certain strings."""
+
+    def __init__(self, original_stdout: io.TextIOBase) -> None:
+        self.original_stdout = original_stdout
+
+    def write(self, message: str) -> int:
+        replacements = [
+            ("horde_worker_regen.process_management.process_manager", "[HWRPM]"),
+            ("horde_worker_regen.", "[HWR]"),
+        ]
+
+        for old, new in replacements:
+            message = message.replace(old, new)
+
+        return sys.__stdout__.write(message)
+
+    def flush(self) -> None:
+        self.original_stdout.flush()
+
+
 def start() -> None:
     with contextlib.suppress(Exception):
         multiprocessing.set_start_method("spawn", force=True)
@@ -87,6 +110,9 @@ def start() -> None:
     parser.add_argument("--no-logging", action="store_true", help="Disable logging to the console")
 
     args = parser.parse_args()
+
+    rewriter = LogConsoleRewriter(sys.stdout)  # type: ignore
+    sys.stdout = rewriter
 
     logger.remove()
     from hordelib.utils.logger import HordeLog

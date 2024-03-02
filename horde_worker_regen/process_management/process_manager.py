@@ -2144,11 +2144,11 @@ class HordeWorkerProcessManager:
 
             if completed_job_info.sdk_api_job_info in self.job_pop_timestamps:
                 del self.job_pop_timestamps[completed_job_info.sdk_api_job_info]
-                logger.debug(f"Removed {completed_job_info.sdk_api_job_info} from job_pop_timestamps")
+                logger.debug(f"Removed {completed_job_info.sdk_api_job_info.id_} from job_pop_timestamps")
 
             if completed_job_info.sdk_api_job_info in self.jobs_lookup:
                 del self.jobs_lookup[completed_job_info.sdk_api_job_info]
-                logger.debug(f"Removed {completed_job_info.sdk_api_job_info} from jobs_lookup")
+                logger.debug(f"Removed {completed_job_info.sdk_api_job_info.id_} from jobs_lookup")
 
         await asyncio.sleep(self._api_call_loop_interval)
 
@@ -2486,7 +2486,10 @@ class HordeWorkerProcessManager:
 
         self._last_pop_no_jobs_available = False
 
-        logger.info(f"Popped job {job_pop_response.id_} (model: {job_pop_response.model})")
+        logger.info(
+            f"Popped job {job_pop_response.id_} ({self.get_single_job_megapixelsteps(job_pop_response)} eMPS) "
+            f"(model: {job_pop_response.model})",
+        )
 
         # region TODO: move to horde_sdk
         if job_pop_response.payload.seed is None:  # TODO # FIXME

@@ -1168,9 +1168,12 @@ class HordeWorkerProcessManager:
                         f"Process {message.process_id} finished downloading extra models in {message.time_elapsed}",
                     )
                     if message.sdk_api_job_info not in self.jobs_lookup:
-                        raise ValueError(f"Job {message.sdk_api_job_info} not found in jobs_lookup")
-
-                    self.jobs_lookup[message.sdk_api_job_info].time_to_download_aux_models = message.time_elapsed
+                        logger.warning(
+                            f"Job {message.sdk_api_job_info} not found in jobs_lookup. (Process {message.process_id})",
+                        )
+                        logger.debug(f"Jobs lookup: {self.jobs_lookup}")
+                    else:
+                        self.jobs_lookup[message.sdk_api_job_info].time_to_download_aux_models = message.time_elapsed
 
             # If The model state has changed, update the model map
             if isinstance(message, HordeModelStateChangeMessage):

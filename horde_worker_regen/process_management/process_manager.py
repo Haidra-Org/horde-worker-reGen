@@ -1894,6 +1894,7 @@ class HordeWorkerProcessManager:
             logger.error(
                 f"Job {new_submit.job_id} has no time_to_generate, ignoring.",
             )
+            new_submit.completed_job_info.time_to_generate = 0.0
         else:
             kudos_per_second = job_submit_response.reward / new_submit.completed_job_info.time_to_generate
 
@@ -2120,10 +2121,7 @@ class HordeWorkerProcessManager:
 
         if completed_job_info.sdk_api_job_info in self.jobs_lookup:
             del self.jobs_lookup[completed_job_info.sdk_api_job_info]
-        else:
-            logger.debug(
-                f"Tried to remove {completed_job_info.sdk_api_job_info.id_} from jobs_lookup but it was not there.",
-            )
+            logger.debug(f"Removed {completed_job_info.sdk_api_job_info} from jobs_lookup")
 
         await asyncio.sleep(self._api_call_loop_interval)
 

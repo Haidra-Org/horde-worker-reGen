@@ -168,7 +168,12 @@ class HordeProcessInfo:
 
     def is_process_alive(self) -> bool:
         """Return true if the process is alive."""
-        return self.mp_process.is_alive()
+        if not self.mp_process.is_alive():
+            return False
+        if self.last_process_state == HordeProcessState.PROCESS_ENDING or HordeProcessState.PROCESS_ENDED:
+            return False
+
+        return True
 
     def safe_send_message(self, message: HordeControlMessage) -> bool:
         """Send a message to the process.
@@ -179,9 +184,6 @@ class HordeProcessInfo:
         Returns:
             bool: True if the message was sent successfully, False otherwise.
         """
-        if not self.is_process_alive():
-            logger.error(f"Process {self.process_id} is not alive, cannot send message")
-            return False
 
         try:
             self.pipe_connection.send(message)

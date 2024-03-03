@@ -53,6 +53,10 @@ def main(ctx: BaseContext) -> None:
             file_path=BRIDGE_CONFIG_FILENAME,
             horde_model_reference_manager=horde_model_reference_manager,
         )
+    except ConnectionRefusedError:
+        logger.error("Could not connect to the the horde. Is it down?")
+        input("Press any key to exit...")
+        return
     except Exception as e:
         logger.exception(e)
 

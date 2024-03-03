@@ -1,9 +1,26 @@
 @echo off
 cd /d %~dp0
-call runtime python -s download_models.py
+
+: This first call to runtime activates the environment for the rest of the script
+call runtime python -s -m pip -V
+
+call python -s -m pip install horde_sdk~=0.8.0 horde_model_reference~=0.6.2 hordelib~=2.6.2 -U
+if %ERRORLEVEL% NEQ 0 (
+    echo "Please run update-runtime.cmd."
+    GOTO END
+)
+
+call python -s -m pip check
+if %ERRORLEVEL% NEQ 0 (
+    echo "Please run update-runtime.cmd."
+    GOTO END
+)
+
+:DOWNLOAD
+call python -s download_models.py
 if %ERRORLEVEL% NEQ 0 GOTO ABORT
 echo "Model Download OK. Starting worker..."
-call runtime python -s run_worker.py %*
+call python -s run_worker.py %*
 
 GOTO END
 

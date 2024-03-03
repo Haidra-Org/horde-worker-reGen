@@ -1,10 +1,12 @@
 """The config model and initializers for the reGen configuration model."""
 
+from __future__ import annotations
+
 import os
 
 from horde_sdk.ai_horde_worker.bridge_data import CombinedHordeBridgeData
 from loguru import logger
-from pydantic import Field
+from pydantic import Field, model_validator
 from ruamel.yaml import YAML
 
 from horde_worker_regen.locale_info.regen_bridge_data_fields import BRIDGE_DATA_FIELD_DESCRIPTIONS
@@ -39,7 +41,7 @@ class reGenBridgeData(CombinedHordeBridgeData):
     process_timeout: int = Field(default=900)
     """The maximum amount of time to allow a job to run before it is killed"""
 
-    preload_timeout: int = Field(default=60)
+    preload_timeout: int = Field(default=60, ge=15)
 
     horde_model_stickiness: float = Field(default=0.0, le=1.0, ge=0.0, alias="model_stickiness")
     """
@@ -57,6 +59,34 @@ class reGenBridgeData(CombinedHordeBridgeData):
 
     capture_kudos_training_data: bool = Field(default=False)
     kudos_training_data_file: str | None = Field(default=None)
+
+    @model_validator(mode="after")
+    def validate_performance_modes(self) -> reGenBridgeData:
+        if self.high_memory_mode:
+            if self.max_threads != 1:
+                self.max_threads = 1
+                logger.warning(
+                    "High memory mode is enabled, so the max_threads value has been set to 1.",
+                )
+
+            if self.queue_size == 0:
+                logger.warning(
+                    "High memory mode is enabled and works best with a queue_size of 1.",
+                )
+
+            if self.queue_size > 1:
+                self.queue_size = 1
+                logger.warning(
+                    "High memory mode is enabled, so the queue_size value has been set to 1.",
+                )
+
+            if self.cycle_process_on_model_change:
+                self.cycle_process_on_model_change = False
+                logger.warning(
+                    "High memory mode is enabled, so the cycle_process_on_model_change value has been set to False.",
+                )
+
+        return self
 
     def load_env_vars(self) -> None:
         """Load the environment variables into the config model."""

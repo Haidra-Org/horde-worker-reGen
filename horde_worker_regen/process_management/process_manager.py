@@ -2912,13 +2912,13 @@ class HordeWorkerProcessManager:
 
         threading.Thread(target=shutdown).start()
 
-    def replace_hung_processes(self) -> None:
+    def replace_hung_processes(self) -> bool:
         """
         Replaces processes that haven't checked in since `process_timeout` seconds in bridgeData
 
-        :return: None
         """
         now = datetime.datetime.now()
+        any_replaced = False
         for process_info in self._process_map.values():
             time_elapsed = now - process_info.last_timestamp
             if (
@@ -2930,6 +2930,7 @@ class HordeWorkerProcessManager:
             ):
                 logger.error(f"{process_info} has exceeded its timeout and will be replaced")
                 self._replace_inference_process(process_info)
+                any_replaced = True
             if (
                 time_elapsed
                 > datetime.timedelta(
@@ -2943,3 +2944,17 @@ class HordeWorkerProcessManager:
                     " raise preload_timeout in your config.",
                 )
                 self._replace_inference_process(process_info)
+                any_replaced = True
+
+            if (
+                time_elapsed
+                > datetime.timedelta(
+                    seconds=45,
+                )
+                and process_info.last_process_state == HordeProcessState.PROCESS_STARTING
+            ):
+                logger.error(f"{process_info} seems to be stuck starting, replacing it")
+                self._replace_inference_process(process_info)
+                any_replaced = True
+
+        return any_replaced

@@ -1,5 +1,6 @@
 """Contains the functions to load the environment variables from the config file."""
 
+import datetime
 import os
 import pathlib
 import time
@@ -77,8 +78,11 @@ def load_env_vars() -> None:  # FIXME: there is a dynamic way to do this
 
         reason_for_update_str = f"Reason for update: {reason_for_update}" if reason_for_update else ""
 
+        # UTC time
+        current_date = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
+
         # If we're before the required_version_update_date, just warn, otherwise raise an error
-        if time.strftime("%Y-%m-%d") < version_meta.required_min_version_update_date:
+        if current_date < version_meta.required_min_version_update_date:
             logger.warning(
                 f"Current worker version {horde_worker_regen.__version__} has a required update to "
                 f"{version_meta.required_min_version}. "

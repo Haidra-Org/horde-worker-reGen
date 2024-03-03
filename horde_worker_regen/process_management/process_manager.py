@@ -2096,6 +2096,18 @@ class HordeWorkerProcessManager:
                     # we will append the entry from the jobs lookup to it as a new json entry
                     # if the file does not exist, we will create it and write the first entry
 
+                    # If the current file is greater than 2mb, we will create a new file with a sequential number
+
+                    file_name_to_use = self.bridge_data.kudos_training_data_file
+                    if os.path.exists(file_name_to_use) and os.path.getsize(file_name_to_use) > 2 * 1024 * 1024:
+                        for i in range(1, 100):
+                            new_file_name = f"{self.bridge_data.kudos_training_data_file}.{i}"
+                            if os.path.exists(new_file_name) and os.path.getsize(new_file_name) > 2 * 1024 * 1024:
+                                continue
+
+                            file_name_to_use = new_file_name
+                            break
+
                     try:
                         excludes = {
                             "job_image_results": ...,
@@ -2133,21 +2145,20 @@ class HordeWorkerProcessManager:
                             model_dump["sdk_api_job_info"]["payload"]["ti_count"] = len(
                                 model_dump["sdk_api_job_info"]["payload"]["tis"],
                             )
-                            if not os.path.exists(self.bridge_data.kudos_training_data_file):
-                                with open(self.bridge_data.kudos_training_data_file, "w") as f:
+                            if not os.path.exists(file_name_to_use):
+                                with open(file_name_to_use, "w") as f:
                                     json.dump([model_dump], f, indent=4)
                             elif hji.sdk_api_job_info.payload.n_iter == 1:
                                 data = []
-                                with open(self.bridge_data.kudos_training_data_file) as f:
+                                with open(file_name_to_use) as f:
                                     data = json.load(f)
                                     if not isinstance(data, list):
                                         logger.warning(
-                                            f"Kudos training data file {self.bridge_data.kudos_training_data_file} "
-                                            "is not a list",
+                                            f"Kudos training data file {file_name_to_use} " "is not a list",
                                         )
                                         data = []
                                 data.append(model_dump)
-                                with open(self.bridge_data.kudos_training_data_file, "w") as f:
+                                with open(file_name_to_use, "w") as f:
                                     json.dump(data, f, indent=4)
                     except Exception as e:
                         logger.error(f"Failed to write kudos training data: {e}")

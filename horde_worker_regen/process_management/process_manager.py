@@ -2711,59 +2711,7 @@ class HordeWorkerProcessManager:
                         self._start_timed_shutdown()
                         break
 
-                if time.time() - self._last_status_message_time > self._status_message_frequency:
-                    process_info_strings = self._process_map.get_process_info_strings()
-                    logger.info("Process info:")
-                    for process_info_string in process_info_strings:
-                        logger.info(process_info_string)
-                    logger.info(
-                        " | ".join(
-                            [
-                                f"dreamer_name: {self.bridge_data.dreamer_worker_name}",
-                                f"(v{horde_worker_regen.__version__})",
-                                f"max_power: {self.bridge_data.max_power}",
-                                f"max_threads: {self.max_concurrent_inference_processes}",
-                                f"queue_size: {self.bridge_data.queue_size}",
-                                f"safety_on_gpu: {self.bridge_data.safety_on_gpu}",
-                            ],
-                        ),
-                    )
-                    logger.debug(
-                        " | ".join(
-                            [
-                                f"allow_img2img: {self.bridge_data.allow_img2img}",
-                                f"allow_lora: {self.bridge_data.allow_lora}",
-                                f"allow_controlnet: {self.bridge_data.allow_controlnet}",
-                                f"allow_post_processing: {self.bridge_data.allow_post_processing}",
-                            ],
-                        ),
-                    )
-                    jobs = [f"<{x.id_}: {x.model}>" for x in self.job_deque]
-                    logger.info(f'Jobs: {", ".join(jobs)}')
-
-                    active_models = {
-                        process.loaded_horde_model_name
-                        for process in self._process_map.values()
-                        if process.loaded_horde_model_name is not None
-                    }
-
-                    logger.info(f"Active models: {active_models}")
-
-                    num_jobs_safety_checking = len(self.jobs_pending_safety_check)
-                    num_jobs_safety_checking += len(self.jobs_being_safety_checked)
-
-                    job_info_message = "Session job info: " + " | ".join(
-                        [
-                            f"popped: {len(self.job_deque)} (eMPS: {self.get_pending_megapixelsteps()})",
-                            f"safety checking: {num_jobs_safety_checking}",
-                            f"faulted: {self._num_jobs_faulted}",
-                            f"submitted: {self.total_num_completed_jobs}",
-                        ],
-                    )
-
-                    logger.success(job_info_message)
-
-                    self._last_status_message_time = time.time()
+                self.print_status_method()
 
                 await asyncio.sleep(self._loop_interval / 2)
             except CancelledError:
@@ -2789,6 +2737,62 @@ class HordeWorkerProcessManager:
             process.mp_process.join(0.2)
 
         sys.exit(0)
+
+    def print_status_method(self) -> None:
+        """Print the status of the worker if it's time to do so."""
+        if time.time() - self._last_status_message_time > self._status_message_frequency:
+            process_info_strings = self._process_map.get_process_info_strings()
+            logger.info("Process info:")
+            for process_info_string in process_info_strings:
+                logger.info(process_info_string)
+            logger.info(
+                " | ".join(
+                    [
+                        f"dreamer_name: {self.bridge_data.dreamer_worker_name}",
+                        f"(v{horde_worker_regen.__version__})",
+                        f"max_power: {self.bridge_data.max_power}",
+                        f"max_threads: {self.max_concurrent_inference_processes}",
+                        f"queue_size: {self.bridge_data.queue_size}",
+                        f"safety_on_gpu: {self.bridge_data.safety_on_gpu}",
+                    ],
+                ),
+            )
+            logger.debug(
+                " | ".join(
+                    [
+                        f"allow_img2img: {self.bridge_data.allow_img2img}",
+                        f"allow_lora: {self.bridge_data.allow_lora}",
+                        f"allow_controlnet: {self.bridge_data.allow_controlnet}",
+                        f"allow_post_processing: {self.bridge_data.allow_post_processing}",
+                    ],
+                ),
+            )
+            jobs = [f"<{x.id_}: {x.model}>" for x in self.job_deque]
+            logger.info(f'Jobs: {", ".join(jobs)}')
+
+            active_models = {
+                process.loaded_horde_model_name
+                for process in self._process_map.values()
+                if process.loaded_horde_model_name is not None
+            }
+
+            logger.info(f"Active models: {active_models}")
+
+            num_jobs_safety_checking = len(self.jobs_pending_safety_check)
+            num_jobs_safety_checking += len(self.jobs_being_safety_checked)
+
+            job_info_message = "Session job info: " + " | ".join(
+                [
+                    f"popped: {len(self.job_deque)} (eMPS: {self.get_pending_megapixelsteps()})",
+                    f"safety checking: {num_jobs_safety_checking}",
+                    f"faulted: {self._num_jobs_faulted}",
+                    f"submitted: {self.total_num_completed_jobs}",
+                ],
+            )
+
+            logger.success(job_info_message)
+
+            self._last_status_message_time = time.time()
 
     _bridge_data_loop_interval = 1.0
     _last_bridge_data_reload_time = 0.0

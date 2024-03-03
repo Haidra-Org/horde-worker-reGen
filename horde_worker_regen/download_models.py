@@ -59,6 +59,7 @@ def download_all_models(purge_unused_loras: bool = False) -> None:
         if SharedModelManager.manager.lora is None:
             logger.error("Failed to load LORA model manager")
             exit(1)
+        SharedModelManager.manager.lora.reset_adhoc_loras()
         SharedModelManager.manager.lora.download_default_loras(bridge_data.nsfw)
         SharedModelManager.manager.lora.wait_for_downloads(600)
         SharedModelManager.manager.lora.wait_for_adhoc_reset(15)

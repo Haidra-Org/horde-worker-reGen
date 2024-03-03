@@ -18,6 +18,7 @@ def start_inference_process(
     pipe_connection: Connection,
     inference_semaphore: Semaphore,
     disk_lock: Lock,
+    aux_model_lock: Lock,
     *,
     high_memory_mode: bool = False,
 ) -> None:
@@ -70,6 +71,7 @@ def start_inference_process(
             pipe_connection=pipe_connection,
             inference_semaphore=inference_semaphore,
             disk_lock=disk_lock,
+            aux_model_lock=aux_model_lock,
         )
 
         worker_process.main_loop()

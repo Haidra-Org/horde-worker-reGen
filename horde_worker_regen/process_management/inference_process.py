@@ -69,6 +69,7 @@ class HordeInferenceProcess(HordeProcess):
 
     _active_model_name: str | None = None
     """The name of the currently active model. Note that other models may be loaded in RAM or VRAM."""
+    _aux_model_lock: Lock
 
     def __init__(
         self,
@@ -76,6 +77,7 @@ class HordeInferenceProcess(HordeProcess):
         process_message_queue: ProcessQueue,
         pipe_connection: Connection,
         inference_semaphore: Semaphore,
+        aux_model_lock: Lock,
         disk_lock: Lock,
     ) -> None:
         """Initialise the HordeInferenceProcess.
@@ -94,6 +96,8 @@ class HordeInferenceProcess(HordeProcess):
             pipe_connection=pipe_connection,
             disk_lock=disk_lock,
         )
+
+        self._aux_model_lock = aux_model_lock
 
         # We import these here to guard against potentially importing them in the main process
         # which would create shared objects, potentially causing issues
@@ -247,46 +251,56 @@ class HordeInferenceProcess(HordeProcess):
             float | None: The time elapsed during downloading, or None if no models were downloaded.
         """
 
-        time_start = time.time()
+        with self._aux_model_lock:
+            time_start = time.time()
 
-        lora_manager = self._shared_model_manager.manager.lora
-        if lora_manager is None:
-            raise RuntimeError("Failed to load LORA model manager")
+            lora_manager = self._shared_model_manager.manager.lora
+            if lora_manager is None:
+                raise RuntimeError("Failed to load LORA model manager")
 
-        ti_manager = self._shared_model_manager.manager.ti
-        if ti_manager is None:
-            raise RuntimeError("Failed to load TI model manager")
+            ti_manager = self._shared_model_manager.manager.ti
+            if ti_manager is None:
+                raise RuntimeError("Failed to load TI model manager")
 
-        performed_a_download = False
+            performed_a_download = False
 
-        loras = job_info.payload.loras
-        tis = job_info.payload.tis
+            loras = job_info.payload.loras
+            tis = job_info.payload.tis
 
-        for lora_entry in loras:
-            if not lora_manager.is_model_available(lora_entry.name):
-                if not performed_a_download:
-                    self.send_aux_model_message(
-                        process_state=HordeProcessState.DOWNLOADING_AUX_MODEL,
-                        info="Downloading auxiliary models",
-                        time_elapsed=0.0,
-                        job_info=job_info,
-                    )
+            try:
+                lora_manager.load_model_database()
+                lora_manager.reset_adhoc_loras()
+            except Exception as e:
+                logger.error(f"Failed to reset adhoc loras: {type(e).__name__} {e}")
+
+            for lora_entry in loras:
+                if not lora_manager.is_model_available(lora_entry.name):
+                    if not performed_a_download:
+                        self.send_aux_model_message(
+                            process_state=HordeProcessState.DOWNLOADING_AUX_MODEL,
+                            info="Downloading auxiliary models",
+                            time_elapsed=0.0,
+                            job_info=job_info,
+                        )
+                        performed_a_download = True
+                    lora_manager.fetch_adhoc_lora(lora_entry.name, timeout=45, is_version=lora_entry.is_version)
+                    lora_manager.wait_for_downloads(45)
+
+            for ti_entry in tis:
+                if not ti_manager.is_model_available(ti_entry.name):
                     performed_a_download = True
-                lora_manager.fetch_adhoc_lora(lora_entry.name, timeout=45, is_version=lora_entry.is_version)
-                lora_manager.wait_for_downloads(45)
+                    ti_manager.fetch_adhoc_ti(ti_entry.name, timeout=45)
+                    ti_manager.wait_for_downloads(45)
 
-        for ti_entry in tis:
-            if not ti_manager.is_model_available(ti_entry.name):
-                performed_a_download = True
-                ti_manager.fetch_adhoc_ti(ti_entry.name, timeout=45)
-                ti_manager.wait_for_downloads(45)
+            time_elapsed = round(time.time() - time_start, 2)
 
-        time_elapsed = round(time.time() - time_start, 2)
-        if performed_a_download:
-            logger.info(f"Downloaded auxiliary models in {time_elapsed} seconds")
-            return time_elapsed
+            lora_manager.save_cached_reference_to_disk()
 
-        return None
+            if performed_a_download:
+                logger.info(f"Downloaded auxiliary models in {time_elapsed} seconds")
+                return time_elapsed
+
+            return None
 
     def preload_model(
         self,

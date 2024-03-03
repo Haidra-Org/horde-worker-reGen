@@ -732,6 +732,8 @@ class HordeWorkerProcessManager:
     """A semaphore that limits the number of inference processes that can run at once."""
     _disk_lock: Lock_MultiProcessing
 
+    _aux_model_lock: Lock_MultiProcessing
+
     _shutting_down = False
 
     _lru: LRUCache
@@ -775,6 +777,8 @@ class HordeWorkerProcessManager:
 
         self._max_concurrent_inference_processes = bridge_data.max_threads
         self._inference_semaphore = Semaphore(self._max_concurrent_inference_processes, ctx=ctx)
+
+        self._aux_model_lock = Lock_MultiProcessing(ctx=ctx)
 
         self.max_inference_processes = self.bridge_data.queue_size + self.bridge_data.max_threads
         self._lru = LRUCache(self.max_inference_processes)
@@ -1031,6 +1035,7 @@ class HordeWorkerProcessManager:
                 child_pipe_connection,
                 self._inference_semaphore,
                 self._disk_lock,
+                self._aux_model_lock,
             ),
             kwargs={"high_memory_mode": self.bridge_data.high_memory_mode},
         )

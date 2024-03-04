@@ -876,7 +876,7 @@ class HordeWorkerProcessManager:
             self._max_pending_megapixelsteps = 60
             logger.info("Moderate performance mode enabled")
         else:
-            self._max_pending_megapixelsteps = 45
+            self._max_pending_megapixelsteps = 15
             logger.info("Normal performance mode enabled")
 
         if self.bridge_data.high_performance_mode and self.bridge_data.moderate_performance_mode:
@@ -2210,7 +2210,7 @@ class HordeWorkerProcessManager:
     _last_job_pop_time = 0.0
     """The time at which the last job was popped from the API."""
 
-    _max_pending_megapixelsteps = 45
+    _max_pending_megapixelsteps = 25
     """The maximum number of megapixelsteps that can be pending in the job deque before job pops are paused."""
     _triggered_max_pending_megapixelsteps_time = 0.0
     """The time at which the number of megapixelsteps in the job deque exceeded the limit."""

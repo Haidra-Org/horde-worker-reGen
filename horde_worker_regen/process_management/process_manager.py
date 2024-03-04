@@ -1121,6 +1121,8 @@ class HordeWorkerProcessManager:
 
         if process_info.last_process_state == HordeProcessState.INFERENCE_STARTING:
             self._inference_semaphore.release()
+        elif process_info.last_process_state == HordeProcessState.DOWNLOADING_AUX_MODEL:
+            self._aux_model_lock.release()
         self._start_inference_process(process_info.process_id)
 
     total_num_completed_jobs: int = 0

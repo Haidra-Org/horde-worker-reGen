@@ -279,7 +279,7 @@ class HordeInferenceProcess(HordeProcess):
                         )
                         performed_a_download = True
                     lora_manager.fetch_adhoc_lora(lora_entry.name, timeout=45, is_version=lora_entry.is_version)
-                    lora_manager.wait_for_downloads(45)
+                lora_manager.wait_for_downloads(45)
 
             time_elapsed = round(time.time() - time_start, 2)
 

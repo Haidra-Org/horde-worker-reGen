@@ -288,7 +288,14 @@ class HordeInferenceProcess(HordeProcess):
 
             for ti_entry in tis:
                 if not ti_manager.is_model_available(ti_entry.name):
-                    performed_a_download = True
+                    if not performed_a_download:
+                        self.send_aux_model_message(
+                            process_state=HordeProcessState.DOWNLOADING_AUX_MODEL,
+                            info="Downloading auxiliary models",
+                            time_elapsed=0.0,
+                            job_info=job_info,
+                        )
+                        performed_a_download = True
                     ti_manager.fetch_adhoc_ti(ti_entry.name, timeout=45)
                     ti_manager.wait_for_downloads(45)
 

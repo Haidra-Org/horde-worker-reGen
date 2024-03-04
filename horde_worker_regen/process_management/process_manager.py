@@ -2937,12 +2937,10 @@ class HordeWorkerProcessManager:
         any_replaced = False
         for process_info in self._process_map.values():
             time_elapsed = now - process_info.last_timestamp
-            if (
-                time_elapsed
-                > datetime.timedelta(
-                    seconds=self.bridge_data.process_timeout,
-                )
-                and process_info.is_process_busy()
+            if time_elapsed > datetime.timedelta(
+                seconds=self.bridge_data.process_timeout,
+            ) and (
+                process_info.is_process_busy() or process_info.last_process_state == HordeProcessState.PRELOADED_MODEL
             ):
                 logger.error(f"{process_info} has exceeded its timeout and will be replaced")
                 self._replace_inference_process(process_info)

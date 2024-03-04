@@ -17,7 +17,7 @@ priority_usernames: []
 max_threads: 1
 
 # We will keep this many requests in the queue so we can start working as soon as a thread is available
-# This generally should be or 1, or 1 more the value of max_threads if max_threads is 2 or higher.
+# This generally should be or 1 or 2. You should never set this higher than 2 if your max_threads is 2.
 queue_size: 1
 
 # This will try to pull these many jobs per request and perform batched inference.

@@ -62,6 +62,18 @@ class reGenBridgeData(CombinedHordeBridgeData):
 
     @model_validator(mode="after")
     def validate_performance_modes(self) -> reGenBridgeData:
+        if self.max_threads == 2 and self.queue_size > 2:
+            self.queue_size = 2
+            logger.warning(
+                "The queue_size value has been set to 2 because the max_threads value is 2.",
+            )
+
+        if self.max_threads > 2 and self.queue_size > 1:
+            self.queue_size = 1
+            logger.warning(
+                "The queue_size value has been set to 1 because the max_threads value is greater than 2.",
+            )
+
         if self.high_memory_mode:
             if self.max_threads != 1:
                 self.max_threads = 1

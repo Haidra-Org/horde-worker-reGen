@@ -2372,14 +2372,14 @@ class HordeWorkerProcessManager:
         if self.should_wait_for_pending_megapixelsteps():
             # Assuming a megapixelstep takes 0.75 seconds, if 2/3 of the time has passed since the limit was triggered,
             # we can assume that the pending megapixelsteps will be below the limit soon. Otherwise we continue to wait
-            seconds_to_wait = (self._max_pending_megapixelsteps * 0.75) * (2 / 3)
+            seconds_to_wait = (self.get_pending_megapixelsteps() * 0.75) * (2 / 3)
 
             if self.bridge_data.high_performance_mode:
                 seconds_to_wait *= 0.35
-                logger.debug("High performance mode is enabled, reducing the wait time by 70%")
+                # logger.debug("High performance mode is enabled, reducing the wait time by 70%")
             elif self.bridge_data.moderate_performance_mode:
                 seconds_to_wait *= 0.5
-                logger.debug("Moderate performance mode is enabled, reducing the wait time by 50%")
+                # logger.debug("Moderate performance mode is enabled, reducing the wait time by 50%")
 
             # if self.get_pending_megapixelsteps() > 200:
             # seconds_to_wait = self._max_pending_megapixelsteps * 0.75
@@ -2393,8 +2393,12 @@ class HordeWorkerProcessManager:
                 )
                 logger.debug(
                     f"Pending megapixelsteps: {self.get_pending_megapixelsteps()} | "
-                    f"Max pending megapixelsteps: {self._max_pending_megapixelsteps} | ",
+                    f"Max pending megapixelsteps: {self._max_pending_megapixelsteps} | "
                     f"Scheduled to wait for {seconds_to_wait} seconds",
+                )
+                logger.debug(
+                    f"high_performance_mode: {self.bridge_data.high_performance_mode} | "
+                    f"moderate_performance_mode: {self.bridge_data.moderate_performance_mode}",
                 )
                 return
 

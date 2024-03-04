@@ -1120,9 +1120,16 @@ class HordeWorkerProcessManager:
                 logger.warning(f"Job {job.id_} not found in job_pop_timestamps")
 
         if process_info.last_process_state == HordeProcessState.INFERENCE_STARTING:
-            self._inference_semaphore.release()
+            try:
+                self._inference_semaphore.release()
+            except ValueError:
+                logger.debug("Inference semaphore already released")
         elif process_info.last_process_state == HordeProcessState.DOWNLOADING_AUX_MODEL:
-            self._aux_model_lock.release()
+            try:
+                self._aux_model_lock.release()
+            except ValueError:
+                logger.debug("Aux model lock already released")
+
         self._start_inference_process(process_info.process_id)
 
     total_num_completed_jobs: int = 0

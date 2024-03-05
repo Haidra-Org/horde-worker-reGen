@@ -2978,6 +2978,7 @@ class HordeWorkerProcessManager:
                 self.jobs_pending_safety_check.clear()
                 self.jobs_lookup.clear()
                 self.jobs_in_progress.clear()
+                self.completed_jobs.clear()  # FIXME: At least try to submit the jobs as faulted
 
                 self._start_timed_shutdown()
 

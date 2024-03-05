@@ -301,6 +301,10 @@ class ProcessMap(dict[int, HordeProcessInfo]):
             total_vram_bytes (int | None, optional): The total amount of VRAM available to this process. \
                 Defaults to None.
         """
+        if process_id not in self:
+            logger.error(f"Process {process_id} does not exist in the process map")
+            return
+
         if last_process_state is not None:
             self[process_id].last_process_state = last_process_state
 

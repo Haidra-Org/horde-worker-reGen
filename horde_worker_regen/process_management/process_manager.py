@@ -2183,6 +2183,9 @@ class HordeWorkerProcessManager:
 
                 self.completed_jobs.remove(completed_job_info)
                 self.jobs_lookup.pop(completed_job_info.sdk_api_job_info)
+
+                self._last_job_submitted_time = datetime.datetime.now()
+
             except ValueError:
                 # This means another fault catch removed the faulted job so it's OK
                 # But we post a log anyway, just in case
@@ -2213,6 +2216,9 @@ class HordeWorkerProcessManager:
     """The frequency at which to pop jobs from the API. Can be altered if an error occurs."""
     _last_job_pop_time = 0.0
     """The time at which the last job was popped from the API."""
+
+    _last_job_submitted_time = datetime.datetime.now()
+    """The time at which the last job was submitted to the API."""
 
     _max_pending_megapixelsteps = 25
     """The maximum number of megapixelsteps that can be pending in the job deque before job pops are paused."""
@@ -2957,8 +2963,9 @@ class HordeWorkerProcessManager:
         """
         now = datetime.datetime.now()
 
-        # If every process hasn't done anything in 30 minutes and `self._last_pop_no_jobs_available` is false
-        # we're in a black hole and we need to exit because none of the ways to recover worked
+        # If every process hasn't done anything for a while or if we haven't submitted a job for a while,
+        # AND the last job pop returned a job, we're in a black hole and we need to exit because none of the ways to
+        # recover worked
         if (
             all(
                 now - process_info.last_timestamp
@@ -2967,8 +2974,13 @@ class HordeWorkerProcessManager:
                 )
                 for process_info in self._process_map.values()
             )
-            and not self._last_pop_no_jobs_available
-        ):
+            or (
+                now - self._last_job_submitted_time
+                > datetime.timedelta(
+                    seconds=self.bridge_data.process_timeout,
+                )
+            )
+        ) and not self._last_pop_no_jobs_available:
             if self.bridge_data.exit_on_unhandled_faults:
                 logger.error("All processes have been unresponsive for 30 minutes, exiting.")
 

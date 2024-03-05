@@ -151,9 +151,16 @@ disable_disk_cache: false # Currently unused in reGen
 #   "ALL"  - means load all possible models. Expect this to take over 1TB of space!
 #   "TOP n"  - load the top "N" most popular models, use for example, "top 5" or "top 3", etc.
 #   "BOTTOM n"  - load the top "N" most popular models, use for example, "top 5" or "top 3", etc.
+#
+#   "ALL SD15 MODELS" - All Stable Diffusion 1.5 models
+#   "ALL SD21 MODELS" - All Stable Diffusion 2.0/2.1 models
+#   "ALL SDXL MODELS" - All Stable Diffusion XL models
+#   "ALL INPAINTING MODELS"  -  All models marked as being for inpainting
+#
+#   "ALL SFW MODELS"  -  All models marked as being SFW
+#   "ALL NSFW MODELS"  -  All models marked as being NSFW
+#
 #   (not currently supported) "ALL <style> MODELS"  -  For example, "all anime models", styles are: generalist, artistic, realistic, anime, furry, other
-#   (not currently supported) "ALL SFW MODELS"  -  All models marked as being SFW
-#   (not currently supported) "ALL NSFW MODELS"  -  All models marked as being NSFW
 #
 # The official model reference is (in json format) found at https://github.com/Haidra-Org/AI-Horde-image-model-reference/blob/main/stable_diffusion.json.
 # Several front ends also a list of model names.
@@ -163,6 +170,7 @@ models_to_load:
   - "top 2"
   #- "ALL MODELS"
   #- "TOP 3"
+  #- "ALL SFW"
   #- "stable_diffusion_2.1"
   #- "stable_diffusion"
   #- "Anything Diffusion"
@@ -185,6 +193,7 @@ models_to_skip:
   - "pix2pix" # Not currently supported
   - "SDXL_beta::stability.ai#6901" # Do not remove this, as this model would never work
   - A to Zovya RPG # This model is known to cause problems with reGen
+  # - ALL NSFW MODELS
   #- "stable_diffusion_inpainting"  # Inpainting is generally quite heavy along with other models for smaller GPUs.
   #- "stable_diffusion_2.1"  # Stable diffusion 2.1 has bigger memory requirements than 1.5, so if your card cannot lift, it, disable it
   #- "stable_diffusion_2.0"  # Same as Stable diffusion 2.1

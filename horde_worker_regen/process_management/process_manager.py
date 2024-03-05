@@ -3021,6 +3021,8 @@ class HordeWorkerProcessManager:
             if len(self.jobs_being_safety_checked) > 0:
                 logger.error("Jobs are still being safety checked...")
 
+            return True
+
         any_replaced = False
         for process_info in self._process_map.values():
             time_elapsed = now - process_info.last_timestamp

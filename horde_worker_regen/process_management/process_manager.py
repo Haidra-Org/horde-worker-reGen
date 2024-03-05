@@ -2490,7 +2490,7 @@ class HordeWorkerProcessManager:
                         "Your worker is configured to use a model that is not accepted by the API. "
                         "Please check your models_to_load and make sure they are all valid.",
                     )
-                elif "wrong credentials" in job_pop_response.message:
+                elif "Wrong credentials" in job_pop_response.message:
                     logger.warning(f"Failed to pop job (Wrong Credentials): {job_pop_response}")
                     logger.error("Did you forget to set your worker name?")
                 else:

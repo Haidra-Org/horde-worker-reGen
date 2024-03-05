@@ -60,6 +60,8 @@ class reGenBridgeData(CombinedHordeBridgeData):
     capture_kudos_training_data: bool = Field(default=False)
     kudos_training_data_file: str | None = Field(default=None)
 
+    exit_on_unhandled_faults: bool = Field(default=False)
+
     @model_validator(mode="after")
     def validate_performance_modes(self) -> reGenBridgeData:
         if self.max_threads == 2 and self.queue_size > 2:

@@ -2343,6 +2343,9 @@ class HordeWorkerProcessManager:
                 "Please look into what happened and let the devs know. ",
                 "Waiting 180 seconds...",
             )
+            if self.bridge_data.exit_on_unhandled_faults:
+                logger.error("Exiting due to exit_on_unhandled_faults being enabled")
+                sys.exit(1)
             await asyncio.sleep(180)
             self._consecutive_failed_jobs = 0
             logger.info("Resuming job pops")
@@ -2534,7 +2537,9 @@ class HordeWorkerProcessManager:
 
         if job_pop_response.id_ is None:
             logger.info(info_string)
+            self._last_pop_no_jobs_available = True
             return
+
         self.job_faults[job_pop_response.id_] = []
 
         self._last_pop_no_jobs_available = False
@@ -2933,7 +2938,7 @@ class HordeWorkerProcessManager:
 
         def shutdown() -> None:
             # Just in case the process manager gets stuck on shutdown
-            time.sleep((len(self.jobs_pending_safety_check) * 4) + 2)
+            time.sleep((len(self.completed_jobs) * 4) + 2)
 
             for process in self._process_map.values():
                 process.mp_process.kill()
@@ -2941,7 +2946,7 @@ class HordeWorkerProcessManager:
 
                 process.mp_process.join()
 
-            sys.exit(0)
+            sys.exit(1)
 
         threading.Thread(target=shutdown).start()
 
@@ -2951,9 +2956,59 @@ class HordeWorkerProcessManager:
 
         """
         now = datetime.datetime.now()
+
+        # If every process hasn't done anything in 30 minutes and `self._last_pop_no_jobs_available` is false
+        # we're in a black hole and we need to exit because none of the ways to recover worked
+        if (
+            all(
+                now - process_info.last_timestamp
+                > datetime.timedelta(
+                    seconds=self.bridge_data.process_timeout,
+                )
+                for process_info in self._process_map.values()
+            )
+            and not self._last_pop_no_jobs_available
+        ):
+            if self.bridge_data.exit_on_unhandled_faults:
+                logger.error("All processes have been unresponsive for 30 minutes, exiting.")
+
+                self._shutting_down = True
+
+                self.job_deque.clear()
+                self.jobs_pending_safety_check.clear()
+                self.jobs_lookup.clear()
+                self.jobs_in_progress.clear()
+
+                self._start_timed_shutdown()
+
+                for process_info in self._process_map.values():
+                    process_info.mp_process.kill()
+                    process_info.mp_process.kill()
+                    process_info.mp_process.join(1)
+
+                logger.error("Exiting due to exit_on_unhandled_faults being enabled")
+                return True
+
+            logger.error("All processes have been unresponsive for 30 minutes, attempting to recover.")
+            for process_info in self._process_map.values():
+                if process_info.process_type == HordeProcessType.INFERENCE:
+                    self._replace_inference_process(process_info)
+
+            if len(self.job_deque) > 0:
+                logger.error("Jobs are still in the queue, clearing...")
+                self.job_deque.clear()
+
+            if len(self.jobs_pending_safety_check) > 0:
+                logger.error("Jobs are still pending safety check...")
+                self.jobs_pending_safety_check.clear()
+
+            if len(self.jobs_being_safety_checked) > 0:
+                logger.error("Jobs are still being safety checked...")
+
         any_replaced = False
         for process_info in self._process_map.values():
             time_elapsed = now - process_info.last_timestamp
+
             if time_elapsed > datetime.timedelta(
                 seconds=self.bridge_data.process_timeout,
             ) and (

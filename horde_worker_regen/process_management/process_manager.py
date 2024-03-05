@@ -108,6 +108,8 @@ class HordeProcessInfo:
     last_control_flag: HordeControlFlag | None
     """The last control flag sent, to avoid duplication."""
 
+    last_job_referenced: ImageGenerateJobPopResponse | None
+
     ram_usage_bytes: int
     """The amount of RAM used by this process."""
     vram_usage_bytes: int
@@ -287,6 +289,7 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         vram_usage_bytes: int | None = None,
         total_vram_bytes: int | None = None,
         batch_amount: int | None = None,
+        last_job_referenced: ImageGenerateJobPopResponse | None = None,
     ) -> None:
         """Update the entry for the given process ID. If the process does not exist, it will be created.
 
@@ -322,6 +325,9 @@ class ProcessMap(dict[int, HordeProcessInfo]):
 
         if total_vram_bytes is not None:
             self[process_id].total_vram_bytes = total_vram_bytes
+
+        if last_job_referenced is not None:
+            self[process_id].last_job_referenced = last_job_referenced
 
         self[process_id].last_timestamp = datetime.datetime.now()
 
@@ -1077,6 +1083,7 @@ class HordeWorkerProcessManager:
             process_id=process_info.process_id,
             last_process_state=None,
             loaded_horde_model_name=None,
+            last_job_referenced=None,
             batch_amount=1,
         )
         if process_info.loaded_horde_model_name is not None:
@@ -1102,28 +1109,11 @@ class HordeWorkerProcessManager:
         logger.debug(f"Replacing {process_info}")
         self._end_inference_process(process_info)
         # job = next(((job, pid) for job, pid in self.jobs_in_progress if pid == process_info.process_id), None)
-        job = None
+        job_to_remove = None
         for in_process_job, in_progress_process_info in self.jobs_lookup.items():
             if in_process_job in self.jobs_in_progress and in_progress_process_info == process_info:
-                job = in_process_job
+                job_to_remove = in_process_job
                 break
-
-        if job is not None:
-            job_info = self.jobs_lookup.pop(job)
-            self.job_deque.remove(job)
-
-            job_info.state = GENERATION_STATE.faulted
-            job_info.time_to_generate = self.bridge_data.process_timeout
-            job_info.job_image_results = None
-
-            logger.error(f"Job {job.id_} faulted due to process {process_info.process_id} crashing")
-
-            self.completed_jobs.append(job_info)
-
-            if job in self.job_pop_timestamps:
-                del self.job_pop_timestamps[job]
-            else:
-                logger.warning(f"Job {job.id_} not found in job_pop_timestamps")
 
         if process_info.last_process_state == HordeProcessState.INFERENCE_STARTING:
             try:
@@ -1135,6 +1125,33 @@ class HordeWorkerProcessManager:
                 self._aux_model_lock.release()
             except ValueError:
                 logger.debug("Aux model lock already released")
+
+            if process_info.loaded_horde_model_name is not None:
+                self._horde_model_map.expire_entry(process_info.loaded_horde_model_name)
+
+            if process_info.last_job_referenced is not None and process_info.last_job_referenced in self.jobs_lookup:
+                job_info = self.jobs_lookup[process_info.last_job_referenced]
+                logger.warning(
+                    f"Job {job_to_remove} was in aux model preload on process {process_info.process_id} but it failed."
+                    " Removing.",
+                )
+
+        if job_to_remove is not None:
+            job_info = self.jobs_lookup.pop(job_to_remove)
+            self.job_deque.remove(job_to_remove)
+
+            job_info.state = GENERATION_STATE.faulted
+            job_info.time_to_generate = self.bridge_data.process_timeout
+            job_info.job_image_results = None
+
+            logger.error(f"Job {job_to_remove.id_} faulted due to process {process_info.process_id} crashing")
+
+            self.completed_jobs.append(job_info)
+
+            if job_to_remove in self.job_pop_timestamps:
+                del self.job_pop_timestamps[job_to_remove]
+            else:
+                logger.warning(f"Job {job_to_remove.id_} not found in job_pop_timestamps")
 
         self._start_inference_process(process_info.process_id)
 
@@ -1226,6 +1243,10 @@ class HordeWorkerProcessManager:
             if isinstance(message, HordeAuxModelStateChangeMessage):
                 if message.process_state == HordeProcessState.DOWNLOADING_AUX_MODEL:
                     logger.info(f"Process {message.process_id} is downloading extra models (LoRas, etc.)")
+                    self._process_map.update_entry(
+                        process_id=message.process_id,
+                        last_job_referenced=message.sdk_api_job_info,
+                    )
 
                 if message.process_state == HordeProcessState.DOWNLOAD_AUX_COMPLETE:
                     logger.info(
@@ -1507,6 +1528,7 @@ class HordeWorkerProcessManager:
             self._process_map.update_entry(
                 process_id=available_process.process_id,
                 loaded_horde_model_name=job.model,
+                last_job_referenced=job,
             )
 
             return True
@@ -1612,6 +1634,7 @@ class HordeWorkerProcessManager:
                                 horde_model_name=process_info.loaded_horde_model_name,
                             ),
                         )
+                        process_info.last_job_referenced = None
                         process_info.last_control_flag = HordeControlFlag.UNLOAD_MODELS_FROM_VRAM
 
             logger.info(f"Starting inference for job {next_job.id_} on process {process_with_model.process_id}")
@@ -1667,6 +1690,7 @@ class HordeWorkerProcessManager:
                 ),
             )
             process_with_model.last_control_flag = HordeControlFlag.START_INFERENCE
+            process_with_model.last_job_referenced = next_job
 
     def unload_from_ram(self, process_id: int) -> None:
         """Unload models from a process, either from VRAM or both VRAM and system RAM.
@@ -1693,6 +1717,7 @@ class HordeWorkerProcessManager:
                 ),
             )
 
+            process_info.last_job_referenced = None
             process_info.last_control_flag = HordeControlFlag.UNLOAD_MODELS_FROM_RAM
 
             self._horde_model_map.update_entry(
@@ -2985,7 +3010,7 @@ class HordeWorkerProcessManager:
             )
         ) and not self._last_pop_no_jobs_available:
             if self.bridge_data.exit_on_unhandled_faults:
-                logger.error("All processes have been unresponsive for 30 minutes, exiting.")
+                logger.error("All processes have been unresponsive for too long, exiting.")
 
                 self._shutting_down = True
 
@@ -3005,7 +3030,7 @@ class HordeWorkerProcessManager:
                 logger.error("Exiting due to exit_on_unhandled_faults being enabled")
                 return True
 
-            logger.error("All processes have been unresponsive for 30 minutes, attempting to recover.")
+            logger.error("All processes have been unresponsive for too long, attempting to recover.")
             for process_info in self._process_map.values():
                 if process_info.process_type == HordeProcessType.INFERENCE:
                     self._replace_inference_process(process_info)

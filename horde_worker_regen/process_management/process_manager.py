@@ -1116,6 +1116,8 @@ class HordeWorkerProcessManager:
             job_info.time_to_generate = self.bridge_data.process_timeout
             job_info.job_image_results = None
 
+            logger.error(f"Job {job.id_} faulted due to process {process_info.process_id} crashing")
+
             self.completed_jobs.append(job_info)
 
             if job in self.job_pop_timestamps:
@@ -1993,6 +1995,7 @@ class HordeWorkerProcessManager:
         new_submit.succeed(new_submit.kudos_reward, new_submit.kudos_per_second)
         return new_submit
 
+    @logger.catch(reraise=True)
     async def api_submit_job(self) -> None:
         """Submit a job result to the API, if any are completed (safety checked too) and ready to be submitted."""
         if len(self.completed_jobs) == 0:

@@ -258,14 +258,9 @@ class HordeInferenceProcess(HordeProcess):
             if lora_manager is None:
                 raise RuntimeError("Failed to load LORA model manager")
 
-            ti_manager = self._shared_model_manager.manager.ti
-            if ti_manager is None:
-                raise RuntimeError("Failed to load TI model manager")
-
             performed_a_download = False
 
             loras = job_info.payload.loras
-            tis = job_info.payload.tis
 
             try:
                 lora_manager.load_model_database()
@@ -284,13 +279,7 @@ class HordeInferenceProcess(HordeProcess):
                         )
                         performed_a_download = True
                     lora_manager.fetch_adhoc_lora(lora_entry.name, timeout=45, is_version=lora_entry.is_version)
-                    lora_manager.wait_for_downloads(45)
-
-            for ti_entry in tis:
-                if not ti_manager.is_model_available(ti_entry.name):
-                    performed_a_download = True
-                    ti_manager.fetch_adhoc_ti(ti_entry.name, timeout=45)
-                    ti_manager.wait_for_downloads(45)
+                lora_manager.wait_for_downloads(45)
 
             time_elapsed = round(time.time() - time_start, 2)
 

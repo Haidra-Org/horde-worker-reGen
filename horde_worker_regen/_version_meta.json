@@ -1,13 +1,16 @@
 {
     "recommended_version": "4.2.4",
-    "required_min_version": "4.2.3",
-    "required_min_version_update_date": "2024-03-09",
+    "required_min_version": "4.2.4",
+    "required_min_version_update_date": "2024-03-05",
     "required_min_version_info": {
         "4.1.9": {
             "reason_for_update": "Model reference handling is changing. Older workers will not be able to handle the new model reference format."
         },
         "4.2.3": {
             "reason_for_update": "Model reference handling is changing. Older workers will not be able to handle the new model reference format."
+        },
+        "4.2.4": {
+            "reason_for_update": "Fixes a bug that causes indefinite worker hangups."
         }
     },
     "beta_version_info": {

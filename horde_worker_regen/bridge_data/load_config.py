@@ -130,6 +130,14 @@ class BridgeDataLoader:
                 AIHordeAPIManualClient(),
             )
 
+        if bridge_data.meta_skip_instructions is not None:
+            skip_models: set[str] = load_resolver.resolve_meta_instructions(
+                list(bridge_data.meta_skip_instructions),
+                AIHordeAPIManualClient(),
+            )
+            existing_skip_models = set(bridge_data.image_models_to_skip)
+            bridge_data.image_models_to_skip = list(existing_skip_models.union(skip_models))
+
         if resolved_models is not None:
             bridge_data.image_models_to_load = list(set(bridge_data.image_models_to_load + list(resolved_models)))
 

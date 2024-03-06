@@ -2993,7 +2993,7 @@ class HordeWorkerProcessManager:
                 process.mp_process.kill()
                 process.mp_process.kill()
 
-                process.mp_process.join()
+                process.mp_process.join(1)
 
             sys.exit(1)
 
@@ -3030,6 +3030,7 @@ class HordeWorkerProcessManager:
                 self._shutting_down = True
 
                 self.job_deque.clear()
+                self.jobs_being_safety_checked.clear()
                 self.jobs_pending_safety_check.clear()
                 self.jobs_lookup.clear()
                 self.jobs_in_progress.clear()
@@ -3043,6 +3044,7 @@ class HordeWorkerProcessManager:
                     process_info.mp_process.join(1)
 
                 logger.error("Exiting due to exit_on_unhandled_faults being enabled")
+                self._process_map.clear()
                 return True
 
             logger.error("All processes have been unresponsive for too long, attempting to recover.")

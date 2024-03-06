@@ -1129,28 +1129,32 @@ class HordeWorkerProcessManager:
                 self._horde_model_map.expire_entry(process_info.loaded_horde_model_name)
 
             if process_info.last_job_referenced is not None and process_info.last_job_referenced in self.jobs_lookup:
-                job_info = self.jobs_lookup[process_info.last_job_referenced]
-                logger.warning(
-                    f"Job {job_to_remove} was in aux model preload on process {process_info.process_id} but it failed."
-                    " Removing.",
+                job_to_remove = process_info.last_job_referenced
+                logger.error(
+                    f"Job {job_to_remove.id_ or job_to_remove.ids} was in aux model preload on process "
+                    f"{process_info.process_id} but it failed. Removing.",
                 )
 
         if job_to_remove is not None:
-            job_info = self.jobs_lookup.pop(job_to_remove)
-            self.job_deque.remove(job_to_remove)
+            job_info = self.jobs_lookup.get(job_to_remove)
 
-            job_info.state = GENERATION_STATE.faulted
-            job_info.time_to_generate = self.bridge_data.process_timeout
-            job_info.job_image_results = None
-
-            logger.error(f"Job {job_to_remove.id_} faulted due to process {process_info.process_id} crashing")
-
-            self.completed_jobs.append(job_info)
-
-            if job_to_remove in self.job_pop_timestamps:
-                del self.job_pop_timestamps[job_to_remove]
+            if job_info is None:
+                logger.error(f"Job {job_to_remove.id_} not found in jobs_lookup")
             else:
-                logger.warning(f"Job {job_to_remove.id_} not found in job_pop_timestamps")
+                self.job_deque.remove(job_to_remove)
+
+                job_info.state = GENERATION_STATE.faulted
+                job_info.time_to_generate = self.bridge_data.process_timeout
+                job_info.job_image_results = None
+
+                logger.error(f"Job {job_to_remove.id_} faulted due to process {process_info.process_id} crashing")
+
+                self.completed_jobs.append(job_info)
+
+                if job_to_remove in self.job_pop_timestamps:
+                    del self.job_pop_timestamps[job_to_remove]
+                else:
+                    logger.warning(f"Job {job_to_remove.id_} not found in job_pop_timestamps")
 
         self._end_inference_process(process_info)
         self._start_inference_process(process_info.process_id)
@@ -3060,12 +3064,11 @@ class HordeWorkerProcessManager:
                 logger.error(f"{process_info} has exceeded its timeout and will be replaced")
                 self._replace_inference_process(process_info)
                 any_replaced = True
-            if (
-                time_elapsed
-                > datetime.timedelta(
-                    seconds=self.bridge_data.preload_timeout,
-                )
-                and process_info.last_process_state == HordeProcessState.PRELOADING_MODEL
+            if time_elapsed > datetime.timedelta(
+                seconds=self.bridge_data.preload_timeout,
+            ) and (
+                process_info.last_process_state == HordeProcessState.PRELOADING_MODEL
+                or process_info.last_process_state == HordeProcessState.DOWNLOADING_AUX_MODEL
             ):
                 logger.error(f"{process_info} seems to be stuck preloading a model, replacing it")
                 logger.error(

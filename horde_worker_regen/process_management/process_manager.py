@@ -2999,6 +2999,8 @@ class HordeWorkerProcessManager:
 
         threading.Thread(target=shutdown).start()
 
+    _recently_recovered = False
+
     def replace_hung_processes(self) -> bool:
         """
         Replaces processes that haven't checked in since `process_timeout` seconds in bridgeData
@@ -3023,7 +3025,7 @@ class HordeWorkerProcessManager:
                     seconds=self.bridge_data.process_timeout,
                 )
             )
-        ) and not self._last_pop_no_jobs_available:
+        ) and not (self._last_pop_no_jobs_available or self._recently_recovered):
             if self.bridge_data.exit_on_unhandled_faults:
                 logger.error("All processes have been unresponsive for too long, exiting.")
 
@@ -3062,6 +3064,16 @@ class HordeWorkerProcessManager:
 
             if len(self.jobs_being_safety_checked) > 0:
                 logger.error("Jobs are still being safety checked...")
+
+            self._recently_recovered = True
+
+            def timed_unset_recently_recovered() -> None:
+                time.sleep(60)
+                self._recently_recovered = False
+
+            import threading
+
+            threading.Thread(target=timed_unset_recently_recovered).start()
 
             return True
 

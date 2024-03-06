@@ -157,6 +157,7 @@ class HordeInferenceProcess(HordeProcess):
         # TODO
         self.send_heartbeat_message()
 
+    @logger.catch(reraise=True)
     def on_horde_model_state_change(
         self,
         horde_model_name: str,
@@ -241,6 +242,7 @@ class HordeInferenceProcess(HordeProcess):
             horde_model_state=ModelLoadState.ON_DISK,
         )
 
+    @logger.catch(reraise=True)
     def download_aux_models(self, job_info: ImageGenerateJobPopResponse) -> float | None:
         """Download auxiliary models required for the job.
 
@@ -279,7 +281,10 @@ class HordeInferenceProcess(HordeProcess):
                         )
                         performed_a_download = True
                     lora_manager.fetch_adhoc_lora(lora_entry.name, timeout=45, is_version=lora_entry.is_version)
-                lora_manager.wait_for_downloads(45)
+                try:
+                    lora_manager.wait_for_downloads(45)
+                except Exception as e:
+                    logger.error(f"Failed to wait for downloads: {type(e).__name__} {e}")
 
             time_elapsed = round(time.time() - time_start, 2)
 
@@ -291,6 +296,7 @@ class HordeInferenceProcess(HordeProcess):
 
             return None
 
+    @logger.catch(reraise=True)
     def preload_model(
         self,
         horde_model_name: str,
@@ -391,6 +397,7 @@ class HordeInferenceProcess(HordeProcess):
                 self._is_busy = False
             return results
 
+    @logger.catch(reraise=True)
     def unload_models_from_vram(self) -> None:
         """Unload all models from VRAM."""
         from hordelib.comfy_horde import unload_all_models_vram
@@ -413,6 +420,7 @@ class HordeInferenceProcess(HordeProcess):
                 info="No models to unload from VRAM",
             )
 
+    @logger.catch(reraise=True)
     def unload_models_from_ram(self) -> None:
         """Unload all models from RAM."""
         from hordelib.comfy_horde import unload_all_models_ram
@@ -438,6 +446,7 @@ class HordeInferenceProcess(HordeProcess):
         logger.info("Unloaded all models from RAM")
         self._active_model_name = None
 
+    @logger.catch(reraise=True)
     def cleanup_for_exit(self) -> None:
         """Cleanup the process pending a shutdown."""
         self.unload_models_from_ram()
@@ -522,6 +531,7 @@ class HordeInferenceProcess(HordeProcess):
         )
 
     @override
+    @logger.catch(reraise=True)
     def _receive_and_handle_control_message(self, message: HordeControlMessage) -> None:
         """Receive and handle a control message from the main process.
 

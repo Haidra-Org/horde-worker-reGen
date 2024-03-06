@@ -1107,7 +1107,6 @@ class HordeWorkerProcessManager:
         :return: None
         """
         logger.debug(f"Replacing {process_info}")
-        self._end_inference_process(process_info)
         # job = next(((job, pid) for job, pid in self.jobs_in_progress if pid == process_info.process_id), None)
         job_to_remove = None
         for in_process_job, in_progress_process_info in self.jobs_lookup.items():
@@ -1153,6 +1152,7 @@ class HordeWorkerProcessManager:
             else:
                 logger.warning(f"Job {job_to_remove.id_} not found in job_pop_timestamps")
 
+        self._end_inference_process(process_info)
         self._start_inference_process(process_info.process_id)
 
     total_num_completed_jobs: int = 0

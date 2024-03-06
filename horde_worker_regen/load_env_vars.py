@@ -90,6 +90,8 @@ def load_env_vars() -> None:  # FIXME: there is a dynamic way to do this
             )
             logger.warning(reason_for_update_str)
 
+            os.environ["AIWORKER_NOT_REQUIRED_VERSION"] = "1"
+
         else:
             logger.error(
                 f"Current worker version {horde_worker_regen.__version__} has a required update to "
@@ -102,6 +104,13 @@ def load_env_vars() -> None:  # FIXME: there is a dynamic way to do this
 
             input("Press Enter to continue...")
             exit(1)
+
+    if not semver.compare(horde_worker_regen.__version__, version_meta.recommended_version) >= 0:
+        logger.warning(
+            f"Current worker version {horde_worker_regen.__version__} is not the recommended version. "
+            f"Please consider updating to {version_meta.recommended_version}.",
+        )
+        os.environ["AIWORKER_NOT_RECOMMENDED_VERSION"] = "1"
 
     if version_meta.beta_version_info:
         current_version_semver = semver.VersionInfo.parse(horde_worker_regen.__version__)

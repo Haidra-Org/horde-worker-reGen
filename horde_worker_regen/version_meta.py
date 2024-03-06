@@ -15,6 +15,7 @@ class BetaVersionInfo(BaseModel):
 
 
 class VersionMeta(BaseModel):
+    recommended_version: str
     required_min_version: str
     required_min_version_update_date: str
     beta_version_info: dict[str, BetaVersionInfo]

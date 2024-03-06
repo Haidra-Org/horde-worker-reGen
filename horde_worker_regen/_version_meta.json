@@ -1,5 +1,5 @@
 {
-    "recommended_version": "4.2.4",
+    "recommended_version": "4.2.6",
     "required_min_version": "4.2.4",
     "required_min_version_update_date": "2024-03-05",
     "required_min_version_info": {
@@ -11,6 +11,9 @@
         },
         "4.2.4": {
             "reason_for_update": "Fixes a bug that causes indefinite worker hangups."
+        },
+        "4.2.6": {
+            "reason_for_update": "Fixes LoRa downloads causing worker instability."
         }
     },
     "beta_version_info": {

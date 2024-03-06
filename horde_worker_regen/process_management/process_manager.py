@@ -2870,6 +2870,17 @@ class HordeWorkerProcessManager:
 
             logger.success(job_info_message)
 
+            if os.getenv("AIWORKER_NOT_REQUIRED_VERSION"):
+                logger.warning(
+                    "There is a required update available for the AI Worker. "
+                    "`git pull` and `update-runtime` to update.",
+                )
+            elif os.getenv("AIWORKER_NOT_RECOMMENDED_VERSION"):
+                logger.warning(
+                    "There is a recommended update available for the AI Worker. "
+                    "`git pull` and `update-runtime` to update.",
+                )
+
             self._last_status_message_time = time.time()
 
     _bridge_data_loop_interval = 1.0

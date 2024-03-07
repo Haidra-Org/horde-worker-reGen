@@ -51,6 +51,8 @@ class reGenBridgeData(CombinedHordeBridgeData):
 
     high_memory_mode: bool = Field(default=False)
 
+    very_high_memory_mode: bool = Field(default=False)
+
     high_performance_mode: bool = Field(default=False)
     """If you have a 4090 or better, set this to true to enable high performance mode."""
 
@@ -76,7 +78,13 @@ class reGenBridgeData(CombinedHordeBridgeData):
                 "The queue_size value has been set to 1 because the max_threads value is greater than 2.",
             )
 
-        if self.high_memory_mode:
+        if self.very_high_memory_mode and not self.high_memory_mode:
+            self.high_memory_mode = True
+            logger.warning(
+                "Very high memory mode is enabled, so the high_memory_mode value has been set to True.",
+            )
+
+        if self.high_memory_mode and not self.very_high_memory_mode:
             if self.max_threads != 1:
                 self.max_threads = 1
                 logger.warning(

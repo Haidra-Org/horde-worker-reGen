@@ -442,6 +442,14 @@ class ProcessMap(dict[int, HordeProcessInfo]):
                 count += 1
         return count
 
+    def num_busy_with_inference(self) -> int:
+        """Return the number of processes that are actively engaged in an inference task."""
+        count = 0
+        for p in self.values():
+            if p.last_process_state == HordeProcessState.INFERENCE_STARTING:
+                count += 1
+        return count
+
     def __repr__(self) -> str:
         base_string = "Processes: "
         for string in self.get_process_info_strings():
@@ -1539,11 +1547,7 @@ class HordeWorkerProcessManager:
 
         return False
 
-    def start_inference(self) -> None:
-        """Start inference for the next job in the deque, if possible."""
-        if len(self.jobs_in_progress) >= self.max_concurrent_inference_processes:
-            return
-
+    def get_next_job_and_process(self) -> tuple[ImageGenerateJobPopResponse | None, HordeProcessInfo | None]:
         # Get the first job in the deque that is not already in progress
         next_job: ImageGenerateJobPopResponse | None = None
         next_n_jobs: list[ImageGenerateJobPopResponse] = []
@@ -1557,7 +1561,7 @@ class HordeWorkerProcessManager:
             next_n_jobs.append(candidate_small_job)
 
         if next_job is None:
-            return
+            return None, None
 
         if next_job.model is None:
             raise ValueError(f"next_job.model is None ({next_job})")
@@ -1568,7 +1572,7 @@ class HordeWorkerProcessManager:
                 f"Waiting for {len(self.jobs_in_progress)} jobs to finish before starting inference for job "
                 f"{next_job.id_}",
             )
-            return
+            return None, None
 
         process_with_model = self._process_map.get_process_by_horde_model_name(next_job.model)
         if self._horde_model_map.is_model_loaded(next_job.model):
@@ -1582,7 +1586,7 @@ class HordeWorkerProcessManager:
                 logger.debug(f"Process map: {self._process_map}")
                 # We'll just patch over this goof for now.
                 self._horde_model_map.expire_entry(next_job.model)
-                return
+                return None, None
 
             if not process_with_model.can_accept_job():
                 if process_with_model.last_process_state == HordeProcessState.DOWNLOADING_AUX_MODEL:
@@ -1606,95 +1610,107 @@ class HordeWorkerProcessManager:
                                 next_job = candidate_small_job
                                 break
                     else:
-                        return
+                        return None, None
                 else:
-                    return
+                    return None, None
 
-            # Unload all models from vram from any other process that isn't running a job if configured to do so
-            if self.bridge_data.unload_models_from_vram:
-                next_n_models = list(self.get_next_n_models(self.max_inference_processes))
-                for process_info in self._process_map.values():
-                    if process_info.process_id == process_with_model.process_id:
-                        continue
+        return next_job, process_with_model
 
-                    if process_info.is_process_busy():
-                        continue
+    def start_inference(self) -> None:
+        """Start inference for the next job in the deque, if possible."""
+        if len(self.jobs_in_progress) >= self.max_concurrent_inference_processes:
+            return
 
-                    if process_info.loaded_horde_model_name is None:
-                        continue
+        next_job, process_with_model = self.get_next_job_and_process()
 
-                    if len(self.job_deque) == len(self.jobs_in_progress) + len(self.jobs_pending_safety_check):
-                        logger.debug("Not unloading models from VRAM because there are no jobs to make room for.")
-                        continue
+        if next_job is None or process_with_model is None:
+            return
 
-                    # If the model would be used by another process soon, don't unload it
-                    if process_info.loaded_horde_model_name in next_n_models:
-                        continue
+        # Unload all models from vram from any other process that isn't running a job if configured to do so
+        if self.bridge_data.unload_models_from_vram:
+            next_n_models = list(self.get_next_n_models(self.max_inference_processes))
+            for process_info in self._process_map.values():
+                if process_info.process_id == process_with_model.process_id:
+                    continue
 
-                    if process_info.last_control_flag != HordeControlFlag.UNLOAD_MODELS_FROM_VRAM:
-                        process_info.safe_send_message(
-                            HordeControlModelMessage(
-                                control_flag=HordeControlFlag.UNLOAD_MODELS_FROM_VRAM,
-                                horde_model_name=process_info.loaded_horde_model_name,
-                            ),
-                        )
-                        process_info.last_job_referenced = None
-                        process_info.last_control_flag = HordeControlFlag.UNLOAD_MODELS_FROM_VRAM
+                if process_info.is_process_busy():
+                    continue
 
-            logger.info(f"Starting inference for job {next_job.id_} on process {process_with_model.process_id}")
-            # region Log job info
-            if next_job.model is None:
-                raise ValueError(f"next_job.model is None ({next_job})")
+                if process_info.loaded_horde_model_name is None:
+                    continue
 
-            logger.info(f"Model: {next_job.model}")
-            if next_job.source_image is not None:
-                logger.info(f"Using {next_job.source_processing}")
+                if len(self.job_deque) == len(self.jobs_in_progress) + len(self.jobs_pending_safety_check):
+                    logger.debug("Not unloading models from VRAM because there are no jobs to make room for.")
+                    continue
 
-            extra_info = ""
-            if next_job.payload.control_type is not None:
-                extra_info += f"Control type: {next_job.payload.control_type}"
-            if next_job.payload.loras:
-                if extra_info:
-                    extra_info += ", "
-                extra_info += f"{len(next_job.payload.loras)} LoRAs"
-            if next_job.payload.tis:
-                if extra_info:
-                    extra_info += ", "
-                extra_info += f"{len(next_job.payload.tis)} TIs"
-            if next_job.payload.post_processing is not None and len(next_job.payload.post_processing) > 0:
-                if extra_info:
-                    extra_info += ", "
-                extra_info += f"Post processing: {next_job.payload.post_processing}"
-            if next_job.payload.hires_fix:
-                if extra_info:
-                    extra_info += ", "
-                extra_info += "HiRes fix"
+                # If the model would be used by another process soon, don't unload it
+                if process_info.loaded_horde_model_name in next_n_models:
+                    continue
 
+                if process_info.last_control_flag != HordeControlFlag.UNLOAD_MODELS_FROM_VRAM:
+                    process_info.safe_send_message(
+                        HordeControlModelMessage(
+                            control_flag=HordeControlFlag.UNLOAD_MODELS_FROM_VRAM,
+                            horde_model_name=process_info.loaded_horde_model_name,
+                        ),
+                    )
+                    process_info.last_job_referenced = None
+                    process_info.last_control_flag = HordeControlFlag.UNLOAD_MODELS_FROM_VRAM
+
+        logger.info(f"Starting inference for job {next_job.id_} on process {process_with_model.process_id}")
+        # region Log job info
+        if next_job.model is None:
+            raise ValueError(f"next_job.model is None ({next_job})")
+
+        logger.info(f"Model: {next_job.model}")
+        if next_job.source_image is not None:
+            logger.info(f"Using {next_job.source_processing}")
+
+        extra_info = ""
+        if next_job.payload.control_type is not None:
+            extra_info += f"Control type: {next_job.payload.control_type}"
+        if next_job.payload.loras:
             if extra_info:
-                logger.info(extra_info)
+                extra_info += ", "
+            extra_info += f"{len(next_job.payload.loras)} LoRAs"
+        if next_job.payload.tis:
+            if extra_info:
+                extra_info += ", "
+            extra_info += f"{len(next_job.payload.tis)} TIs"
+        if next_job.payload.post_processing is not None and len(next_job.payload.post_processing) > 0:
+            if extra_info:
+                extra_info += ", "
+            extra_info += f"Post processing: {next_job.payload.post_processing}"
+        if next_job.payload.hires_fix:
+            if extra_info:
+                extra_info += ", "
+            extra_info += "HiRes fix"
 
-            logger.info(
-                f"{next_job.payload.width}x{next_job.payload.height} for {next_job.payload.ddim_steps} steps "
-                f"with sampler {next_job.payload.sampler_name} "
-                f"for a batch of {next_job.payload.n_iter}",
-            )
-            logger.debug(f"All Batch IDs: {next_job.ids}")
-            # endregion
+        if extra_info:
+            logger.info(extra_info)
 
-            self.jobs_in_progress.append(next_job)
+        logger.info(
+            f"{next_job.payload.width}x{next_job.payload.height} for {next_job.payload.ddim_steps} steps "
+            f"with sampler {next_job.payload.sampler_name} "
+            f"for a batch of {next_job.payload.n_iter}",
+        )
+        logger.debug(f"All Batch IDs: {next_job.ids}")
+        # endregion
 
-            # We store the amount of batches this job will do,
-            # as we use that later to check if we should start inference in parallel
-            process_with_model.batch_amount = next_job.payload.n_iter
-            process_with_model.safe_send_message(
-                HordeInferenceControlMessage(
-                    control_flag=HordeControlFlag.START_INFERENCE,
-                    horde_model_name=next_job.model,
-                    sdk_api_job_info=next_job,
-                ),
-            )
-            process_with_model.last_control_flag = HordeControlFlag.START_INFERENCE
-            process_with_model.last_job_referenced = next_job
+        self.jobs_in_progress.append(next_job)
+
+        # We store the amount of batches this job will do,
+        # as we use that later to check if we should start inference in parallel
+        process_with_model.batch_amount = next_job.payload.n_iter
+        process_with_model.safe_send_message(
+            HordeInferenceControlMessage(
+                control_flag=HordeControlFlag.START_INFERENCE,
+                horde_model_name=next_job.model,
+                sdk_api_job_info=next_job,
+            ),
+        )
+        process_with_model.last_control_flag = HordeControlFlag.START_INFERENCE
+        process_with_model.last_job_referenced = next_job
 
     def unload_from_ram(self, process_id: int) -> None:
         """Unload models from a process, either from VRAM or both VRAM and system RAM.
@@ -2793,10 +2809,20 @@ class HordeWorkerProcessManager:
                             # the state of everything is up to date
 
                             if not self.preload_models():
+                                next_job, _ = self.get_next_job_and_process()
                                 if self._process_map.keep_single_inference():
                                     if self.has_queued_jobs() and time.time() - self._batch_wait_log_time > 10:
                                         logger.info("Blocking further inference because batch inference in process.")
                                         self._batch_wait_log_time = time.time()
+
+                                elif (
+                                    next_job is not None
+                                    and next_job.payload.n_iter > 1
+                                    and self._process_map.num_busy_with_inference() > 0
+                                    and (time.time() - self._batch_wait_log_time > 10)
+                                ):
+                                    logger.info("Blocking further inference because batch inference in process.")
+                                    self._batch_wait_log_time = time.time()
                                 else:
                                     self.start_inference()
 

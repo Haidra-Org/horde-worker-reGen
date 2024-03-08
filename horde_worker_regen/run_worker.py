@@ -1,5 +1,7 @@
 """The main entry point for the reGen worker."""
+import contextlib
 import io
+import multiprocessing
 import os
 import sys
 
@@ -7,10 +9,15 @@ os.environ["HORDE_SDK_DISABLE_CUSTOM_SINKS"] = "1"
 
 from horde_worker_regen.load_env_vars import load_env_vars
 
-load_env_vars()
+import_context: contextlib.AbstractContextManager = contextlib.nullcontext()
+
+if multiprocessing.current_process().name != "MainProcess":
+    import_context = contextlib.redirect_stdout(None)
+
+with import_context:
+    load_env_vars()
+
 import argparse
-import contextlib
-import multiprocessing
 import time
 from multiprocessing.context import BaseContext
 

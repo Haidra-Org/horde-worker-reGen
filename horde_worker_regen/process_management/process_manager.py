@@ -2180,9 +2180,9 @@ class HordeWorkerProcessManager:
                                 exclude=excludes,
                             )
                             if self.stable_diffusion_reference is not None and hji.sdk_api_job_info.model is not None:
-                                model_dump["sdk_api_job_info"][
-                                    "model_baseline"
-                                ] = self.stable_diffusion_reference.root[hji.sdk_api_job_info.model].baseline
+                                model_dump["sdk_api_job_info"]["model_baseline"] = (
+                                    self.stable_diffusion_reference.root[hji.sdk_api_job_info.model].baseline
+                                )
                             # Preparation for multiple schedulers
                             if hji.sdk_api_job_info.payload.karras:
                                 model_dump["sdk_api_job_info"]["payload"]["scheduler"] = "karras"

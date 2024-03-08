@@ -1,4 +1,5 @@
 """Contains the classes to form a safety process, which is responsible for evaluating the safety of images."""
+
 import base64
 import enum
 import time

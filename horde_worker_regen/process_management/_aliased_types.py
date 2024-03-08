@@ -1,4 +1,5 @@
 """Contains some work arounds for typing failing at runtime."""
+
 import multiprocessing.queues
 from typing import TYPE_CHECKING
 

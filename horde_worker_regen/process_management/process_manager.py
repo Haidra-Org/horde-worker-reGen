@@ -2408,7 +2408,12 @@ class HordeWorkerProcessManager:
             logger.info("Resuming job pops")
             return
 
-        if len(self.job_deque) >= self.bridge_data.queue_size + 1:  # FIXME?
+        max_jobs_in_queue = self.bridge_data.queue_size + 1
+
+        if self.bridge_data.max_threads > 1:
+            max_jobs_in_queue += self.bridge_data.max_threads - 1
+
+        if len(self.job_deque) >= max_jobs_in_queue:
             return
 
         # We let the first job run through to make sure things are working

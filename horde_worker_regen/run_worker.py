@@ -1,4 +1,5 @@
 """The main entry point for the reGen worker."""
+
 import contextlib
 import io
 import multiprocessing

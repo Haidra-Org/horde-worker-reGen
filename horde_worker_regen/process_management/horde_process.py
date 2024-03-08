@@ -1,4 +1,5 @@
 """Contains the base class for all processes, and additional helper types used by processes."""
+
 from __future__ import annotations
 
 import abc

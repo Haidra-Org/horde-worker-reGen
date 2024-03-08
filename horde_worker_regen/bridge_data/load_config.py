@@ -1,4 +1,5 @@
 """Contains methods for loading the config file."""
+
 import json
 from enum import auto
 from pathlib import Path

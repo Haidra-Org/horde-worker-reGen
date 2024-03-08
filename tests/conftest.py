@@ -1,4 +1,5 @@
 """Configures pytest and creates fixtures."""
+
 # import hordelib
 from pathlib import Path
 

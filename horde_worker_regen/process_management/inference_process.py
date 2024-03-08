@@ -1,4 +1,5 @@
 """Contains the classes to form an inference process, which generate images."""
+
 from __future__ import annotations
 
 import base64

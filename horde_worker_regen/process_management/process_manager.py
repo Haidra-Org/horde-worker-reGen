@@ -2272,11 +2272,15 @@ class HordeWorkerProcessManager:
         # Each extra batched image increases our difficulty by 20%
         batching_multiplier = 1 + ((job.payload.n_iter - 1) * 0.2)
 
+        lora_adjustment = 4 * 1_000_000 if len(job.payload.loras) > 0 else 0
+
         # If upscaling was requested, due to it being serial, each extra image in the batch
         # Further increases our difficulty.
         # In this calculation we treat each upscaler as adding 20 steps per image
-        upscaling_mp = job_megapixels * 20 * upscaler_multiplier * job.payload.n_iter
-        job_megapixelsteps = job_megapixels * batching_multiplier * job.payload.ddim_steps + upscaling_mp
+        upscaling_adjustment = job_megapixels * 20 * upscaler_multiplier * job.payload.n_iter
+        job_megapixelsteps = (
+            (job_megapixels * batching_multiplier * job.payload.ddim_steps) + upscaling_adjustment + lora_adjustment
+        )
 
         # Hard model difficulty is increased due to variations in the performance
         # of different architectures. This look up is a rough estimate based on a median case
@@ -2415,9 +2419,10 @@ class HordeWorkerProcessManager:
 
         # If there are long running jobs, don't start any more even if there is space in the deque
         if self.should_wait_for_pending_megapixelsteps():
-            # Assuming a megapixelstep takes 0.75 seconds, if 2/3 of the time has passed since the limit was triggered,
-            # we can assume that the pending megapixelsteps will be below the limit soon. Otherwise we continue to wait
-            seconds_to_wait = (self.get_pending_megapixelsteps() * 0.75) * (2 / 3)
+            if self.get_pending_megapixelsteps() < 100:
+                seconds_to_wait = self.get_pending_megapixelsteps() * 0.8
+            else:
+                seconds_to_wait = self.get_pending_megapixelsteps() * 0.9
 
             if self.bridge_data.high_performance_mode:
                 seconds_to_wait *= 0.35
@@ -2425,9 +2430,6 @@ class HordeWorkerProcessManager:
             elif self.bridge_data.moderate_performance_mode:
                 seconds_to_wait *= 0.5
                 # logger.debug("Moderate performance mode is enabled, reducing the wait time by 50%")
-
-            # if self.get_pending_megapixelsteps() > 200:
-            # seconds_to_wait = self._max_pending_megapixelsteps * 0.75
 
             if self._triggered_max_pending_megapixelsteps is False:
                 self._triggered_max_pending_megapixelsteps = True

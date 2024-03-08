@@ -1596,7 +1596,7 @@ class HordeWorkerProcessManager:
                             )
                             if (
                                 process_with_model is not None
-                                and self.get_single_job_megapixelsteps(candidate_small_job) <= 25
+                                and self.get_single_job_effective_megapixelsteps(candidate_small_job) <= 25
                             ):
                                 logger.info(
                                     f"Job {candidate_small_job.id_} skipped the line and will be run on process "
@@ -2263,37 +2263,52 @@ class HordeWorkerProcessManager:
 
     _consecutive_failed_jobs = 0
 
-    def get_single_job_megapixelsteps(self, job: ImageGenerateJobPopResponse) -> int:
-        """Return the number of megapixelsteps for a single job."""
+    def get_single_job_effective_megapixelsteps(self, job: ImageGenerateJobPopResponse) -> int:
+        """Return the number of megapixelsteps for a single job.
+
+        Args:
+            job (ImageGenerateJobPopResponse): The job to get the number of megapixelsteps for.
+
+        Returns:
+            int: The number of effective megapixelsteps for the job.
+        """
         has_upscaler = any(pp in [u.value for u in KNOWN_UPSCALERS] for pp in job.payload.post_processing)
         upscaler_multiplier = 1 if has_upscaler else 0
-        job_megapixels = job.payload.width * job.payload.height
+        job_pixels = job.payload.width * job.payload.height
 
         # Each extra batched image increases our difficulty by 20%
         batching_multiplier = 1 + ((job.payload.n_iter - 1) * 0.2)
 
         lora_adjustment = 4 * 1_000_000 if len(job.payload.loras) > 0 else 0
 
+        hires_fix_adjustment = 0
+
+        if job.payload.hires_fix:
+            hires_fix_adjustment = 512 * 512 * job.payload.ddim_steps
+
         # If upscaling was requested, due to it being serial, each extra image in the batch
         # Further increases our difficulty.
         # In this calculation we treat each upscaler as adding 20 steps per image
-        upscaling_adjustment = job_megapixels * 20 * upscaler_multiplier * job.payload.n_iter
-        job_megapixelsteps = (
-            (job_megapixels * batching_multiplier * job.payload.ddim_steps) + upscaling_adjustment + lora_adjustment
+        upscaling_adjustment = job_pixels * 20 * upscaler_multiplier * job.payload.n_iter
+        job_effective_pixel_steps = (
+            (job_pixels * batching_multiplier * job.payload.ddim_steps)
+            + upscaling_adjustment
+            + lora_adjustment
+            + hires_fix_adjustment
         )
 
         # Hard model difficulty is increased due to variations in the performance
         # of different architectures. This look up is a rough estimate based on a median case
         if job.model in KNOWN_SLOW_MODELS_DIFFICULTIES:
-            job_megapixelsteps *= KNOWN_SLOW_MODELS_DIFFICULTIES[job.model]
+            job_effective_pixel_steps *= KNOWN_SLOW_MODELS_DIFFICULTIES[job.model]
 
-        return int(job_megapixelsteps / 1_000_000)
+        return int(job_effective_pixel_steps / 1_000_000)
 
     def get_pending_megapixelsteps(self) -> int:
         """Return the number of megapixelsteps that are pending in the job deque."""
         job_deque_megapixelsteps = 0
         for job in self.job_deque:
-            job_megapixelsteps = self.get_single_job_megapixelsteps(job)
+            job_megapixelsteps = self.get_single_job_effective_megapixelsteps(job)
             job_deque_megapixelsteps += job_megapixelsteps
 
         for _ in self.completed_jobs:
@@ -2587,7 +2602,8 @@ class HordeWorkerProcessManager:
         self._last_pop_no_jobs_available = False
 
         logger.info(
-            f"Popped job {job_pop_response.id_} ({self.get_single_job_megapixelsteps(job_pop_response)} eMPS) "
+            f"Popped job {job_pop_response.id_} "
+            f"({self.get_single_job_effective_megapixelsteps(job_pop_response)} eMPS) "
             f"(model: {job_pop_response.model})",
         )
 

@@ -2559,15 +2559,15 @@ class HordeWorkerProcessManager:
 
             # TODO: horde_sdk should handle this and return a field with a enum(?) of the reason
             if isinstance(job_pop_response, RequestErrorResponse):
-                if "maintenance mode" in job_pop_response.message:
+                if "maintenance mode" in job_pop_response.message.lower():
                     logger.warning(f"Failed to pop job (Maintenance Mode): {job_pop_response}")
-                elif "we cannot accept workers serving" in job_pop_response.message:
+                elif "we cannot accept workers serving" in job_pop_response.message.lower():
                     logger.warning(f"Failed to pop job (Unrecognized Model): {job_pop_response}")
                     logger.error(
                         "Your worker is configured to use a model that is not accepted by the API. "
                         "Please check your models_to_load and make sure they are all valid.",
                     )
-                elif "wrong credentials" in job_pop_response.message:
+                elif "wrong credentials" in job_pop_response.message.lower():
                     logger.warning(f"Failed to pop job (Wrong Credentials): {job_pop_response}")
                     logger.error("Did you forget to set your worker name?")
                 else:

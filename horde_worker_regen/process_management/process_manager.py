@@ -101,7 +101,7 @@ class HordeProcessInfo:
     """The type of this process."""
     last_process_state: HordeProcessState
     """The last known state of this process."""
-    last_timestamp: datetime.datetime
+    last_received_timestamp: datetime.datetime
     """Last time we updated the process info. If we're regularly working, then this value should change frequently."""
     loaded_horde_model_name: str | None
     """The name of the horde model that is (supposedly) currently loaded in this process."""
@@ -143,7 +143,7 @@ class HordeProcessInfo:
         self.process_id = process_id
         self.process_type = process_type
         self.last_process_state = last_process_state
-        self.last_timestamp = datetime.datetime.now()
+        self.last_received_timestamp = datetime.datetime.now()
         self.loaded_horde_model_name = None
         self.last_control_flag = None
 
@@ -303,6 +303,10 @@ class ProcessMap(dict[int, HordeProcessInfo]):
             vram_usage_bytes (int | None, optional): The amount of VRAM used by this process. Defaults to None.
             total_vram_bytes (int | None, optional): The total amount of VRAM available to this process. \
                 Defaults to None.
+            batch_amount (int | None, optional): The total amount of batching being run by this process. \
+                Defaults to None.
+            last_job_referenced (ImageGenerateJobPopResponse | None, optional): The last job referenced by this \
+                 process. Defaults to None.
         """
         if process_id not in self:
             logger.error(f"Process {process_id} does not exist in the process map")
@@ -329,7 +333,7 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         if last_job_referenced is not None:
             self[process_id].last_job_referenced = last_job_referenced
 
-        self[process_id].last_timestamp = datetime.datetime.now()
+        self[process_id].last_received_timestamp = datetime.datetime.now()
 
     def num_inference_processes(self) -> int:
         """Return the number of inference processes."""
@@ -463,14 +467,13 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         current_time = datetime.datetime.now()
         for process_id, process_info in self.items():
             if process_info.process_type == HordeProcessType.INFERENCE:
-                time_passed_seconds = round((current_time - process_info.last_timestamp).total_seconds(), 2)
+                time_passed_seconds = round((current_time - process_info.last_received_timestamp).total_seconds(), 2)
                 safe_last_control_flag = (
                     process_info.last_control_flag.name if process_info.last_control_flag is not None else None
                 )
                 info_strings.append(
                     f"Process {process_id} ({process_info.last_process_state.name}): "
                     f" ({process_info.loaded_horde_model_name} "
-                    # f"[last event: {process_info.last_timestamp} "
                     f"[last event: {time_passed_seconds} secs ago: {safe_last_control_flag}]",
                     # f"ram: {process_info.ram_usage_bytes} vram: {process_info.vram_usage_bytes} ",
                 )
@@ -598,6 +601,14 @@ class PendingSubmitJob(BaseModel):  # TODO: Split into a new file
 
     def fault(self) -> None:
         self.state = JobSubmitState.FAULTED
+
+
+class NextJobAndProcess(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    next_job: ImageGenerateJobPopResponse
+    process_with_model: HordeProcessInfo
+    skipped_line: bool = False
+    skipped_line_for: ImageGenerateJobPopResponse | None
 
 
 class LRUCache:
@@ -1547,11 +1558,12 @@ class HordeWorkerProcessManager:
 
         return False
 
-    def get_next_job_and_process(self) -> tuple[ImageGenerateJobPopResponse | None, HordeProcessInfo | None]:
+    def get_next_job_and_process(
+        self,
+    ) -> NextJobAndProcess | None:
         # Get the first job in the deque that is not already in progress
         next_job: ImageGenerateJobPopResponse | None = None
         next_n_jobs: list[ImageGenerateJobPopResponse] = []
-        # ImageGenerateJobPopResponse itself is unhashable, so we'll check the ids instead.
         for candidate_small_job in self.job_deque:
             if candidate_small_job in self.jobs_in_progress:
                 continue
@@ -1561,32 +1573,40 @@ class HordeWorkerProcessManager:
             next_n_jobs.append(candidate_small_job)
 
         if next_job is None:
-            return None, None
+            return None
 
         if next_job.model is None:
             raise ValueError(f"next_job.model is None ({next_job})")
 
         # Check if we're running jobs equal to or greater than the max concurrent inference processes allowed
         if len(self.jobs_in_progress) >= self.max_concurrent_inference_processes:
-            logger.debug(
-                f"Waiting for {len(self.jobs_in_progress)} jobs to finish before starting inference for job "
-                f"{next_job.id_}",
-            )
-            return None, None
+            if self.max_concurrent_inference_processes > 1:
+                logger.debug(
+                    f"Waiting for {len(self.jobs_in_progress)} jobs to finish before starting inference for job "
+                    f"{next_job.id_}",
+                )
+            return None
 
         process_with_model = self._process_map.get_process_by_horde_model_name(next_job.model)
+        skipped_line = False
+        skipped_line_for = None
+
+        def handle_process_missing(job: ImageGenerateJobPopResponse) -> None:
+            logger.error(
+                f"Expected to find a process with model {job.model} but none was found",
+            )
+            logger.debug(f"Horde model map: {self._horde_model_map}")
+            logger.debug(f"Process map: {self._process_map}")
+            if job.model is not None:
+                logger.debug(f"Expiring entry for model {job.model}")
+                self._horde_model_map.expire_entry(job.model)
+
         if self._horde_model_map.is_model_loaded(next_job.model):
             process_with_model = self._process_map.get_process_by_horde_model_name(next_job.model)
 
             if process_with_model is None:
-                logger.error(
-                    f"Expected to find a process with model {next_job.model} but none was found",
-                )
-                logger.debug(f"Horde model map: {self._horde_model_map}")
-                logger.debug(f"Process map: {self._process_map}")
-                # We'll just patch over this goof for now.
-                self._horde_model_map.expire_entry(next_job.model)
-                return None, None
+                handle_process_missing(next_job)
+                return None
 
             if not process_with_model.can_accept_job():
                 if process_with_model.last_process_state == HordeProcessState.DOWNLOADING_AUX_MODEL:
@@ -1602,29 +1622,46 @@ class HordeWorkerProcessManager:
                                 process_with_model is not None
                                 and self.get_single_job_effective_megapixelsteps(candidate_small_job) <= 25
                             ):
-                                logger.info(
-                                    f"Job {candidate_small_job.id_} skipped the line and will be run on process "
-                                    f"{process_with_model.process_id} before job {next_job.id_}, which is currently "
-                                    "downloading extra models.",
-                                )
+                                skipped_line = True
+                                skipped_line_for = next_job
+
                                 next_job = candidate_small_job
                                 break
                     else:
-                        return None, None
+                        return None
                 else:
-                    return None, None
+                    return None
 
-        return next_job, process_with_model
+        if process_with_model is None:
+            handle_process_missing(next_job)
+            return None
+
+        return NextJobAndProcess(
+            next_job=next_job,
+            process_with_model=process_with_model,
+            skipped_line=skipped_line,
+            skipped_line_for=skipped_line_for,
+        )
 
     def start_inference(self) -> None:
         """Start inference for the next job in the deque, if possible."""
         if len(self.jobs_in_progress) >= self.max_concurrent_inference_processes:
             return
 
-        next_job, process_with_model = self.get_next_job_and_process()
+        next_job_and_process = self.get_next_job_and_process()
 
-        if next_job is None or process_with_model is None:
+        if next_job_and_process is None:
             return
+
+        process_with_model = next_job_and_process.process_with_model
+        next_job = next_job_and_process.next_job
+
+        if next_job_and_process.skipped_line and next_job_and_process.skipped_line_for is not None:
+            logger.info(
+                f"Job {next_job_and_process.next_job.id_} skipped the line and will be run on process "
+                f"{process_with_model.process_id} before job {next_job_and_process.skipped_line_for.id_}"
+                "which is currently downloading extra models.",
+            )
 
         # Unload all models from vram from any other process that isn't running a job if configured to do so
         if self.bridge_data.unload_models_from_vram:
@@ -2809,19 +2846,22 @@ class HordeWorkerProcessManager:
                             # the state of everything is up to date
 
                             if not self.preload_models():
-                                next_job, _ = self.get_next_job_and_process()
+                                next_job_and_process = self.get_next_job_and_process()
                                 if self._process_map.keep_single_inference():
                                     if self.has_queued_jobs() and time.time() - self._batch_wait_log_time > 10:
                                         logger.info("Blocking further inference because batch inference in process.")
                                         self._batch_wait_log_time = time.time()
 
                                 elif (
-                                    next_job is not None
-                                    and next_job.payload.n_iter > 1
+                                    next_job_and_process is not None
+                                    and next_job_and_process.next_job.payload.n_iter > 1
                                     and self._process_map.num_busy_with_inference() > 0
                                     and (time.time() - self._batch_wait_log_time > 10)
                                 ):
-                                    logger.info("Blocking further inference because batch inference in process.")
+                                    logger.info(
+                                        f"Blocking starting batch job {next_job_and_process.next_job.id_} because "
+                                        "a thread is already busy",
+                                    )
                                     self._batch_wait_log_time = time.time()
                                 else:
                                     self.start_inference()
@@ -3064,7 +3104,7 @@ class HordeWorkerProcessManager:
         # recover worked
         if (
             all(
-                now - process_info.last_timestamp
+                now - process_info.last_received_timestamp
                 > datetime.timedelta(
                     seconds=self.bridge_data.process_timeout,
                 )
@@ -3130,7 +3170,7 @@ class HordeWorkerProcessManager:
 
         any_replaced = False
         for process_info in self._process_map.values():
-            time_elapsed = now - process_info.last_timestamp
+            time_elapsed = now - process_info.last_received_timestamp
 
             if time_elapsed > datetime.timedelta(
                 seconds=self.bridge_data.process_timeout,

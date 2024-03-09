@@ -40,7 +40,7 @@ repos:
         - horde_safety
         - torch
         - ruamel.yaml
-        - hordelib==2.6.4
-        - horde_sdk==0.8.1
+        - hordelib==2.6.5
+        - horde_sdk==0.8.2
         - horde_model_reference==0.6.3
         - semver

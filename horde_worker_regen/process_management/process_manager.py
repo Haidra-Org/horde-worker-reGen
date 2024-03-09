@@ -2331,6 +2331,17 @@ class HordeWorkerProcessManager:
             if process_info is not None:
                 logger.error(f"Job {faulted_job.id_} faulted due to process {process_info.process_id} crashing")
 
+            if faulted_job in self.jobs_in_progress:
+                logger.debug(f"Removing job {faulted_job.id_} from jobs_in_progress")
+                self.jobs_in_progress.remove(faulted_job)
+
+            if faulted_job in self.jobs_pending_safety_check:
+                logger.debug(f"Removing job {faulted_job.id_} from jobs_pending_safety_check")
+                for horde_job_info in self.jobs_pending_safety_check:
+                    if horde_job_info.sdk_api_job_info.id_ == faulted_job.id_:
+                        self.jobs_pending_safety_check.remove(horde_job_info)
+                        break
+
             self.completed_jobs.append(job_info)
 
             if faulted_job in self.job_pop_timestamps:

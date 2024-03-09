@@ -534,6 +534,11 @@ class HordeJobInfo(BaseModel):  # TODO: Split into a new file
             return []
         return [r.image_base64 for r in self.job_image_results]
 
+    def fault_job(self) -> None:
+        """Mark the job as faulted."""
+        self.state = GENERATION_STATE.faulted
+        self.job_image_results = None
+
 
 class JobSubmitState(enum.Enum):  # TODO: Split into a new file
     """The state of a job submit process."""
@@ -1155,25 +1160,7 @@ class HordeWorkerProcessManager:
                 )
 
         if job_to_remove is not None:
-            job_info = self.jobs_lookup.get(job_to_remove)
-
-            if job_info is None:
-                logger.error(f"Job {job_to_remove.id_} not found in jobs_lookup")
-            else:
-                self.job_deque.remove(job_to_remove)
-
-                job_info.state = GENERATION_STATE.faulted
-                job_info.time_to_generate = self.bridge_data.process_timeout
-                job_info.job_image_results = None
-
-                logger.error(f"Job {job_to_remove.id_} faulted due to process {process_info.process_id} crashing")
-
-                self.completed_jobs.append(job_info)
-
-                if job_to_remove in self.job_pop_timestamps:
-                    del self.job_pop_timestamps[job_to_remove]
-                else:
-                    logger.warning(f"Job {job_to_remove.id_} not found in job_pop_timestamps")
+            self.handle_job_fault(faulted_job=job_to_remove, process_info=process_info)
 
         self._end_inference_process(process_info)
         self._start_inference_process(process_info.process_id)
@@ -1733,20 +1720,25 @@ class HordeWorkerProcessManager:
         logger.debug(f"All Batch IDs: {next_job.ids}")
         # endregion
 
-        self.jobs_in_progress.append(next_job)
-
         # We store the amount of batches this job will do,
         # as we use that later to check if we should start inference in parallel
         process_with_model.batch_amount = next_job.payload.n_iter
-        process_with_model.safe_send_message(
+        if process_with_model.safe_send_message(
             HordeInferenceControlMessage(
                 control_flag=HordeControlFlag.START_INFERENCE,
                 horde_model_name=next_job.model,
                 sdk_api_job_info=next_job,
             ),
-        )
-        process_with_model.last_control_flag = HordeControlFlag.START_INFERENCE
-        process_with_model.last_job_referenced = next_job
+        ):
+            self.jobs_in_progress.append(next_job)
+
+            process_with_model.last_control_flag = HordeControlFlag.START_INFERENCE
+            process_with_model.last_job_referenced = next_job
+        else:
+            logger.error(
+                f"Failed to start inference for job {next_job.id_} on process {process_with_model.process_id}",
+            )
+            self.handle_job_fault(faulted_job=next_job, process_info=process_with_model)
 
     def unload_from_ram(self, process_id: int) -> None:
         """Unload models from a process, either from VRAM or both VRAM and system RAM.
@@ -2314,6 +2306,37 @@ class HordeWorkerProcessManager:
     """The last time we informed that we're waiting for batched jobs to finish."""
 
     _consecutive_failed_jobs = 0
+
+    def handle_job_fault(
+        self,
+        faulted_job: ImageGenerateJobPopResponse,
+        process_info: HordeProcessInfo | None = None,
+    ) -> None:
+        """Mark a job as faulted and add it to the completed jobs list to report it faulted.
+
+        Args:
+            faulted_job (ImageGenerateJobPopResponse): The job that faulted.
+            process_info (HordeProcessInfo | None, optional): The process that faulted the job. Defaults to None.
+        """
+        job_info = self.jobs_lookup.get(faulted_job)
+
+        if job_info is None:
+            logger.error(f"Job {faulted_job.id_} not found in jobs_lookup")
+        else:
+            self.job_deque.remove(faulted_job)
+
+            job_info.fault_job()
+            job_info.time_to_generate = self.bridge_data.process_timeout
+
+            if process_info is not None:
+                logger.error(f"Job {faulted_job.id_} faulted due to process {process_info.process_id} crashing")
+
+            self.completed_jobs.append(job_info)
+
+            if faulted_job in self.job_pop_timestamps:
+                del self.job_pop_timestamps[faulted_job]
+            else:
+                logger.warning(f"Job {faulted_job.id_} not found in job_pop_timestamps")
 
     def get_single_job_effective_megapixelsteps(self, job: ImageGenerateJobPopResponse) -> int:
         """Return the number of megapixelsteps for a single job.

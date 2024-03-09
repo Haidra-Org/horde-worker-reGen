@@ -1578,13 +1578,12 @@ class HordeWorkerProcessManager:
         if next_job.model is None:
             raise ValueError(f"next_job.model is None ({next_job})")
 
-        # Check if we're running jobs equal to or greater than the max concurrent inference processes allowed
         if len(self.jobs_in_progress) >= self.max_concurrent_inference_processes:
-            if self.max_concurrent_inference_processes > 1:
-                logger.debug(
-                    f"Waiting for {len(self.jobs_in_progress)} jobs to finish before starting inference for job "
-                    f"{next_job.id_}",
-                )
+            # if self.max_concurrent_inference_processes > 1:
+            #     logger.debug(
+            #         f"Waiting for {len(self.jobs_in_progress)} jobs to finish before starting inference for job "
+            #         f"{next_job.id_}",
+            #     )
             return None
 
         process_with_model = self._process_map.get_process_by_horde_model_name(next_job.model)

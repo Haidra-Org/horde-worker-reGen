@@ -361,7 +361,11 @@ class ProcessMap(dict[int, HordeProcessInfo]):
             # We only parallelizing if we have a currently running inference with n_iter > 1
             if p.batch_amount == 1:
                 continue
-            if p.can_accept_job() or p.last_process_state == HordeProcessState.PRELOADING_MODEL:
+            if (
+                p.can_accept_job()
+                or p.last_process_state == HordeProcessState.PRELOADING_MODEL
+                or p.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING
+            ):
                 continue
             return True
         return False
@@ -452,6 +456,14 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         count = 0
         for p in self.values():
             if p.last_process_state == HordeProcessState.INFERENCE_STARTING:
+                count += 1
+        return count
+
+    def num_busy_with_post_processing(self) -> int:
+        """Return the number of processes that are actively engaged in a post-processing task."""
+        count = 0
+        for p in self.values():
+            if p.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING:
                 count += 1
         return count
 
@@ -1264,9 +1276,15 @@ class HordeWorkerProcessManager:
                         f"Process {message.process_id} finished downloading extra models in {message.time_elapsed}",
                     )
                     if message.sdk_api_job_info not in self.jobs_lookup:
-                        logger.warning(
-                            f"Job {message.sdk_api_job_info} not found in jobs_lookup. (Process {message.process_id})",
-                        )
+                        if message.sdk_api_job_info is not None:
+                            logger.warning(
+                                f"Job {message.sdk_api_job_info.id_} not found in jobs_lookup."
+                                f" (Process {message.process_id})",
+                            )
+                        else:
+                            logger.warning(
+                                f"Job not found in jobs_lookup. (Process {message.process_id})",
+                            )
                         logger.debug(f"Jobs lookup: {self.jobs_lookup}")
                     else:
                         self.jobs_lookup[message.sdk_api_job_info].time_to_download_aux_models = message.time_elapsed
@@ -1566,7 +1584,9 @@ class HordeWorkerProcessManager:
         if next_job.model is None:
             raise ValueError(f"next_job.model is None ({next_job})")
 
-        if len(self.jobs_in_progress) >= self.max_concurrent_inference_processes:
+        processes_post_processing = self._process_map.num_busy_with_post_processing()
+
+        if len(self.jobs_in_progress) >= (self.max_concurrent_inference_processes + processes_post_processing):
             # if self.max_concurrent_inference_processes > 1:
             #     logger.debug(
             #         f"Waiting for {len(self.jobs_in_progress)} jobs to finish before starting inference for job "
@@ -1632,7 +1652,10 @@ class HordeWorkerProcessManager:
 
     def start_inference(self) -> None:
         """Start inference for the next job in the deque, if possible."""
-        if len(self.jobs_in_progress) >= self.max_concurrent_inference_processes:
+
+        processes_post_processing = self._process_map.num_busy_with_post_processing()
+
+        if len(self.jobs_in_progress) >= (self.max_concurrent_inference_processes + processes_post_processing):
             return
 
         next_job_and_process = self.get_next_job_and_process()
@@ -1648,6 +1671,12 @@ class HordeWorkerProcessManager:
                 f"Job {next_job_and_process.next_job.id_} skipped the line and will be run on process "
                 f"{process_with_model.process_id} before job {next_job_and_process.skipped_line_for.id_}"
                 "which is currently downloading extra models.",
+            )
+
+        if self._process_map.num_busy_with_post_processing() > 0:
+            logger.debug(
+                "Proceeding with inference, but post processing is still running on "
+                f"{self._process_map.num_busy_with_post_processing()} processes",
             )
 
         # Unload all models from vram from any other process that isn't running a job if configured to do so

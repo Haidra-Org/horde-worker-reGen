@@ -39,7 +39,7 @@ from horde_worker_regen.process_management.messages import (
 )
 
 if TYPE_CHECKING:
-    from hordelib.horde import HordeLib, ResultingImageReturn
+    from hordelib.horde import HordeLib, ProgressReport, ResultingImageReturn, ProgressState
     from hordelib.nodes.node_model_loader import HordeCheckpointLoader
     from hordelib.shared_model_manager import SharedModelManager
 else:
@@ -51,6 +51,9 @@ else:
         pass
 
     class SharedModelManager:  # noqa
+        pass
+
+    class ProgressReport:  # noqa
         pass
 
 
@@ -370,6 +373,28 @@ class HordeInferenceProcess(HordeProcess):
 
     _is_busy: bool = False
 
+    _start_inference_time: float = 0.0
+
+    def progress_callback(
+        self,
+        progress_report: ProgressReport,
+    ) -> None:
+        from hordelib.horde import ProgressState
+
+        if progress_report.hordelib_progress_state == ProgressState.post_processing:
+            self.send_process_state_change_message(
+                process_state=HordeProcessState.INFERENCE_POST_PROCESSING,
+                info="Post Processing",
+                time_elapsed=time.time() - self._start_inference_time,
+            )
+            try:
+                self._inference_semaphore.release()
+                logger.debug("Released inference semaphore")
+            except Exception as e:
+                logger.error(f"Failed to release inference semaphore: {type(e).__name__} {e}")
+
+        self.send_heartbeat_message()
+
     def start_inference(self, job_info: ImageGenerateJobPopResponse) -> list[ResultingImageReturn] | None:
         """Start an inference job in the HordeLib instance.
 
@@ -379,24 +404,29 @@ class HordeInferenceProcess(HordeProcess):
         Returns:
             list[Image] | None: The generated images, or None if inference failed.
         """
-        with self._inference_semaphore:
-            self._is_busy = True
-            try:
-                logger.info(f"Starting inference for job(s) {job_info.ids}")
-                logger.debug(
-                    f"has source_image: {job_info.source_image is not None} "
-                    f"has source_mask: {job_info.source_mask is not None}",
-                )
-                logger.debug(f"{job_info.payload.model_dump(exclude={'prompt'})}")
+        logger.info("Checking if too many inference jobs are already running...")
+        self._inference_semaphore.acquire()
+        logger.info("Acquired inference semaphore.")
+        self._is_busy = True
+        try:
+            logger.info(f"Starting inference for job(s) {job_info.ids}")
+            logger.debug(
+                f"has source_image: {job_info.source_image is not None} "
+                f"has source_mask: {job_info.source_mask is not None}",
+            )
+            logger.debug(f"{job_info.payload.model_dump(exclude={'prompt'})}")
 
-                with logger.catch(reraise=True):
-                    results = self._horde.basic_inference(job_info)
-            except Exception as e:
-                logger.critical(f"Inference failed: {type(e).__name__} {e}")
-                return None
-            finally:
-                self._is_busy = False
-            return results
+            with logger.catch(reraise=True):
+                self._start_inference_time = time.time()
+                results = self._horde.basic_inference(job_info, progress_callback=self.progress_callback)
+        except Exception as e:
+            logger.critical(f"Inference failed: {type(e).__name__} {e}")
+            return None
+        finally:
+            self._is_busy = False
+            with contextlib.suppress(Exception):
+                self._inference_semaphore.release()
+        return results
 
     @logger.catch(reraise=True)
     def unload_models_from_vram(self) -> None:

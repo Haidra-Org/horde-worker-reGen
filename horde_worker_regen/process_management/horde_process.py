@@ -137,7 +137,7 @@ class HordeProcess(abc.ABC):
         self.process_message_queue.put(message)
         self._last_sent_process_state = process_state
 
-    _heartbeat_limit_interval_seconds: float = 5.0
+    _heartbeat_limit_interval_seconds: float = 1.0
     _last_heartbeat_time: float = 0.0
 
     def send_heartbeat_message(self) -> None:

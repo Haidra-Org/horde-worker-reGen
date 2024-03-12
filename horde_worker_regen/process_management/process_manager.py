@@ -159,6 +159,7 @@ class HordeProcessInfo:
         """
         return (
             self.last_process_state == HordeProcessState.INFERENCE_STARTING
+            or self.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING
             or self.last_process_state == HordeProcessState.ALCHEMY_STARTING
             or self.last_process_state == HordeProcessState.DOWNLOADING_MODEL
             or self.last_process_state == HordeProcessState.DOWNLOADING_AUX_MODEL
@@ -1358,7 +1359,7 @@ class HordeWorkerProcessManager:
                     )
 
                     logger.debug(
-                        f"Job data: {message.sdk_api_job_info.model_dump(exclude={'payload': {'prompt'}})}",
+                        f"Job data: {message.sdk_api_job_info.model_dump(exclude={'payload': {'prompt', 'source_image', 'source_mask'}})}",
                     )
 
                     self.completed_jobs.append(job_info)

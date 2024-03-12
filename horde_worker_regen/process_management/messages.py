@@ -95,6 +95,8 @@ class HordeProcessState(enum.Enum):
 
     INFERENCE_STARTING = auto()
     """The process is starting inference."""
+    INFERENCE_POST_PROCESSING = auto()
+    """The process is post-processing as a part of an inference job."""
     INFERENCE_COMPLETE = auto()
     """The process has finished inference."""
     INFERENCE_FAILED = auto()

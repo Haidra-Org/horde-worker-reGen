@@ -87,6 +87,21 @@ _async_client_exceptions: tuple[type[Exception], ...] = (TimeoutError, aiohttp.c
 if sys.version_info[:2] == (3, 10):
     _async_client_exceptions = (asyncio.exceptions.TimeoutError, aiohttp.client_exceptions.ClientError, OSError)
 
+_excludes_for_job_dump = {
+    "job_image_results": ...,
+    "sdk_api_job_info": {
+        "payload": {
+            "prompt",
+            "special",
+        },
+        "skipped": ...,
+        "source_image": ...,
+        "source_mask": ...,
+        "r2_upload": ...,
+        "r2_uploads": ...,
+    },
+}
+
 
 class HordeProcessInfo:
     """Contains information about a horde child process."""
@@ -1377,7 +1392,7 @@ class HordeWorkerProcessManager:
                     )
 
                     logger.debug(
-                        f"Job data: {message.sdk_api_job_info.model_dump(exclude={'payload': {'prompt', 'source_image', 'source_mask'}})}",
+                        f"Job data: {message.sdk_api_job_info.model_dump(exclude=_excludes_for_job_dump)}",
                     )
 
                     self.completed_jobs.append(job_info)
@@ -2233,25 +2248,10 @@ class HordeWorkerProcessManager:
                             break
 
                     try:
-                        excludes = {
-                            "job_image_results": ...,
-                            "sdk_api_job_info": {
-                                "payload": {
-                                    "prompt",
-                                    "special",
-                                },
-                                "skipped": ...,
-                                "source_image": ...,
-                                "source_mask": ...,
-                                "r2_upload": ...,
-                                "r2_uploads": ...,
-                            },
-                        }
-
                         with logger.catch():
                             hji = self.jobs_lookup[completed_job_info.sdk_api_job_info]
                             model_dump = hji.model_dump(
-                                exclude=excludes,
+                                exclude=_excludes_for_job_dump,
                             )
                             if self.stable_diffusion_reference is not None and hji.sdk_api_job_info.model is not None:
                                 model_dump["sdk_api_job_info"]["model_baseline"] = (

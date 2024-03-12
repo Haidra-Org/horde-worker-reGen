@@ -39,7 +39,7 @@ from horde_worker_regen.process_management.messages import (
 )
 
 if TYPE_CHECKING:
-    from hordelib.horde import HordeLib, ProgressReport, ResultingImageReturn, ProgressState
+    from hordelib.horde import HordeLib, ProgressReport, ResultingImageReturn
     from hordelib.nodes.node_model_loader import HordeCheckpointLoader
     from hordelib.shared_model_manager import SharedModelManager
 else:

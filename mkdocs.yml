@@ -1,0 +1,30 @@
+site_name: Horde Worker reGen Documentation
+
+plugins:
+- search
+- awesome-pages
+- autorefs
+- mkdocstrings:
+    handlers:
+      python:
+        options:
+          members_order: source
+          docstring_section_style: list
+          show_if_no_docstring: true
+          separate_signature: true
+          show_signature_annotations: true
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+
+theme:
+  name: material
+
+extra_css:
+  - stylesheets/extra.css

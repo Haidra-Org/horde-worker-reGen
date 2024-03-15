@@ -1,0 +1,6 @@
+nav:
+    - index.md
+    - horde_worker_regen
+    - GitHub Repo: 'https://github.com/Haidra-Org/horde-worker-regen'
+
+order: desc

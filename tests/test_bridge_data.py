@@ -71,3 +71,29 @@ def test_bridge_data_loader_yaml_local_if_present() -> None:
 
     else:
         pytest.skip("bridgeData.yaml not found")
+
+
+def test_bridge_data_load_from_env_vars() -> None:
+    import os
+
+    os.environ["AIWORKER_REGEN_HORDE_URL"] = "https://localhost:8080"
+    os.environ["AIWORKER_REGEN_MODELS_TO_LOAD"] = "['model1', 'model2']"
+
+    horde_model_reference_manager = ModelReferenceManager(
+        download_and_convert_legacy_dbs=True,
+        override_existing=True,
+    )
+
+    bridge_data = BridgeDataLoader.load_from_env_vars(
+        horde_model_reference_manager=horde_model_reference_manager,
+    )
+    assert bridge_data is not None
+
+
+def test_bridge_data_to_dot_env_file() -> None:
+    bridge_data = reGenBridgeData.model_validate({})
+
+    bridge_data.horde_url = "https://localhost:8080"
+    bridge_data.image_models_to_load = ["model1", "model2"]
+
+    BridgeDataLoader.write_bridge_data_as_dot_env_file(bridge_data, "bridgeData.env")

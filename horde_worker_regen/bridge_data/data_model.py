@@ -112,6 +112,8 @@ class reGenBridgeData(CombinedHordeBridgeData):
 
     def load_env_vars(self) -> None:
         """Load the environment variables into the config model."""
+
+        # See load_env_vars.py's `def load_env_vars(self) -> None:`
         if self.models_folder_parent and os.getenv("AIWORKER_CACHE_HOME") is None:
             os.environ["AIWORKER_CACHE_HOME"] = self.models_folder_parent
         if self.horde_url:
@@ -133,6 +135,9 @@ class reGenBridgeData(CombinedHordeBridgeData):
                         "AI_HORDE_URL environment variable already set. This will override the value for `horde_url` "
                         "in the config file.",
                     )
+
+        if self.CIVIT_API_TOKEN is not None:
+            os.environ["CIVIT_API_TOKEN"] = self.CIVIT_API_TOKEN
 
         if self.max_lora_cache_size and os.getenv("AIWORKER_LORA_CACHE_SIZE") is None:
             os.environ["AIWORKER_LORA_CACHE_SIZE"] = str(self.max_lora_cache_size * 1024)

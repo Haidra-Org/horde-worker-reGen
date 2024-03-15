@@ -30,6 +30,8 @@ def start_inference_process(
         pipe_connection (Connection): Receives `HordeControlMessage`s from the main process.
         inference_semaphore (Semaphore): The semaphore to use to limit concurrent inference.
         disk_lock (Lock): The lock to use for disk access.
+        aux_model_lock (Lock): The lock to use for auxiliary model downloading.
+        high_memory_mode (bool, optional): If true, the process will attempt to use more memory. Defaults to False.
     """
     with contextlib.nullcontext():  # contextlib.redirect_stdout(None), contextlib.redirect_stderr(None):
         logger.remove()
@@ -95,7 +97,8 @@ def start_safety_process(
         process_message_queue (ProcessQueue): The queue to send messages to the main process.
         pipe_connection (Connection): Receives `HordeControlMessage`s from the main process.
         disk_lock (Lock): The lock to use for disk access.
-        cpu_only (bool, optional): _description_. Defaults to True.
+        cpu_only (bool, optional): If true, the process will not use the GPU. Defaults to True.
+        high_memory_mode (bool, optional): If true, the process will attempt to use more memory. Defaults to False.
     """
     with contextlib.nullcontext():  # contextlib.redirect_stdout(), contextlib.redirect_stderr():
         logger.remove()

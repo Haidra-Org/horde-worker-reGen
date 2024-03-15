@@ -43,7 +43,7 @@ horde_worker_regen = ["assets/*.png"]
 
 [tool.ruff]
 line-length = 119
-select = [
+lint.select = [
   "A",
   "I",
   "E",
@@ -57,11 +57,12 @@ select = [
   "RET",
   "SIM",
   "COM",
-  # "D",
+  "D",
   "ANN"]
-ignore = [
+lint.ignore = [
   "ANN101",
   "ANN102",
+  "D100", # Missing docstring in public module
   # Ignore D rules for non-google docstring standard
   "D203",
   "D204",
@@ -74,8 +75,16 @@ ignore = [
   "D408",
   "D409",
   "D413",]
-extend-exclude = ["conda"]
+extend-exclude = ["conda", "model-stats.py"]
 
+[tool.ruff.lint.per-file-ignores]
+"download_models.py" = ["E402"]
+"run_worker.py" = ["E402"]
+"convert_config_to_env.py" = ["E402"]
+
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.black]
 line-length = 119
@@ -100,9 +109,3 @@ exclude = '''
 plugins = [
   "pydantic.mypy"
 ]
-
-
-[tool.ruff.per-file-ignores]
-"download_models.py" = ["E402"]
-"run_worker.py" = ["E402"]
-"convert_config_to_env.py" = ["E402"]

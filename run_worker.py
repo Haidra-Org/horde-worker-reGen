@@ -1,4 +1,4 @@
-from horde_worker_regen.run_worker import start
+from horde_worker_regen.run_worker import init
 
 if __name__ == "__main__":
-    start()
+    init()

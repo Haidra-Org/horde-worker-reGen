@@ -12,15 +12,21 @@ from horde_worker_regen.consts import VERSION_META_REMOTE_URL
 
 
 class RequiredVersionInfo(BaseModel):
+    """Information about a required version, such as the reason for the update."""
+
     reason_for_update: str
 
 
 class BetaVersionInfo(BaseModel):
+    """Information about a beta version, such as the expiry date or the model reference branch to use."""
+
     horde_model_reference_branch: str
     beta_expiry_date: str
 
 
 class VersionMeta(BaseModel):
+    """Metadata about the current version of the worker, such as the required or recommended versions."""
+
     recommended_version: str
     required_min_version: str
     required_min_version_update_date: str
@@ -29,12 +35,14 @@ class VersionMeta(BaseModel):
 
 
 def get_local_version_meta() -> VersionMeta:
+    """Get the local _version_meta.json file as a `VersionMeta` object."""
     with open("horde_worker_regen/_version_meta.json") as f:
         data = json.load(f)
         return VersionMeta(**data)
 
 
 def get_remote_version_meta() -> VersionMeta:
+    """Get the remote version meta from the `VERSION_META_REMOTE_URL` as a `VersionMeta` object."""
     import requests
 
     data = requests.get(VERSION_META_REMOTE_URL).json()

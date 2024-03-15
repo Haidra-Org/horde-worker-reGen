@@ -210,7 +210,6 @@ class HordeInferenceResultMessage(HordeProcessMessage):
     @property
     def faults_count(self) -> int:
         """Return a count of all generation faults."""
-
         if self.job_image_results is None:
             return 0
         total = 0

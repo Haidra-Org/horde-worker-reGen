@@ -17,6 +17,7 @@ from horde_worker_regen.bridge_data.load_config import BridgeDataLoader, ConfigF
 
 
 def convert_config_to_env(config_filename: str = "bridgeData.yaml", dot_env_filename: str = "bridgeData.env") -> None:
+    """Convert the config file to an env file (suitable for use in a container or similar)."""
     bridge_data_loader = BridgeDataLoader()
     horde_model_reference_manager = ModelReferenceManager(
         download_and_convert_legacy_dbs=True,

@@ -88,7 +88,6 @@ class HordeSafetyProcess(HordeProcess):
             disk_lock (Lock): The lock to use when accessing the disk.
             cpu_only (bool, optional): Whether to only use the CPU. Defaults to True.
         """
-
         super().__init__(process_id, process_message_queue, pipe_connection, disk_lock)
 
         try:

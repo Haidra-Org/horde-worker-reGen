@@ -30,7 +30,6 @@ class UnsupportedConfigFormat(Exception):
         horde_model_reference_manager: ModelReferenceManager,
     ) -> reGenBridgeData:
         """Checks for AIWORKER_REGEN_* format environment variables and loads the config from them."""
-
         raw_config: dict[str, str] = {}
         for key, value in os.environ.items():
             if key.startswith(AIWORKER_REGEN_PREFIX):
@@ -181,7 +180,6 @@ class BridgeDataLoader:
         horde_model_reference_manager: ModelReferenceManager | None = None,
     ) -> reGenBridgeData:
         """Checks for AIWORKER_REGEN_* format environment variables and loads the config from them."""
-
         config: dict[str, object] = {}
 
         for key, value in os.environ.items():

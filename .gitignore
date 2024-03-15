@@ -1,10 +1,15 @@
-bridgeData.yaml
+bridgeData.env
+bridgeData.yaml*
 testing
 dummy
 
 kudos_training_data*
 
+packages.svg
+classes.svg
+
 .vscode/
+.codiumai.toml
 
 micromamba.exe
 micromamba.tar.bz2

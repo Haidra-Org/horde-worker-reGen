@@ -1,0 +1,165 @@
+/* .md-main .md-grid {
+    max-width: 80rem;
+}
+
+.md-content {
+    min-width: 60%;
+}
+
+.md-sidebar {
+    width: unset;
+}
+
+.md-sidebar.md-sidebar--secondary {
+    width: 30%;
+}
+
+.md-sidebar.md-sidebar--primary .md-sidebar__scrollwrap .md-sidebar__inner {
+    padding-right: calc(100% - 14rem);
+}
+
+
+.md-sidebar.md-sidebar--secondary .md-sidebar__scrollwrap .md-sidebar__inner {
+    padding-right: calc(100% - 20rem);
+} */
+
+.doc-object-name {
+    font-weight: bold;
+    letter-spacing: 0.0em;
+}
+.doc.doc-children .doc-object {
+    background-color: rgb(229, 229, 229);
+    padding-left: 3px;
+    padding-right: 3px;
+}
+
+.doc-label code {
+    background-color: rgb(226, 226, 226);
+
+}
+
+.md-typeset h2 {
+    line-height: unset;
+    margin: unset;
+}
+
+.md-typeset details {
+    padding: 0
+}
+
+
+.md-typeset .highlighttable {
+    margin: 0;
+}
+
+[dir=ltr] .md-typeset summary {
+    margin: 0;
+}
+
+.md-typeset{
+    line-height: 1.3;
+}
+
+h3.doc-heading {
+    margin: 0 0 5px 0;
+    font-size: 1.25em;
+}
+
+details.quote div.highlight {
+    margin: 0;
+}
+
+
+code {
+    font-weight: 500;
+}
+
+.highlight.language-python{
+    font-weight: bold;
+
+}
+
+.doc-label-async code{
+    color: red;
+    font-weight: bold;
+}
+.doc-attribute h2 code span{
+    font-size: 0.7em;
+}
+
+
+.md-nav__item--nested label {
+    font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #333;
+    background-color: #f8f8f8;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 5px;
+    overflow-x: auto;
+}
+
+div.doc.doc-object {
+    border-bottom: 4px solid #ccc;
+}
+
+.doc-class-name {
+    color: #1c7d4d;
+}
+
+.doc-class-bases code a{
+    color: #33BBA2;
+}
+.doc-class-bases code span{
+    color: #33BBA2;
+}
+
+.doc-attribute-name {
+    color: #00a6ff;
+}
+
+.doc-function-name {
+    font-weight: initial;
+    color: #a846b9;
+}
+
+.doc-label-module-attribute code{
+    color: #00a6ff;
+}
+
+.doc-label-abstractmethod code{
+    font-weight: bold;
+    font-style: italic;
+}
+
+.doc-label-classmethod code{
+    color: #33BBA2;
+}
+
+.note {
+    border: 1px solid #ccc;
+    background-color: #f9f9f9;
+    padding: 10px;
+    margin-bottom: 20px;
+  }
+
+  .note .title {
+    font-weight: bold;
+    margin-bottom: 10px;
+  }
+
+  .warning {
+    border: 1px solid #f0ad4e;
+    background-color: #fcf8e3;
+    color: #8a6d3b;
+    padding: 10px;
+    margin-bottom: 20px;
+    max-width: 600px; /* set a maximum width for the warning */
+    word-wrap: break-word; /* break long words to fit the container */
+  }
+
+  .warning .title {
+    font-weight: bold;
+    margin-bottom: 10px;
+  }

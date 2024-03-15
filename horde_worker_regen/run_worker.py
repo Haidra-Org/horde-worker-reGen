@@ -1,31 +1,18 @@
 """The main entry point for the reGen worker."""
 
+import argparse
 import contextlib
 import io
 import multiprocessing
 import os
 import sys
-
-os.environ["HORDE_SDK_DISABLE_CUSTOM_SINKS"] = "1"
-
-from horde_worker_regen.load_env_vars import load_env_vars
-
-import_context: contextlib.AbstractContextManager = contextlib.nullcontext()
-
-if multiprocessing.current_process().name != "MainProcess":
-    import_context = contextlib.redirect_stdout(None)
-
-with import_context:
-    load_env_vars()
-
-import argparse
 import time
 from multiprocessing.context import BaseContext
 
 from loguru import logger
 
 
-def main(ctx: BaseContext) -> None:
+def main(ctx: BaseContext, load_from_env_vars: bool = False) -> None:
     """Check for a valid config and start the driver ('main') process for the reGen worker."""
     from horde_model_reference.model_reference_manager import ModelReferenceManager
     from pydantic import ValidationError
@@ -55,12 +42,26 @@ def main(ctx: BaseContext) -> None:
 
     horde_model_reference_manager = ensure_model_db_downloaded()
 
-    bridge_data: reGenBridgeData
+    bridge_data: reGenBridgeData | None = None
     try:
-        bridge_data = BridgeDataLoader.load(
-            file_path=BRIDGE_CONFIG_FILENAME,
-            horde_model_reference_manager=horde_model_reference_manager,
-        )
+        if load_from_env_vars:
+            bridge_data = BridgeDataLoader.load_from_env_vars(
+                horde_model_reference_manager=horde_model_reference_manager,
+            )
+
+            if len(bridge_data.api_key) == 10:
+                logger.error(
+                    "API key is the default. This is almost certainly not what you want. "
+                    "Please check your environment variables are being set correctly and try again.",
+                )
+
+                logger.error("Exiting...")
+                return
+        else:
+            bridge_data = BridgeDataLoader.load(
+                file_path=BRIDGE_CONFIG_FILENAME,
+                horde_model_reference_manager=horde_model_reference_manager,
+            )
     except ConnectionRefusedError:
         logger.error("Could not connect to the the horde. Is it down?")
         input("Press any key to exit...")
@@ -78,6 +79,10 @@ def main(ctx: BaseContext) -> None:
                 logger.error(f"{error['loc'][0]}: {error['msg']}")
 
         input("Press any key to exit...")
+        return
+
+    if not bridge_data:
+        logger.error("Failed to load bridge data. Exiting...")
         return
 
     bridge_data.load_env_vars()
@@ -120,8 +125,28 @@ def start() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", action="count", default=0, help="Increase verbosity of output")
     parser.add_argument("--no-logging", action="store_true", help="Disable logging to the console")
+    parser.add_argument(
+        "-e",
+        "--load-config-from-env-vars",
+        action="store_true",
+        default=False,
+        help="Load the config only from environment variables. This is useful for running the worker in a container.",
+    )
 
     args = parser.parse_args()
+
+    os.environ["HORDE_SDK_DISABLE_CUSTOM_SINKS"] = "1"
+
+    from horde_worker_regen.load_env_vars import load_env_vars_from_config
+
+    if not args.load_config_from_env_vars:
+        # Note: 'load_env_vars_from_config' means to translate the config file to environment variables
+        # if 'load_config_from_env_vars' is True, then we are ignoring the config file
+        load_env_vars_from_config()
+
+    from horde_worker_regen.version_meta import do_version_check
+
+    do_version_check()
 
     rewriter = LogConsoleRewriter(sys.stdout)  # type: ignore
     sys.stdout = rewriter
@@ -145,7 +170,7 @@ def start() -> None:
 
     # We only need to download the legacy DBs once, so we do it here instead of in the worker processes
 
-    main(multiprocessing.get_context("spawn"))
+    main(multiprocessing.get_context("spawn"), args.load_config_from_env_vars)
 
 
 if __name__ == "__main__":

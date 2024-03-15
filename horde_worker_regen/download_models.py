@@ -1,8 +1,8 @@
 """Contains the code to download all models specified in the config file. Executable as a standalone script."""
 
-from horde_worker_regen.load_env_vars import load_env_vars
+from horde_worker_regen.load_env_vars import load_env_vars_from_config
 
-load_env_vars()
+load_env_vars_from_config()
 
 
 from horde_model_reference.model_reference_manager import ModelReferenceManager

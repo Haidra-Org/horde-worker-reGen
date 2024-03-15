@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "horde_worker_regen"
-version = "4.2.11"
+version = "4.2.12"
 description = "Allows you to connect to the AI Horde and generate images for users."
 authors = [
     {name = "tazlin", email = "tazlin.on.github@gmail.com"},
@@ -105,3 +105,4 @@ plugins = [
 [tool.ruff.per-file-ignores]
 "download_models.py" = ["E402"]
 "run_worker.py" = ["E402"]
+"convert_config_to_env.py" = ["E402"]

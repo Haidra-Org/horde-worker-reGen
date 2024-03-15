@@ -10,6 +10,7 @@ _time_units = [
 
 
 def dt_to_td_str(dt: datetime) -> str | None:
+    """Convert a datetime to a human-readable time difference string."""
     now = datetime.now()
     time_difference = (now - dt).total_seconds()
 

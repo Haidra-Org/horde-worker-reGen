@@ -202,7 +202,6 @@ class HordeProcessInfo:
         Returns:
             bool: True if the message was sent successfully, False otherwise.
         """
-
         try:
             self.pipe_connection.send(message)
             return True
@@ -211,6 +210,7 @@ class HordeProcessInfo:
             return False
 
     def __repr__(self) -> str:
+        """Return a string representation of the process info."""
         return str(
             f"HordeProcessInfo(process_id={self.process_id}, last_process_state={self.last_process_state}, "
             f"loaded_horde_model_name={self.loaded_horde_model_name})",
@@ -268,13 +268,11 @@ class HordeModelMap(RootModel[dict[str, ModelInfo]]):
             logger.debug(f"Updated process ID for {horde_model_name} to {process_id}")
 
     def expire_entry(self, horde_model_name: str) -> ModelInfo | None:
-        """
-        Removes information about a horde model.
+        """Removes information about a horde model.
 
         :param horde_model_name: Name of model to remove
         :return: model name if removed; 'none' string otherwise
         """
-
         return self.root.pop(horde_model_name, None)
 
     def is_model_loaded(self, horde_model_name: str) -> bool:
@@ -368,9 +366,9 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         return count
 
     def keep_single_inference(self) -> bool:
-        """Return True, if we need to keep the VRAM available for one single inference
-        Typically used if the currently running inference is batching
-        So we cannot adequately estimate if we have enough VRAM free.
+        """Return true if we should keep only a single inference process running.
+
+        This is used to prevent overloading the system with inference processes, such as with batched jobs.
         """
         for p in self.values():
             # We only parallelizing if we have a currently running inference with n_iter > 1
@@ -483,6 +481,7 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         return count
 
     def __repr__(self) -> str:
+        """Return a string representation of the process map."""
         base_string = "Processes: "
         for string in self.get_process_info_strings():
             base_string += string
@@ -592,51 +591,68 @@ class PendingSubmitJob(BaseModel):  # TODO: Split into a new file
 
     @property
     def image_result(self) -> HordeImageResult | None:
+        """Return the image result for the job."""
         if self.completed_job_info.job_image_results is not None:
             return self.completed_job_info.job_image_results[self.gen_iter]
         return None
 
     @property
     def job_id(self) -> JobID:
+        """Return the job ID for the job."""
         return self.completed_job_info.sdk_api_job_info.ids[self.gen_iter]
 
     @property
     def r2_upload(self) -> str:
+        """Return the r2 upload for the job."""
         if self.completed_job_info.sdk_api_job_info.r2_uploads is None:
             return ""  # FIXME: Is this ever None? Or just a bad declaration on sdk?
         return self.completed_job_info.sdk_api_job_info.r2_uploads[self.gen_iter]
 
     @property
     def is_finished(self) -> bool:
+        """Return true if the job submit has finished."""
         return self.state != JobSubmitState.PENDING
 
     @property
     def is_faulted(self) -> bool:
+        """Return true if the job submit has faulted."""
         return self.state == JobSubmitState.FAULTED
 
     @property
     def retry_attempts_string(self) -> str:
+        """Return a string containing the number of consecutive failed job submits and the maximum allowed."""
         return f"{self._consecutive_failed_job_submits}/{self._max_consecutive_failed_job_submits}"
 
     @property
     def batch_count(self) -> int:
+        """Return the number of jobs in the batch."""
         return len(self.completed_job_info.sdk_api_job_info.ids)
 
     def retry(self) -> None:
+        """Mark the job as needing to be retried. Fault the job if it has been retried too many times."""
         self._consecutive_failed_job_submits += 1
         if self._consecutive_failed_job_submits > self._max_consecutive_failed_job_submits:
             self.state = JobSubmitState.FAULTED
 
     def succeed(self, kudos_reward: int, kudos_per_second: float) -> None:
+        """Mark the job as successfully submitted.
+
+        Args:
+            kudos_reward: The amount of kudos to reward the user.
+            kudos_per_second: The amount of kudos per second to reward the user.
+        """
         self.kudos_reward = kudos_reward
         self.kudos_per_second = kudos_per_second
         self.state = JobSubmitState.SUCCESS
 
     def fault(self) -> None:
+        """Mark the job as faulted."""
         self.state = JobSubmitState.FAULTED
 
 
 class NextJobAndProcess(BaseModel):
+    """Contains information about the next job to process and the process to process it with."""
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
     next_job: ImageGenerateJobPopResponse
     process_with_model: HordeProcessInfo
@@ -645,19 +661,25 @@ class NextJobAndProcess(BaseModel):
 
 
 class LRUCache:
+    """A simple LRU cache. This is used to keep track of the most recently used models."""
+
     def __init__(self, capacity: int) -> None:
-        """
-        Initializes the LRU cache.
-        :param capacity: Maximum number of elements in the cache.
+        """Initializes the LRU cache.
+
+        Args:
+            capacity: The maximum number of elements that the cache can hold.
         """
         self.capacity = capacity
         self.cache: "collections.OrderedDict[str, ModelInfo | None]" = collections.OrderedDict()
 
     def append(self, key: str) -> object:
-        """
-        Adds an element to the LRU cache, and potentially bumps one from the cache.
-        :param key: the element to add
-        :return: the bumped element
+        """Adds an element to the LRU cache, and potentially bumps one from the cache.
+
+        Args:
+            key: The key to add to the cache.
+
+        Returns:
+            The bumped element, if there was one.
         """
         bumped = None
         if key in self.cache:
@@ -716,6 +738,7 @@ class HordeWorkerProcessManager:
         return self.total_ram_bytes - self.target_ram_overhead_bytes
 
     def get_process_total_ram_usage(self) -> int:
+        """Return the total amount of RAM used by all processes."""
         total = 0
         for process_info in self._process_map.values():
             total += process_info.ram_usage_bytes
@@ -987,6 +1010,7 @@ class HordeWorkerProcessManager:
         return self._process_map.num_available_inference_processes() > 0
 
     def has_queued_jobs(self) -> bool:
+        """Return true if there are any jobs not already in progress but are popped."""
         return any(job not in self.jobs_in_progress for job in self.job_deque)
 
     def get_expected_ram_usage(self, horde_model_name: str) -> int:  # TODO: Use or rework this
@@ -1080,8 +1104,7 @@ class HordeWorkerProcessManager:
             logger.info(f"Started inference process (id: {pid})")
 
     def _start_inference_process(self, pid: int) -> HordeProcessInfo:
-        """
-        Starts an inference process.
+        """Starts an inference process.
 
         :param pid: process ID to assign to the process
         :return:
@@ -1125,8 +1148,7 @@ class HordeWorkerProcessManager:
             self._end_inference_process(process_info)
 
     def _end_inference_process(self, process_info: HordeProcessInfo) -> None:
-        """
-        Ends an inference process.
+        """Ends an inference process.
 
         :param process_info: HordeProcessInfo for the process to end
         :return: None
@@ -1152,8 +1174,7 @@ class HordeWorkerProcessManager:
             logger.info(f"Ended inference process {process_info.process_id}")
 
     def _replace_inference_process(self, process_info: HordeProcessInfo) -> None:
-        """
-        Replaces an inference process (for whatever reason; probably because it crashed).
+        """Replaces an inference process (for whatever reason; probably because it crashed).
 
         :param process_info: process to replace
         :return: None
@@ -1582,7 +1603,11 @@ class HordeWorkerProcessManager:
     def get_next_job_and_process(
         self,
     ) -> NextJobAndProcess | None:
-        # Get the first job in the deque that is not already in progress
+        """Get the next job and process that can be started, if any.
+
+        Returns:
+            NextJobAndProcess if a job can be started, None otherwise.
+        """
         next_job: ImageGenerateJobPopResponse | None = None
         next_n_jobs: list[ImageGenerateJobPopResponse] = []
         for candidate_small_job in self.job_deque:
@@ -1667,7 +1692,6 @@ class HordeWorkerProcessManager:
 
     def start_inference(self) -> None:
         """Start inference for the next job in the deque, if possible."""
-
         processes_post_processing = self._process_map.num_busy_with_post_processing()
 
         if len(self.jobs_in_progress) >= (self.max_concurrent_inference_processes + processes_post_processing):
@@ -1957,9 +1981,14 @@ class HordeWorkerProcessManager:
 
     @logger.catch(reraise=True)
     async def submit_single_generation(self, new_submit: PendingSubmitJob) -> PendingSubmitJob:
-        """Tries to upload and submit a single image from a batch
-        Returns the same PendingSubmitJob updated with the results
-        of the operation which tells us whether to retry to submit."""
+        """Tries to upload and submit a single image from a batch.
+
+        Args:
+            new_submit: The job to attempt to submit.
+
+        Returns:
+                The modified in place job with the results of the submission attempt.
+        """
         logger.debug(f"Preparing to submit job {new_submit.job_id}")
         if new_submit.image_result is not None:
             image_in_buffer = self.base64_image_to_stream_buffer(
@@ -3086,8 +3115,7 @@ class HordeWorkerProcessManager:
                 self._shutting_down = True
 
     def _handle_exception(self, future: asyncio.Future) -> None:
-        """
-        Logs exceptions from asyncio tasks.
+        """Logs exceptions from asyncio tasks.
 
         :param future: asyncio task to monitor
         :return: None
@@ -3156,10 +3184,7 @@ class HordeWorkerProcessManager:
     _recently_recovered = False
 
     def replace_hung_processes(self) -> bool:
-        """
-        Replaces processes that haven't checked in since `process_timeout` seconds in bridgeData
-
-        """
+        """Replaces processes that haven't checked in since `process_timeout` seconds in bridgeData."""
         now = datetime.datetime.now()
 
         # If every process hasn't done anything for a while or if we haven't submitted a job for a while,

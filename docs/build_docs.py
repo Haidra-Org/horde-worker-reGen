@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 def dynamically_create_library_markdown_stubs() -> None:
-    # Create mkdocs documentation using mkdocstrings
+    """Create markdown stubs for the library documentation."""
     project_root = Path(__file__).parent.parent
     code_root = Path(__file__).parent.parent / "horde_worker_regen"
 
@@ -54,6 +54,7 @@ def dynamically_create_library_markdown_stubs() -> None:
 
 
 def convert_list_of_paths_to_namespaces(paths: list[Path], root: Path) -> dict[Path, str]:
+    """Convert a list of paths to a dictionary of paths to namespaces usable for the markdown stubs."""
     # Convert path to string, remove everything in the path before "horde_worker_regen"
     lookup = {path: str(path).replace(str(root), "") for path in paths}
 

@@ -66,6 +66,11 @@ class reGenBridgeData(CombinedHordeBridgeData):
 
     @model_validator(mode="after")
     def validate_performance_modes(self) -> reGenBridgeData:
+        """Validate the performance modes and set the appropriate values.
+
+        Returns:
+            reGenBridgeData: The config model with the performance modes set appropriately.
+        """
         if self.max_threads == 2 and self.queue_size > 2:
             self.queue_size = 2
             logger.warning(
@@ -112,7 +117,6 @@ class reGenBridgeData(CombinedHordeBridgeData):
 
     def load_env_vars(self) -> None:
         """Load the environment variables into the config model."""
-
         # See load_env_vars.py's `def load_env_vars(self) -> None:`
         if self.models_folder_parent and os.getenv("AIWORKER_CACHE_HOME") is None:
             os.environ["AIWORKER_CACHE_HOME"] = self.models_folder_parent

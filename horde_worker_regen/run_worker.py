@@ -98,9 +98,11 @@ class LogConsoleRewriter(io.StringIO):
     """Makes the console output more readable by shortening certain strings."""
 
     def __init__(self, original_stdout: io.TextIOBase) -> None:
+        """Initialise the rewriter."""
         self.original_stdout = original_stdout
 
     def write(self, message: str) -> int:
+        """Rewrite the message to make it more readable where possible."""
         replacements = [
             ("horde_worker_regen.process_management.process_manager", "[HWRPM]"),
             ("horde_worker_regen.", "[HWR]"),
@@ -112,10 +114,12 @@ class LogConsoleRewriter(io.StringIO):
         return sys.__stdout__.write(message)
 
     def flush(self) -> None:
+        """Flush the buffer to the original stdout."""
         self.original_stdout.flush()
 
 
-def start() -> None:
+def init() -> None:
+    """Initialise the worker, including logging, environment variables, and other housekeeping."""
     with contextlib.suppress(Exception):
         multiprocessing.set_start_method("spawn", force=True)
 
@@ -175,4 +179,4 @@ def start() -> None:
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()
-    start()
+    init()

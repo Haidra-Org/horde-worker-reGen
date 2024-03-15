@@ -92,6 +92,7 @@ class HordeInferenceProcess(HordeProcess):
                 processes.
             pipe_connection (Connection): Receives `HordeControlMessage`s from the main process.
             inference_semaphore (Semaphore): A semaphore used to limit the number of concurrent inference jobs.
+            aux_model_lock (Lock): A lock used to prevent multiple processes from downloading auxiliary models at the \
             disk_lock (Lock): A lock used to prevent multiple processes from accessing disk at the same time.
         """
         super().__init__(
@@ -256,7 +257,6 @@ class HordeInferenceProcess(HordeProcess):
         Returns:
             float | None: The time elapsed during downloading, or None if no models were downloaded.
         """
-
         with self._aux_model_lock:
             time_start = time.time()
 
@@ -314,6 +314,7 @@ class HordeInferenceProcess(HordeProcess):
             horde_model_name (str): The name of the model to preload.
             will_load_loras (bool): Whether or not the model will be loaded into VRAM.
             seamless_tiling_enabled (bool): Whether or not seamless tiling is enabled.
+            job_info (ImageGenerateJobPopResponse): The job to preload the model for.
         """
         if self._active_model_name == horde_model_name:
             return
@@ -379,6 +380,11 @@ class HordeInferenceProcess(HordeProcess):
         self,
         progress_report: ProgressReport,
     ) -> None:
+        """Handle progress updates from the HordeLib instance.
+
+        Args:
+            progress_report (ProgressReport): The progress report from the HordeLib instance.
+        """
         from hordelib.horde import ProgressState
 
         if progress_report.hordelib_progress_state == ProgressState.post_processing:
@@ -498,6 +504,8 @@ class HordeInferenceProcess(HordeProcess):
         Args:
             job_info (ImageGenerateJobPopResponse): The job that was inferred.
             time_elapsed (float): The time elapsed during the last operation.
+            process_state (HordeProcessState): The state of the process.
+            info (str): Additional information about the message.
         """
         message = HordeAuxModelStateChangeMessage(
             process_state=process_state,
@@ -521,6 +529,7 @@ class HordeInferenceProcess(HordeProcess):
             process_state (HordeProcessState): The state of the process.
             job_info (ImageGenerateJobPopResponse): The job that was inferred.
             images (list[Image] | None): The generated images, or None if inference failed.
+            results (list[ResultingImageReturn] | None): The generated images, or None if inference failed.
             time_elapsed (float): The time elapsed during the last operation.
         """
         all_image_results = []

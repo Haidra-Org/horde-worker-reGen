@@ -9,7 +9,8 @@ from loguru import logger
 
 @pytest.fixture(scope="session", autouse=True)
 def init_hordelib() -> None:
-    # hordelib.initialise()
+    """Initialise hordelib for the tests."""
+    # hordelib.initialise() # FIXME
     logger.warning("hordelib.initialise() not called")
 
 
@@ -26,6 +27,7 @@ TRACKED_DEPENDENCIES = [
 
 @pytest.fixture(scope="session")
 def horde_dependency_versions() -> list[tuple[str, str]]:
+    """Get the versions of horde dependencies from the requirements file."""
     with open(REQUIREMENTS_FILE_PATH) as f:
         requirements = f.readlines()
 

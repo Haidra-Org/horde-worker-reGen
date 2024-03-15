@@ -7,6 +7,13 @@ REQUIREMENTS_FILE_PATH = Path(__file__).parent.parent / "requirements.txt"
 
 
 def test_pre_commit_dep_versions(horde_dependency_versions: list[tuple[str, str]]) -> None:
+    """Check that the versions of horde deps. in .pre-commit-config.yaml match the versions in requirements.txt.
+
+    Checked dependencies at the time of writing:
+    - horde_sdk
+    - hordelib
+    - horde_model_reference
+    """
     # Make sure hordelib and horde_sdk version pins match
     with open(PRECOMMIT_FILE_PATH) as f:
         precommit_config = yaml.safe_load(f)

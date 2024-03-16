@@ -1,19 +1,23 @@
 """Contains the code to download all models specified in the config file. Executable as a standalone script."""
 
-from horde_worker_regen.load_env_vars import load_env_vars_from_config
 
-load_env_vars_from_config()
-
-
-from horde_model_reference.model_reference_manager import ModelReferenceManager
-from loguru import logger
-
-from horde_worker_regen.bridge_data.load_config import BridgeDataLoader, reGenBridgeData
-from horde_worker_regen.consts import BRIDGE_CONFIG_FILENAME
-
-
-def download_all_models(purge_unused_loras: bool = False) -> None:
+def download_all_models(
+    *,
+    load_config_from_env_vars: bool = False,
+    purge_unused_loras: bool = False,
+) -> None:
     """Download all models specified in the config file."""
+    from horde_worker_regen.load_env_vars import load_env_vars_from_config
+
+    if load_config_from_env_vars:
+        load_env_vars_from_config()
+
+    from horde_model_reference.model_reference_manager import ModelReferenceManager
+    from loguru import logger
+
+    from horde_worker_regen.bridge_data.load_config import BridgeDataLoader, reGenBridgeData
+    from horde_worker_regen.consts import BRIDGE_CONFIG_FILENAME
+
     horde_model_reference_manager = ModelReferenceManager(
         download_and_convert_legacy_dbs=True,
         override_existing=True,
@@ -22,16 +26,25 @@ def download_all_models(purge_unused_loras: bool = False) -> None:
     if not horde_model_reference_manager.download_and_convert_all_legacy_dbs(override_existing=True):
         logger.error("Failed to download and convert legacy DBs. Retrying in 5 seconds...")
 
-    bridge_data: reGenBridgeData
+    bridge_data: reGenBridgeData | None = None
     try:
-        bridge_data = BridgeDataLoader.load(
-            file_path=BRIDGE_CONFIG_FILENAME,
-            horde_model_reference_manager=horde_model_reference_manager,
-        )
-        bridge_data.load_env_vars()
+        if not load_config_from_env_vars:
+            bridge_data = BridgeDataLoader.load(
+                file_path=BRIDGE_CONFIG_FILENAME,
+                horde_model_reference_manager=horde_model_reference_manager,
+            )
+            bridge_data.load_env_vars()
+        else:
+            bridge_data = BridgeDataLoader.load_from_env_vars(
+                horde_model_reference_manager=horde_model_reference_manager,
+            )
     except Exception as e:
         logger.error(e)
         input("Press any key to exit...")
+
+    if bridge_data is None:
+        logger.error("Failed to load bridge data")
+        exit(1)
 
     import hordelib
     from horde_safety.deep_danbooru_model import get_deep_danbooru_model

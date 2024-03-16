@@ -1624,7 +1624,9 @@ class HordeWorkerProcessManager:
         if next_job.model is None:
             raise ValueError(f"next_job.model is None ({next_job})")
 
-        processes_post_processing = self._process_map.num_busy_with_post_processing()
+        processes_post_processing = 0
+        if self.bridge_data.moderate_performance_mode or self.bridge_data.high_performance_mode:
+            processes_post_processing = self._process_map.num_busy_with_post_processing()
 
         if len(self.jobs_in_progress) >= (self.max_concurrent_inference_processes + processes_post_processing):
             # if self.max_concurrent_inference_processes > 1:
@@ -1692,7 +1694,9 @@ class HordeWorkerProcessManager:
 
     def start_inference(self) -> None:
         """Start inference for the next job in the deque, if possible."""
-        processes_post_processing = self._process_map.num_busy_with_post_processing()
+        processes_post_processing = 0
+        if self.bridge_data.moderate_performance_mode or self.bridge_data.high_performance_mode:
+            processes_post_processing = self._process_map.num_busy_with_post_processing()
 
         if len(self.jobs_in_progress) >= (self.max_concurrent_inference_processes + processes_post_processing):
             return

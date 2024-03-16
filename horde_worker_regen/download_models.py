@@ -9,7 +9,7 @@ def download_all_models(
     """Download all models specified in the config file."""
     from horde_worker_regen.load_env_vars import load_env_vars_from_config
 
-    if load_config_from_env_vars:
+    if not load_config_from_env_vars:
         load_env_vars_from_config()
 
     from horde_model_reference.model_reference_manager import ModelReferenceManager

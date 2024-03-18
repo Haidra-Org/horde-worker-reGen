@@ -29,6 +29,7 @@ from horde_worker_regen.process_management.messages import (
     HordeControlFlag,
     HordeControlMessage,
     HordeControlModelMessage,
+    HordeHeartbeatType,
     HordeImageResult,
     HordeInferenceControlMessage,
     HordeInferenceResultMessage,
@@ -44,6 +45,7 @@ if TYPE_CHECKING:
     from hordelib.shared_model_manager import SharedModelManager
 else:
     # Create a dummy class to prevent type errors at runtime
+    # This is so we can defer the import of these classes until runtime
     class HordeCheckpointLoader:  # noqa
         pass
 
@@ -159,8 +161,7 @@ class HordeInferenceProcess(HordeProcess):
         )
 
     def _comfyui_callback(self, label: str, data: dict, _id: str) -> None:
-        # TODO
-        self.send_heartbeat_message()
+        self.send_heartbeat_message(heartbeat_type=HordeHeartbeatType.PIPELINE_STATE_CHANGE)
 
     @logger.catch(reraise=True)
     def on_horde_model_state_change(
@@ -399,7 +400,7 @@ class HordeInferenceProcess(HordeProcess):
             except Exception as e:
                 logger.error(f"Failed to release inference semaphore: {type(e).__name__} {e}")
 
-        self.send_heartbeat_message()
+        self.send_heartbeat_message(heartbeat_type=HordeHeartbeatType.INFERENCE_STEP)
 
     def start_inference(self, job_info: ImageGenerateJobPopResponse) -> list[ResultingImageReturn] | None:
         """Start an inference job in the HordeLib instance.

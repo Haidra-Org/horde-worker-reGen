@@ -2,7 +2,6 @@ import asyncio
 import asyncio.exceptions
 import base64
 import collections
-import datetime
 import enum
 import json
 import multiprocessing
@@ -58,11 +57,13 @@ from horde_worker_regen.process_management.messages import (
     HordeControlFlag,
     HordeControlMessage,
     HordeControlModelMessage,
+    HordeHeartbeatType,
     HordeImageResult,
     HordeInferenceControlMessage,
     HordeInferenceResultMessage,
     HordeModelStateChangeMessage,
     HordePreloadInferenceModelMessage,
+    HordeProcessHeartbeatMessage,
     HordeProcessMemoryMessage,
     HordeProcessMessage,
     HordeProcessState,
@@ -116,7 +117,16 @@ class HordeProcessInfo:
     """The type of this process."""
     last_process_state: HordeProcessState
     """The last known state of this process."""
-    last_received_timestamp: datetime.datetime
+
+    last_heartbeat_timestamp: float
+    """Last time we received a heartbeat from this process."""
+    last_heartbeat_delta: float
+    """The delta between the last two heartbeats. Used to determine if the process is stuck."""
+    last_heartbeat_type: HordeHeartbeatType
+    """The type of the last heartbeat received from this process."""
+    heartbeats_inference_steps: int
+
+    last_received_timestamp: float
     """Last time we updated the process info. If we're regularly working, then this value should change frequently."""
     loaded_horde_model_name: str | None
     """The name of the horde model that is (supposedly) currently loaded in this process."""
@@ -158,9 +168,16 @@ class HordeProcessInfo:
         self.process_id = process_id
         self.process_type = process_type
         self.last_process_state = last_process_state
-        self.last_received_timestamp = datetime.datetime.now()
+        self.last_received_timestamp = time.time()
         self.loaded_horde_model_name = None
         self.last_control_flag = None
+
+        self.last_heartbeat_timestamp = time.time()
+        self.last_heartbeat_delta = 0
+        self.last_heartbeat_type = HordeHeartbeatType.OTHER
+        self.heartbeats_inference_steps = 0
+
+        self.last_job_referenced = None
 
         self.ram_usage_bytes = 0
         self.vram_usage_bytes = 0
@@ -293,61 +310,123 @@ class ProcessMap(dict[int, HordeProcessInfo]):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def update_entry(
-        self,
-        process_id: int,
-        *,
-        last_process_state: HordeProcessState | None = None,
-        loaded_horde_model_name: str | None = None,
-        ram_usage_bytes: int | None = None,
-        vram_usage_bytes: int | None = None,
-        total_vram_bytes: int | None = None,
-        batch_amount: int | None = None,
-        last_job_referenced: ImageGenerateJobPopResponse | None = None,
-    ) -> None:
-        """Update the entry for the given process ID. If the process does not exist, it will be created.
+    def on_heartbeat(self, process_id: int, heartbeat_type: HordeHeartbeatType) -> None:
+        """Update the heartbeat for the given process ID.
 
         Args:
             process_id (int): The ID of the process to update.
-            last_process_state (HordeProcessState | None, optional): The last process state of the process. \
-                Defaults to None.
-            loaded_horde_model_name (str | None, optional): The name of the horde model that is (supposedly) \
-                currently loaded in this process. Defaults to None.
-            ram_usage_bytes (int | None, optional): The amount of RAM used by this process. Defaults to None.
-            vram_usage_bytes (int | None, optional): The amount of VRAM used by this process. Defaults to None.
-            total_vram_bytes (int | None, optional): The total amount of VRAM available to this process. \
-                Defaults to None.
-            batch_amount (int | None, optional): The total amount of batching being run by this process. \
-                Defaults to None.
+            heartbeat_type (HordeHeartbeatType): The type of the heartbeat.
+        """
+        self[process_id].last_heartbeat_delta = time.time() - self[process_id].last_heartbeat_timestamp
+        self[process_id].last_heartbeat_timestamp = time.time()
+        self[process_id].last_heartbeat_type = heartbeat_type
+        if heartbeat_type == HordeHeartbeatType.INFERENCE_STEP:
+            self[process_id].heartbeats_inference_steps += 1
+
+    def on_process_ended(self, process_id: int) -> None:
+        """Update the process map when a process has ended.
+
+        Args:
+            process_id (int): The ID of the process that has ended.
+        """
+        self[process_id].last_process_state = HordeProcessState.PROCESS_ENDING
+        self[process_id].loaded_horde_model_name = None
+        self[process_id].last_job_referenced = None
+        self[process_id].batch_amount = 1
+
+        self[process_id].last_received_timestamp = time.time()
+
+    def on_memory_report(
+        self,
+        process_id: int,
+        ram_usage_bytes: int,
+        vram_usage_bytes: int | None = 0,
+        total_vram_bytes: int | None = 0,
+    ) -> None:
+        """Update the memory usage for the given process ID.
+
+        Args:
+            process_id (int): The ID of the process to update.
+            ram_usage_bytes (int): The amount of RAM used by this process.
+            vram_usage_bytes (int): The amount of VRAM used by this process.
+            total_vram_bytes (int): The total amount of VRAM available to this process.
+        """
+        self[process_id].ram_usage_bytes = ram_usage_bytes
+        self[process_id].vram_usage_bytes = vram_usage_bytes or 0
+        self[process_id].total_vram_bytes = total_vram_bytes or 0
+
+        self[process_id].last_received_timestamp = time.time()
+
+    def on_process_state_change(self, process_id: int, new_state: HordeProcessState) -> None:
+        """Update the process state for the given process ID.
+
+        Args:
+            process_id (int): The ID of the process to update.
+            new_state (HordeProcessState): The new state of the process.
+        """
+        self[process_id].last_process_state = new_state
+        self[process_id].last_received_timestamp = time.time()
+
+    def on_last_job_reference_change(
+        self,
+        process_id: int,
+        last_job_referenced: ImageGenerateJobPopResponse | None,
+    ) -> None:
+        """Update the job reference for the given process ID.
+
+        Args:
+            process_id (int): The ID of the process to update.
+            last_job_referenced (ImageGenerateJobPopResponse | None): The last job referenced by this process.
+        """
+        if last_job_referenced is not None and (last_job_referenced != self[process_id].last_job_referenced):
+            logger.debug(f"Resetting heartbeat for process {process_id}")
+            self[process_id].last_heartbeat_delta = 0
+            self[process_id].last_heartbeat_timestamp = time.time()
+            self[process_id].heartbeats_inference_steps = 0
+
+        self[process_id].last_job_referenced = last_job_referenced
+        self[process_id].last_received_timestamp = time.time()
+
+    def on_model_load_state_change(
+        self,
+        process_id: int,
+        horde_model_name: str | None,
+        last_job_referenced: ImageGenerateJobPopResponse | None = None,
+    ) -> None:
+        """Update the model load state for the given process ID.
+
+        Args:
+            process_id (int): The ID of the process to update.
+            horde_model_name (str): The name of the horde model to update.
+            load_state (ModelLoadState): The load state of the model.
             last_job_referenced (ImageGenerateJobPopResponse | None, optional): The last job referenced by this \
                  process. Defaults to None.
         """
-        if process_id not in self:
-            logger.error(f"Process {process_id} does not exist in the process map")
-            return
-
-        if last_process_state is not None:
-            self[process_id].last_process_state = last_process_state
-
-        if loaded_horde_model_name is not None:
-            self[process_id].loaded_horde_model_name = loaded_horde_model_name
-
-        if batch_amount is not None:
-            self[process_id].batch_amount = batch_amount
-
-        if ram_usage_bytes is not None:
-            self[process_id].ram_usage_bytes = ram_usage_bytes
-
-        if vram_usage_bytes is not None:
-            self[process_id].vram_usage_bytes = vram_usage_bytes
-
-        if total_vram_bytes is not None:
-            self[process_id].total_vram_bytes = total_vram_bytes
-
+        self[process_id].loaded_horde_model_name = horde_model_name
+        self[process_id].last_received_timestamp = time.time()
         if last_job_referenced is not None:
+            if (
+                self[process_id].last_job_referenced is not None
+                and last_job_referenced != self[process_id].last_job_referenced
+            ):
+                logger.debug(f"Resetting heartbeat for process {process_id}")
+                self[process_id].last_heartbeat_delta = 0
+                self[process_id].last_heartbeat_timestamp = time.time()
+                self[process_id].heartbeats_inference_steps = 0
             self[process_id].last_job_referenced = last_job_referenced
 
-        self[process_id].last_received_timestamp = datetime.datetime.now()
+    def is_stuck_on_inference(self, process_id: int) -> bool:
+        """Return true if the process is actively doing inference but we haven't received a heartbeat in a while."""
+        if self[process_id].last_process_state != HordeProcessState.INFERENCE_STARTING:
+            return False
+        if self[process_id].heartbeats_inference_steps == 0:
+            return False
+        if (
+            self[process_id].last_heartbeat_type == HordeHeartbeatType.INFERENCE_STEP
+            and (time.time() - self[process_id].last_heartbeat_timestamp) > 30
+        ):
+            return True
+        return False
 
     def num_inference_processes(self) -> int:
         """Return the number of inference processes."""
@@ -491,10 +570,10 @@ class ProcessMap(dict[int, HordeProcessInfo]):
     def get_process_info_strings(self) -> list[str]:
         """Return a list of strings containing information about each process."""
         info_strings = []
-        current_time = datetime.datetime.now()
+        current_time = time.time()
         for process_id, process_info in self.items():
             if process_info.process_type == HordeProcessType.INFERENCE:
-                time_passed_seconds = round((current_time - process_info.last_received_timestamp).total_seconds(), 2)
+                time_passed_seconds = round((current_time - process_info.last_received_timestamp), 2)
                 safe_last_control_flag = (
                     process_info.last_control_flag.name if process_info.last_control_flag is not None else None
                 )
@@ -848,6 +927,8 @@ class HordeWorkerProcessManager:
                 Defaults to 1.
             max_download_processes (int, optional): The maximum number of download processes that can run at once. \
                 Defaults to 1.
+            load_from_env_vars (bool, optional): Whether or not the worker config was loaded from environment \
+                variables. Defaults to False.
         """
         self.session_start_time = time.time()
 
@@ -1153,13 +1234,7 @@ class HordeWorkerProcessManager:
         :param process_info: HordeProcessInfo for the process to end
         :return: None
         """
-        self._process_map.update_entry(
-            process_id=process_info.process_id,
-            last_process_state=None,
-            loaded_horde_model_name=None,
-            last_job_referenced=None,
-            batch_amount=1,
-        )
+        self._process_map.on_process_ended(process_id=process_info.process_id)
         if process_info.loaded_horde_model_name is not None:
             self._horde_model_map.expire_entry(process_info.loaded_horde_model_name)
 
@@ -1182,9 +1257,9 @@ class HordeWorkerProcessManager:
         logger.debug(f"Replacing {process_info}")
         # job = next(((job, pid) for job, pid in self.jobs_in_progress if pid == process_info.process_id), None)
         job_to_remove = None
-        for in_process_job, in_progress_process_info in self.jobs_lookup.items():
-            if in_process_job in self.jobs_in_progress and in_progress_process_info == process_info:
-                job_to_remove = in_process_job
+        for process in self._process_map.values():
+            if process.last_job_referenced is not None and process.last_job_referenced in self.jobs_lookup:
+                job_to_remove = process.last_job_referenced
                 break
 
         if process_info.last_process_state == HordeProcessState.INFERENCE_STARTING:
@@ -1198,15 +1273,15 @@ class HordeWorkerProcessManager:
             except ValueError:
                 logger.debug("Aux model lock already released")
 
-            if process_info.loaded_horde_model_name is not None:
-                self._horde_model_map.expire_entry(process_info.loaded_horde_model_name)
-
             if process_info.last_job_referenced is not None and process_info.last_job_referenced in self.jobs_lookup:
                 job_to_remove = process_info.last_job_referenced
                 logger.error(
                     f"Job {job_to_remove.id_ or job_to_remove.ids} was in aux model preload on process "
                     f"{process_info.process_id} but it failed. Removing.",
                 )
+
+        if process_info.loaded_horde_model_name is not None:
+            self._horde_model_map.expire_entry(process_info.loaded_horde_model_name)
 
         if job_to_remove is not None:
             self.handle_job_fault(faulted_job=job_to_remove, process_info=process_info)
@@ -1227,7 +1302,7 @@ class HordeWorkerProcessManager:
         process_info.safe_send_message(HordeControlMessage(control_flag=HordeControlFlag.END_PROCESS))
 
         # Update the process map
-        self._process_map.update_entry(process_id=process_info.process_id)
+        self._process_map.on_process_ended(process_id=process_info.process_id)
 
         logger.info(f"Ended safety process {process_info.process_id}")
 
@@ -1248,10 +1323,16 @@ class HordeWorkerProcessManager:
         while not self._process_message_queue.empty():
             message: HordeProcessMessage = self._process_message_queue.get()
 
-            logger.debug(
-                f"Received {type(message).__name__} from process {message.process_id}:",
-                # f"{message.model_dump(exclude={'job_result_images_base64', 'replacement_image_base64'})}",
-            )
+            if isinstance(message, HordeProcessHeartbeatMessage):
+                self._process_map.on_heartbeat(
+                    message.process_id,
+                    heartbeat_type=message.heartbeat_type,
+                )
+            else:
+                logger.debug(
+                    f"Received {type(message).__name__} from process {message.process_id}:",
+                    # f"{message.model_dump(exclude={'job_result_images_base64', 'replacement_image_base64'})}",
+                )
 
             # These events happening are program-breaking conditions that (hopefully) should never happen in production
             # and are mainly to make debugging easier when making changes to the code, but serve as a guard against
@@ -1264,7 +1345,7 @@ class HordeWorkerProcessManager:
             # If the process is updating us on its memory usage, update the process map for those values only
             # and then continue to the next message
             if isinstance(message, HordeProcessMemoryMessage):
-                self._process_map.update_entry(
+                self._process_map.on_memory_report(
                     process_id=message.process_id,
                     ram_usage_bytes=message.ram_usage_bytes,
                     vram_usage_bytes=message.vram_usage_bytes,
@@ -1274,9 +1355,9 @@ class HordeWorkerProcessManager:
 
             # If the process state has changed, update the process map
             if isinstance(message, HordeProcessStateChangeMessage):
-                self._process_map.update_entry(
+                self._process_map.on_process_state_change(
                     process_id=message.process_id,
-                    last_process_state=message.process_state,
+                    new_state=message.process_state,
                 )
 
                 logger.debug(f"Process {message.process_id} changed state to {message.process_state}")
@@ -1302,7 +1383,7 @@ class HordeWorkerProcessManager:
             if isinstance(message, HordeAuxModelStateChangeMessage):
                 if message.process_state == HordeProcessState.DOWNLOADING_AUX_MODEL:
                     logger.info(f"Process {message.process_id} is downloading extra models (LoRas, etc.)")
-                    self._process_map.update_entry(
+                    self._process_map.on_last_job_reference_change(
                         process_id=message.process_id,
                         last_job_referenced=message.sdk_api_job_info,
                     )
@@ -1333,11 +1414,16 @@ class HordeWorkerProcessManager:
                     process_id=message.process_id,
                 )
 
+                self._process_map.on_model_load_state_change(
+                    process_id=message.process_id,
+                    horde_model_name=message.horde_model_name,
+                )
+
                 if message.horde_model_state == ModelLoadState.LOADING:
                     logger.debug(f"Process {message.process_id} is loading model {message.horde_model_name}")
-                    self._process_map.update_entry(
+                    self._process_map.on_model_load_state_change(
                         process_id=message.process_id,
-                        loaded_horde_model_name=message.horde_model_name,
+                        horde_model_name=message.horde_model_name,
                     )
 
                 # If the model was just loaded, so update the process map and log a message with the time it took
@@ -1366,16 +1452,7 @@ class HordeWorkerProcessManager:
 
                             logger.info(loaded_message)
 
-                    self._process_map.update_entry(
-                        process_id=message.process_id,
-                        loaded_horde_model_name=message.horde_model_name,
-                    )
-
                 elif message.horde_model_state == ModelLoadState.ON_DISK:
-                    self._process_map.update_entry(
-                        process_id=message.process_id,
-                        loaded_horde_model_name=None,
-                    )
                     # FIXME this message is wrong for download processes
                     logger.info(f"Process {message.process_id} unloaded model {message.horde_model_name}")
 
@@ -1590,9 +1667,9 @@ class HordeWorkerProcessManager:
                 process_id=available_process.process_id,
             )
 
-            self._process_map.update_entry(
+            self._process_map.on_model_load_state_change(
                 process_id=available_process.process_id,
-                loaded_horde_model_name=job.model,
+                horde_model_name=job.model,
                 last_job_referenced=job,
             )
 
@@ -1847,9 +1924,10 @@ class HordeWorkerProcessManager:
                 process_id=process_id,
             )
 
-            self._process_map.update_entry(
+            self._process_map.on_model_load_state_change(
                 process_id=process_id,
-                loaded_horde_model_name=None,
+                horde_model_name=None,
+                last_job_referenced=None,
             )
 
     def get_next_n_models(self, n: int) -> set[str]:
@@ -2323,7 +2401,7 @@ class HordeWorkerProcessManager:
                 self.completed_jobs.remove(completed_job_info)
                 self.jobs_lookup.pop(completed_job_info.sdk_api_job_info)
 
-                self._last_job_submitted_time = datetime.datetime.now()
+                self._last_job_submitted_time = time.time()
 
             except ValueError:
                 # This means another fault catch removed the faulted job so it's OK
@@ -2356,7 +2434,7 @@ class HordeWorkerProcessManager:
     _last_job_pop_time = 0.0
     """The time at which the last job was popped from the API."""
 
-    _last_job_submitted_time = datetime.datetime.now()
+    _last_job_submitted_time = time.time()
     """The time at which the last job was submitted to the API."""
 
     _max_pending_megapixelsteps = 25
@@ -3077,6 +3155,9 @@ class HordeWorkerProcessManager:
 
     def get_bridge_data_from_disk(self) -> None:
         """Load the bridge data from disk."""
+        if self.bridge_data._loaded_from_env_vars:
+            return
+
         try:
             self.bridge_data = BridgeDataLoader.load(
                 file_path=BRIDGE_CONFIG_FILENAME,
@@ -3161,7 +3242,7 @@ class HordeWorkerProcessManager:
     def signal_handler(self, sig: int, frame: object) -> None:
         """Handle SIGINT and SIGTERM."""
         if self._caught_sigints >= 2:
-            logger.warning("Caught SIGINT or SIGTERM twice, exiting immediately")
+            logger.warning("Caught SIGINT or SIGTERM three times, exiting immediately")
             sys.exit(1)
 
         self._caught_sigints += 1
@@ -3187,66 +3268,83 @@ class HordeWorkerProcessManager:
 
     _recently_recovered = False
 
+    def _cleanup_jobs(self) -> None:
+        if len(self.job_deque) > 0:
+            self.job_deque.clear()
+            self._last_job_submitted_time = time.time()
+            logger.error("Cleared job deque")
+
+        if len(self.jobs_being_safety_checked) > 0:
+            self.jobs_being_safety_checked.clear()
+            logger.error("Cleared jobs being safety checked")
+
+        if len(self.jobs_pending_safety_check) > 0:
+            self.jobs_pending_safety_check.clear()
+            logger.error("Cleared jobs pending safety check")
+
+        if len(self.jobs_lookup) > 0:
+            self.jobs_lookup.clear()
+            logger.error("Cleared jobs lookup")
+
+        if len(self.jobs_in_progress) > 0:
+            self.jobs_in_progress.clear()
+            logger.error("Cleared jobs in progress")
+
+        if len(self.completed_jobs) > 0:
+            self.completed_jobs.clear()
+            logger.error("Cleared completed jobs")
+
+    def _hard_kill_processes(
+        self,
+        inference: bool = True,
+        safety: bool = True,
+        all_: bool = True,
+    ) -> None:
+        for process_info in self._process_map.values():
+            if (
+                (inference and process_info.process_type == HordeProcessType.INFERENCE)
+                or (safety and process_info.process_type == HordeProcessType.SAFETY)
+                or (all_)
+            ):
+                process_info.mp_process.kill()
+                process_info.mp_process.kill()
+                process_info.mp_process.join(1)
+
+        self._process_map.clear()
+        self._horde_model_map.root.clear()
+
     def replace_hung_processes(self) -> bool:
         """Replaces processes that haven't checked in since `process_timeout` seconds in bridgeData."""
-        now = datetime.datetime.now()
+        now = time.time()
 
         # If every process hasn't done anything for a while or if we haven't submitted a job for a while,
         # AND the last job pop returned a job, we're in a black hole and we need to exit because none of the ways to
         # recover worked
         if (
             all(
-                now - process_info.last_received_timestamp
-                > datetime.timedelta(
-                    seconds=self.bridge_data.process_timeout,
-                )
+                ((now - process_info.last_received_timestamp) > self.bridge_data.process_timeout)
                 for process_info in self._process_map.values()
             )
-            or (
-                now - self._last_job_submitted_time
-                > datetime.timedelta(
-                    seconds=self.bridge_data.process_timeout,
-                )
-            )
+            or ((now - self._last_job_submitted_time) > self.bridge_data.process_timeout)
         ) and not (self._last_pop_no_jobs_available or self._recently_recovered):
+
+            self._cleanup_jobs()
+
             if self.bridge_data.exit_on_unhandled_faults:
                 logger.error("All processes have been unresponsive for too long, exiting.")
 
                 self._shutting_down = True
-
-                self.job_deque.clear()
-                self.jobs_being_safety_checked.clear()
-                self.jobs_pending_safety_check.clear()
-                self.jobs_lookup.clear()
-                self.jobs_in_progress.clear()
-                self.completed_jobs.clear()  # FIXME: At least try to submit the jobs as faulted
-
+                self._hard_kill_processes()
                 self._start_timed_shutdown()
 
-                for process_info in self._process_map.values():
-                    process_info.mp_process.kill()
-                    process_info.mp_process.kill()
-                    process_info.mp_process.join(1)
-
                 logger.error("Exiting due to exit_on_unhandled_faults being enabled")
-                self._process_map.clear()
+
                 return True
 
             logger.error("All processes have been unresponsive for too long, attempting to recover.")
             for process_info in self._process_map.values():
                 if process_info.process_type == HordeProcessType.INFERENCE:
                     self._replace_inference_process(process_info)
-
-            if len(self.job_deque) > 0:
-                logger.error("Jobs are still in the queue, clearing...")
-                self.job_deque.clear()
-
-            if len(self.jobs_pending_safety_check) > 0:
-                logger.error("Jobs are still pending safety check...")
-                self.jobs_pending_safety_check.clear()
-
-            if len(self.jobs_being_safety_checked) > 0:
-                logger.error("Jobs are still being safety checked...")
 
             self._recently_recovered = True
 
@@ -3262,19 +3360,24 @@ class HordeWorkerProcessManager:
 
         any_replaced = False
         for process_info in self._process_map.values():
+
+            if self._process_map.is_stuck_on_inference(process_info.process_id):
+                logger.error(f"{process_info} seems to be stuck mid inference, replacing it")
+                self._replace_inference_process(process_info)
+                any_replaced = True
+                continue
+
             time_elapsed = now - process_info.last_received_timestamp
 
-            if time_elapsed > datetime.timedelta(
-                seconds=self.bridge_data.process_timeout,
-            ) and (
+            if time_elapsed > self.bridge_data.process_timeout and (
                 process_info.is_process_busy() or process_info.last_process_state == HordeProcessState.PRELOADED_MODEL
             ):
                 logger.error(f"{process_info} has exceeded its timeout and will be replaced")
                 self._replace_inference_process(process_info)
                 any_replaced = True
-            if time_elapsed > datetime.timedelta(
-                seconds=self.bridge_data.preload_timeout,
-            ) and (
+                continue
+
+            if time_elapsed > self.bridge_data.preload_timeout and (
                 process_info.last_process_state == HordeProcessState.PRELOADING_MODEL
                 or process_info.last_process_state == HordeProcessState.DOWNLOADING_AUX_MODEL
             ):
@@ -3285,16 +3388,12 @@ class HordeWorkerProcessManager:
                 )
                 self._replace_inference_process(process_info)
                 any_replaced = True
+                continue
 
-            if (
-                time_elapsed
-                > datetime.timedelta(
-                    seconds=45,
-                )
-                and process_info.last_process_state == HordeProcessState.PROCESS_STARTING
-            ):
+            if time_elapsed > 45 and process_info.last_process_state == HordeProcessState.PROCESS_STARTING:
                 logger.error(f"{process_info} seems to be stuck starting, replacing it")
                 self._replace_inference_process(process_info)
                 any_replaced = True
+                continue
 
         return any_replaced

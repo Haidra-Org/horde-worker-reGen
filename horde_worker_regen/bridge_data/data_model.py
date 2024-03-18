@@ -18,6 +18,8 @@ class reGenBridgeData(CombinedHordeBridgeData):
     See `CombinedHordeBridgeData` from the SDK for more information..
     """
 
+    _loaded_from_env_vars: bool = False
+
     disable_terminal_ui: bool = Field(
         default=True,
     )

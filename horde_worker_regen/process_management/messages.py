@@ -138,8 +138,19 @@ class HordeProcessMemoryMessage(HordeProcessMessage):
     """The total number of bytes of VRAM available on the GPU."""
 
 
+class HordeHeartbeatType(enum.Enum):
+    """The state of the heartbeat."""
+
+    OTHER = auto()
+    PIPELINE_STATE_CHANGE = auto()
+    INFERENCE_STEP = auto()
+
+
 class HordeProcessHeartbeatMessage(HordeProcessMessage):
     """Heartbeat messages that are sent from the child processes to the main process."""
+
+    heartbeat_type: HordeHeartbeatType
+    """The type of the heartbeat."""
 
 
 class HordeProcessStateChangeMessage(HordeProcessMessage):

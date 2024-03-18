@@ -223,6 +223,7 @@ class BridgeDataLoader:
                 horde_model_reference_manager,
             )
 
+        bridge_data._loaded_from_env_vars = True
         return bridge_data
 
     @staticmethod

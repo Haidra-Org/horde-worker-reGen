@@ -24,6 +24,7 @@ from horde_worker_regen.process_management._aliased_types import ProcessQueue
 from horde_worker_regen.process_management.messages import (
     HordeControlFlag,
     HordeControlMessage,
+    HordeHeartbeatType,
     HordeProcessHeartbeatMessage,
     HordeProcessMemoryMessage,
     HordeProcessState,
@@ -140,19 +141,20 @@ class HordeProcess(abc.ABC):
     _heartbeat_limit_interval_seconds: float = 1.0
     _last_heartbeat_time: float = 0.0
 
-    def send_heartbeat_message(self) -> None:
+    def send_heartbeat_message(self, heartbeat_type: HordeHeartbeatType) -> None:
         """Send a heartbeat message to the main process, indicating that the process is still alive.
 
         Note that this will only send a heartbeat message if the last heartbeat was sent more than
         `_heartbeat_limit_interval_seconds` ago.
         """
-        if (time.time() - self._last_heartbeat_time) < self._heartbeat_limit_interval_seconds:
+        if (time.time() - self._last_heartbeat_time) < self._heartbeat_limit_interval_seconds:  # FIXME?
             return
 
         message = HordeProcessHeartbeatMessage(
             process_id=self.process_id,
             info="Heartbeat",
             time_elapsed=None,
+            heartbeat_type=heartbeat_type,
         )
         self.process_message_queue.put(message)
 

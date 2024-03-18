@@ -48,7 +48,6 @@ def main(ctx: BaseContext, load_from_env_vars: bool = False) -> None:
             bridge_data = BridgeDataLoader.load_from_env_vars(
                 horde_model_reference_manager=horde_model_reference_manager,
             )
-
             if len(bridge_data.api_key) == 10:
                 logger.error(
                     "API key is the default. This is almost certainly not what you want. "

@@ -955,6 +955,7 @@ class HordeWorkerProcessManager:
         self._disk_lock = Lock_MultiProcessing(ctx=ctx)
 
         self.jobs_lookup = {}
+        self._jobs_lookup_lock = Lock_Asyncio()
 
         self.completed_jobs = []
         self._completed_jobs_lock = Lock_Asyncio()
@@ -2330,7 +2331,7 @@ class HordeWorkerProcessManager:
                 )
 
         # Finally, remove the job from the completed jobs list and reset the number of consecutive failed job
-        async with self._completed_jobs_lock:
+        async with self._jobs_lookup_lock, self._completed_jobs_lock:
             for submit_job in finished_submit_jobs:
                 if submit_job.is_faulted:
                     job_faulted = True
@@ -3008,7 +3009,12 @@ class HordeWorkerProcessManager:
                 if self.stable_diffusion_reference is None:
                     return
                 with logger.catch(reraise=True):
-                    async with self._job_deque_lock, self._jobs_safety_check_lock, self._completed_jobs_lock:
+                    async with (
+                        self._jobs_lookup_lock,
+                        self._job_deque_lock,
+                        self._jobs_safety_check_lock,
+                        self._completed_jobs_lock,
+                    ):
                         self.receive_and_handle_process_messages()
 
                     if len(self.jobs_pending_safety_check) > 0:
@@ -3017,6 +3023,7 @@ class HordeWorkerProcessManager:
 
                     if self.is_free_inference_process_available() and len(self.job_deque) > 0:
                         async with (
+                            self._jobs_lookup_lock,
                             self._job_deque_lock,
                             self._jobs_safety_check_lock,
                             self._completed_jobs_lock,
@@ -3047,7 +3054,12 @@ class HordeWorkerProcessManager:
                                 else:
                                     self.start_inference()
 
-                    async with self._job_deque_lock, self._jobs_safety_check_lock, self._completed_jobs_lock:
+                    async with (
+                        self._jobs_lookup_lock,
+                        self._job_deque_lock,
+                        self._jobs_safety_check_lock,
+                        self._completed_jobs_lock,
+                    ):
                         await asyncio.sleep(self._loop_interval / 2)
                         self.receive_and_handle_process_messages()
                         self.replace_hung_processes()

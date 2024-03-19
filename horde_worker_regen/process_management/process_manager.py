@@ -3222,7 +3222,7 @@ class HordeWorkerProcessManager:
         job_submit_loop.add_done_callback(self._handle_exception)
 
         bridge_data_loop = None
-        if self.bridge_data._loaded_from_env_vars:
+        if not self.bridge_data._loaded_from_env_vars:
             bridge_data_loop = asyncio.create_task(self._bridge_data_loop(), name="bridge_data_loop")
             bridge_data_loop.add_done_callback(self._handle_exception)
 

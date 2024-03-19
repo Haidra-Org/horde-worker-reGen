@@ -1461,6 +1461,12 @@ class HordeWorkerProcessManager:
             # - if its a faulted job, log an error and add it to the list of completed jobs to be sent to the API
             # - if its a completed job, add it to the list of jobs pending safety checks
             if isinstance(message, HordeInferenceResultMessage):
+                if message.sdk_api_job_info not in self.jobs_lookup:
+                    logger.error(
+                        f"Job {message.sdk_api_job_info.id_} not found in jobs_lookup. (Process {message.process_id})",
+                    )
+                    continue
+
                 job_info = self.jobs_lookup[message.sdk_api_job_info]
                 self.jobs_in_progress.remove(message.sdk_api_job_info)
 

@@ -927,8 +927,6 @@ class HordeWorkerProcessManager:
                 Defaults to 1.
             max_download_processes (int, optional): The maximum number of download processes that can run at once. \
                 Defaults to 1.
-            load_from_env_vars (bool, optional): Whether or not the worker config was loaded from environment \
-                variables. Defaults to False.
         """
         self.session_start_time = time.time()
 
@@ -3214,21 +3212,26 @@ class HordeWorkerProcessManager:
                 logger.exception(ex)
 
     async def _main_loop(self) -> None:
-        # Run both loops concurrently
         process_control_loop = asyncio.create_task(self._process_control_loop(), name="process_control_loop")
-        api_call_loop = asyncio.create_task(self._api_call_loop(), name="api_call_loop")
-        job_submit_loop = asyncio.create_task(self._job_submit_loop(), name="job_submit_loop")
-        bridge_data_loop = asyncio.create_task(self._bridge_data_loop(), name="bridge_data_loop")
         process_control_loop.add_done_callback(self._handle_exception)
+
+        api_call_loop = asyncio.create_task(self._api_call_loop(), name="api_call_loop")
         api_call_loop.add_done_callback(self._handle_exception)
+
+        job_submit_loop = asyncio.create_task(self._job_submit_loop(), name="job_submit_loop")
         job_submit_loop.add_done_callback(self._handle_exception)
-        bridge_data_loop.add_done_callback(self._handle_exception)
-        await asyncio.gather(
-            process_control_loop,
-            api_call_loop,
-            job_submit_loop,
-            bridge_data_loop,
-        )
+
+        bridge_data_loop = None
+        if self.bridge_data._loaded_from_env_vars:
+            bridge_data_loop = asyncio.create_task(self._bridge_data_loop(), name="bridge_data_loop")
+            bridge_data_loop.add_done_callback(self._handle_exception)
+
+        tasks = [process_control_loop, api_call_loop, job_submit_loop]
+
+        if bridge_data_loop is not None:
+            tasks.append(bridge_data_loop)
+
+        await asyncio.gather(*tasks)
 
     _caught_sigints = 0
 

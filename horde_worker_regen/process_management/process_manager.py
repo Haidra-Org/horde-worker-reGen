@@ -1468,7 +1468,14 @@ class HordeWorkerProcessManager:
                     continue
 
                 job_info = self.jobs_lookup[message.sdk_api_job_info]
-                self.jobs_in_progress.remove(message.sdk_api_job_info)
+
+                if job_info in self.jobs_in_progress:
+                    self.jobs_in_progress.remove(message.sdk_api_job_info)
+                else:
+                    logger.error(
+                        f"Job {message.sdk_api_job_info.id_} not found in jobs_in_progress. "
+                        f"(Process {message.process_id})",
+                    )
 
                 for job in self.job_deque:
                     if job.id_ == message.sdk_api_job_info.id_:

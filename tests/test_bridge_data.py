@@ -91,6 +91,7 @@ def test_bridge_data_load_from_env_vars() -> None:
         horde_model_reference_manager=horde_model_reference_manager,
     )
     assert bridge_data is not None
+    assert bridge_data._loaded_from_env_vars is True
 
 
 def test_bridge_data_to_dot_env_file() -> None:

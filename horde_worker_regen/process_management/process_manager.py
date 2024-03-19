@@ -1048,10 +1048,13 @@ class HordeWorkerProcessManager:
 
     def is_time_for_shutdown(self) -> bool:
         """Return true if it is time to shut down."""
-        if all(
-            inference_process.last_process_state == HordeProcessState.PROCESS_ENDING
-            or inference_process.last_process_state == HordeProcessState.PROCESS_ENDED
-            for inference_process in self._process_map.values()
+        if (
+            all(
+                inference_process.last_process_state == HordeProcessState.PROCESS_ENDING
+                or inference_process.last_process_state == HordeProcessState.PROCESS_ENDED
+                for inference_process in self._process_map.values()
+            )
+            and not self._recently_recovered
         ):
             return True
 
@@ -3345,14 +3348,14 @@ class HordeWorkerProcessManager:
                 return True
 
             logger.error("All processes have been unresponsive for too long, attempting to recover.")
+            self._recently_recovered = True
+
             for process_info in self._process_map.values():
                 if process_info.process_type == HordeProcessType.INFERENCE:
                     self._replace_inference_process(process_info)
 
-            self._recently_recovered = True
-
             def timed_unset_recently_recovered() -> None:
-                time.sleep(60)
+                time.sleep(15)
                 self._recently_recovered = False
 
             import threading

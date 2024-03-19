@@ -3402,7 +3402,10 @@ class HordeWorkerProcessManager:
                 any_replaced = True
                 continue
 
-            if time_elapsed > 45 and process_info.last_process_state == HordeProcessState.PROCESS_STARTING:
+            if (
+                time_elapsed > self.bridge_data.preload_timeout
+                and process_info.last_process_state == HordeProcessState.PROCESS_STARTING
+            ):
                 logger.error(f"{process_info} seems to be stuck starting, replacing it")
                 self._replace_inference_process(process_info)
                 any_replaced = True

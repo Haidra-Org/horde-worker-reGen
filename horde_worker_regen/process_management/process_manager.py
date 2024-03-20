@@ -3148,6 +3148,7 @@ class HordeWorkerProcessManager:
             await asyncio.sleep(0.2)
             async with self._job_deque_lock, self._jobs_safety_check_lock, self._completed_jobs_lock:
                 self.receive_and_handle_process_messages()
+                self.detect_deadlock()
             await asyncio.sleep(0.2)
 
         self.end_safety_processes()

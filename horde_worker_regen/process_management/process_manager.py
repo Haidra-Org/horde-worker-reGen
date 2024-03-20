@@ -472,6 +472,15 @@ class ProcessMap(dict[int, HordeProcessInfo]):
             if p.batch_amount == 1:
                 continue
             if (
+                (
+                    p.last_process_state == HordeProcessState.INFERENCE_STARTING
+                    or p.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING
+                )
+                and p.last_job_referenced is not None
+                and p.last_job_referenced.model in KNOWN_SLOW_MODELS_DIFFICULTIES
+            ):
+                return True
+            if (
                 p.can_accept_job()
                 or p.last_process_state == HordeProcessState.PRELOADING_MODEL
                 or p.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING
@@ -3073,7 +3082,10 @@ class HordeWorkerProcessManager:
                                 next_job_and_process = self.get_next_job_and_process()
                                 if self._process_map.keep_single_inference():
                                     if self.has_queued_jobs() and time.time() - self._batch_wait_log_time > 10:
-                                        logger.info("Blocking further inference because batch inference in process.")
+                                        logger.info(
+                                            "Blocking further inference because batch or slow_model inference "
+                                            "in process.",
+                                        )
                                         self._batch_wait_log_time = time.time()
 
                                 elif (

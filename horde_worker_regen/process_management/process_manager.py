@@ -3078,7 +3078,7 @@ class HordeWorkerProcessManager:
                         self._completed_jobs_lock,
                     ):
                         self.receive_and_handle_process_messages()
-
+                        self.detect_deadlock()
                     if len(self.jobs_pending_safety_check) > 0:
                         async with self._jobs_safety_check_lock:
                             self.start_evaluate_safety()
@@ -3127,7 +3127,6 @@ class HordeWorkerProcessManager:
                     ):
                         await asyncio.sleep(self._loop_interval / 2)
                         self.receive_and_handle_process_messages()
-                        self.detect_deadlock()
                         self.replace_hung_processes()
 
                     # self.unload_models()
@@ -3175,7 +3174,6 @@ class HordeWorkerProcessManager:
         if (not self._in_deadlock) and len(self.job_deque) > 0 and self._process_map.num_busy_processes() == 0:
             self._last_deadlock_detected_time = time.time()
             self._in_deadlock = True
-            logger.error("Deadlock detected! No processes are busy but there are jobs in the queue.")
             logger.debug(f"Jobs in queue: {len(self.job_deque)}")
             logger.debug(f"Jobs in progress: {len(self.jobs_in_progress)}")
             logger.debug(f"Jobs pending safety check: {len(self.jobs_pending_safety_check)}")
@@ -3187,7 +3185,7 @@ class HordeWorkerProcessManager:
             and (self._last_deadlock_detected_time + 5) < time.time()
             and self._process_map.num_busy_processes() == 0
         ):
-            logger.error("Deadlock still detected after 5 seconds. Attempting to recover.")
+            logger.debug("Deadlock still detected after 5 seconds. Attempting to recover.")
             self.jobs_in_progress.clear()
             self._in_deadlock = False
         elif (
@@ -3195,7 +3193,6 @@ class HordeWorkerProcessManager:
             and (self._last_deadlock_detected_time + 5) < time.time()
             and self._process_map.num_busy_processes() > 0
         ):
-            logger.info("Deadlock recovered on its own.")
             self._in_deadlock = False
 
     def print_status_method(self) -> None:

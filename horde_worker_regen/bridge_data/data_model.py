@@ -44,6 +44,8 @@ class reGenBridgeData(CombinedHordeBridgeData):
     process_timeout: int = Field(default=900)
     """The maximum amount of time to allow a job to run before it is killed"""
 
+    post_process_timeout: int = Field(default=60, ge=15)
+
     download_timeout: int = Field(default=TOTAL_LORA_DOWNLOAD_TIMEOUT + 1)
     preload_timeout: int = Field(default=60, ge=15)
 

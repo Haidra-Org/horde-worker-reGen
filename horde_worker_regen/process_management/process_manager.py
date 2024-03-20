@@ -1799,7 +1799,10 @@ class HordeWorkerProcessManager:
                 candidate_job_size = 50
 
             if not process_with_model.can_accept_job():
-                if process_with_model.last_process_state == HordeProcessState.DOWNLOADING_AUX_MODEL:
+                if process_with_model.last_process_state == HordeProcessState.DOWNLOADING_AUX_MODEL or (
+                    process_with_model.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING
+                    and (self.bridge_data.high_performance_mode or self.bridge_data.moderate_performance_mode)
+                ):
                     # If any of the next n jobs (other than this one) aren't using the same model, see if that job
                     # has a model that's already loaded.
                     # If it does, we'll start inference on that job instead.

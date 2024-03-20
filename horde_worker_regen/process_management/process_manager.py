@@ -437,7 +437,7 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         """Return true if the process is actively doing inference but we haven't received a heartbeat in a while."""
         if self[process_id].last_process_state != HordeProcessState.INFERENCE_STARTING:
             return False
-        if self[process_id].heartbeats_inference_steps <= 1:
+        if self[process_id].heartbeats_inference_steps == 0:
             return False
         if (
             self[process_id].last_heartbeat_type == HordeHeartbeatType.INFERENCE_STEP

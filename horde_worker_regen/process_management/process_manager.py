@@ -563,7 +563,7 @@ class ProcessMap(dict[int, HordeProcessInfo]):
     def num_busy_processes(self) -> int:
         """Return the number of processes that are actively engaged in a task.
 
-        This does not include processes whichP are starting up or shutting down, or in a faulted state.
+        This does not include processes which are starting up or shutting down, or in a faulted state.
         """
         count = 0
         for p in self.values():
@@ -1784,8 +1784,6 @@ class HordeWorkerProcessManager:
                 self._horde_model_map.expire_entry(job.model)
 
         if self._horde_model_map.is_model_loaded(next_job.model):
-            process_with_model = self._process_map.get_process_by_horde_model_name(next_job.model)
-
             if process_with_model is None:
                 handle_process_missing(next_job)
                 return None
@@ -1808,11 +1806,11 @@ class HordeWorkerProcessManager:
                     # If it does, we'll start inference on that job instead.
                     for candidate_small_job in next_n_jobs:
                         if candidate_small_job.model is not None and candidate_small_job.model != next_job.model:
-                            process_with_model = self._process_map.get_process_by_horde_model_name(
+                            candidate_process_with_model = self._process_map.get_process_by_horde_model_name(
                                 candidate_small_job.model,
                             )
                             if (
-                                process_with_model is not None
+                                candidate_process_with_model is not None
                                 and self.get_single_job_effective_megapixelsteps(candidate_small_job)
                                 <= candidate_job_size
                             ):
@@ -1820,6 +1818,7 @@ class HordeWorkerProcessManager:
                                 skipped_line_for = next_job
 
                                 next_job = candidate_small_job
+                                process_with_model = candidate_process_with_model
                                 break
                     else:
                         return None
@@ -3165,6 +3164,37 @@ class HordeWorkerProcessManager:
             process.mp_process.join(0.2)
 
         sys.exit(0)
+
+    _last_deadlock_detected_time = 0.0
+    _in_deadlock = False
+
+    def detect_deadlock(self) -> None:
+        """Detect if there are jobs in the queue but no processes doing anything."""
+        if (not self._in_deadlock) and len(self.job_deque) > 0 and self._process_map.num_busy_processes() == 0:
+            self._last_deadlock_detected_time = time.time()
+            self._in_deadlock = True
+            logger.error("Deadlock detected! No processes are busy but there are jobs in the queue.")
+            logger.debug(f"Jobs in queue: {len(self.job_deque)}")
+            logger.debug(f"Jobs in progress: {len(self.jobs_in_progress)}")
+            logger.debug(f"Jobs pending safety check: {len(self.jobs_pending_safety_check)}")
+            logger.debug(f"Jobs being safety checked: {len(self.jobs_being_safety_checked)}")
+            logger.debug(f"Jobs completed: {len(self.completed_jobs)}")
+            logger.debug(f"Jobs faulted: {self._num_jobs_faulted}")
+        elif (
+            self._in_deadlock
+            and (self._last_deadlock_detected_time + 5) < time.time()
+            and self._process_map.num_busy_processes() == 0
+        ):
+            logger.error("Deadlock still detected after 5 seconds. Attempting to recover.")
+            self.jobs_in_progress.clear()
+            self._in_deadlock = False
+        elif (
+            self._in_deadlock
+            and (self._last_deadlock_detected_time + 5) < time.time()
+            and self._process_map.num_busy_processes() > 0
+        ):
+            logger.info("Deadlock recovered on its own.")
+            self._in_deadlock = False
 
     def print_status_method(self) -> None:
         """Print the status of the worker if it's time to do so."""

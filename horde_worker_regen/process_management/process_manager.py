@@ -1297,6 +1297,11 @@ class HordeWorkerProcessManager:
                 self._inference_semaphore.release()
             except ValueError:
                 logger.debug("Inference semaphore already released")
+            try:
+                self._disk_lock.release()
+            except ValueError:
+                logger.debug("Disk lock already released")
+
         elif process_info.last_process_state == HordeProcessState.DOWNLOADING_AUX_MODEL:
             try:
                 self._aux_model_lock.release()

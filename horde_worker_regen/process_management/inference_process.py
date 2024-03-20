@@ -348,7 +348,7 @@ class HordeInferenceProcess(HordeProcess):
 
         time_start = time.time()
 
-        with contextlib.nullcontext():  # self.disk_lock: # FIXME
+        with self.disk_lock:
             self._checkpoint_loader.load_checkpoint(
                 will_load_loras=will_load_loras,
                 seamless_tiling_enabled=seamless_tiling_enabled,

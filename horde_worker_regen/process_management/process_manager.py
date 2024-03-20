@@ -2472,7 +2472,8 @@ class HordeWorkerProcessManager:
         if job_info is None:
             logger.error(f"Job {faulted_job.id_} not found in jobs_lookup")
         else:
-            self.job_deque.remove(faulted_job)
+            if faulted_job in self.job_deque:
+                self.job_deque.remove(faulted_job)
 
             job_info.fault_job()
             job_info.time_to_generate = self.bridge_data.process_timeout
@@ -2491,7 +2492,10 @@ class HordeWorkerProcessManager:
                         self.jobs_pending_safety_check.remove(horde_job_info)
                         break
 
-            self.completed_jobs.append(job_info)
+            if job_info not in self.completed_jobs:
+                self.completed_jobs.append(job_info)
+            else:
+                logger.warning(f"Job {faulted_job.id_} already in completed_jobs")
 
             if faulted_job in self.job_pop_timestamps:
                 del self.job_pop_timestamps[faulted_job]

@@ -1546,8 +1546,15 @@ class HordeWorkerProcessManager:
                         num_images_censored += 1
                         if message.safety_evaluations[i].is_csam:
                             num_images_csam += 1
-                if completed_job_info.sdk_api_job_info.id_ is not None:
+                if (
+                    completed_job_info.sdk_api_job_info.id_ is not None
+                    and completed_job_info.sdk_api_job_info.id_ in self.job_faults
+                ):
                     del self.job_faults[completed_job_info.sdk_api_job_info.id_]
+                else:
+                    logger.error(
+                        f"Job {message.job_id} was not found in job_faults. This is unexpected.",
+                    )
 
                 logger.debug(
                     f"Job {message.job_id} had {num_images_censored} images censored and took "
@@ -2406,8 +2413,15 @@ class HordeWorkerProcessManager:
                     except Exception as e:
                         logger.error(f"Failed to write kudos training data: {e}")
 
-                self.completed_jobs.remove(completed_job_info)
-                self.jobs_lookup.pop(completed_job_info.sdk_api_job_info)
+                if completed_job_info in self.completed_jobs:
+                    self.completed_jobs.remove(completed_job_info)
+                else:
+                    logger.warning(f"Job {completed_job_info.sdk_api_job_info.id_} not found in completed_jobs")
+
+                if completed_job_info.sdk_api_job_info in self.jobs_lookup:
+                    del self.jobs_lookup[completed_job_info.sdk_api_job_info]
+                else:
+                    logger.warning(f"Job {completed_job_info.sdk_api_job_info.id_} not found in jobs_lookup")
 
                 self._last_job_submitted_time = time.time()
 

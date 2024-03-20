@@ -1790,6 +1790,14 @@ class HordeWorkerProcessManager:
                 handle_process_missing(next_job)
                 return None
 
+            candidate_job_size = 25
+
+            if self.bridge_data.high_performance_mode:
+                candidate_job_size = 100
+
+            elif self.bridge_data.moderate_performance_mode:
+                candidate_job_size = 50
+
             if not process_with_model.can_accept_job():
                 if process_with_model.last_process_state == HordeProcessState.DOWNLOADING_AUX_MODEL:
                     # If any of the next n jobs (other than this one) aren't using the same model, see if that job
@@ -1802,7 +1810,8 @@ class HordeWorkerProcessManager:
                             )
                             if (
                                 process_with_model is not None
-                                and self.get_single_job_effective_megapixelsteps(candidate_small_job) <= 25
+                                and self.get_single_job_effective_megapixelsteps(candidate_small_job)
+                                <= candidate_job_size
                             ):
                                 skipped_line = True
                                 skipped_line_for = next_job

@@ -578,6 +578,11 @@ class HordeInferenceProcess(HordeProcess):
             horde_model_state=ModelLoadState.LOADED_IN_VRAM,
         )
 
+        self.send_process_state_change_message(
+            HordeProcessState.WAITING_FOR_JOB,
+            info="Waiting for job",
+        )
+
     @override
     @logger.catch(reraise=True)
     def _receive_and_handle_control_message(self, message: HordeControlMessage) -> None:

@@ -469,17 +469,18 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         """
         for p in self.values():
             # We only parallelizing if we have a currently running inference with n_iter > 1
-            if p.batch_amount == 1:
-                continue
             if (
                 (
                     p.last_process_state == HordeProcessState.INFERENCE_STARTING
+                    or p.last_process_state == HordeProcessState.PRELOADED_MODEL
                     or p.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING
                 )
                 and p.last_job_referenced is not None
                 and p.last_job_referenced.model in KNOWN_SLOW_MODELS_DIFFICULTIES
             ):
                 return True
+            if p.batch_amount == 1:
+                continue
             if (
                 p.can_accept_job()
                 or p.last_process_state == HordeProcessState.PRELOADING_MODEL

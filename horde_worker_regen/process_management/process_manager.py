@@ -3127,6 +3127,7 @@ class HordeWorkerProcessManager:
                     ):
                         await asyncio.sleep(self._loop_interval / 2)
                         self.receive_and_handle_process_messages()
+                        self.detect_deadlock()
                         self.replace_hung_processes()
 
                     # self.unload_models()

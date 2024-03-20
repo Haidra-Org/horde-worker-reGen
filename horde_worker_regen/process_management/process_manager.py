@@ -334,6 +334,8 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         self[process_id].last_job_referenced = None
         self[process_id].batch_amount = 1
 
+        self.reset_heartbeat_state(process_id)
+
         self[process_id].last_received_timestamp = time.time()
 
     def on_memory_report(
@@ -366,6 +368,13 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         """
         self[process_id].last_process_state = new_state
         self[process_id].last_received_timestamp = time.time()
+
+        if (
+            new_state == HordeProcessState.INFERENCE_COMPLETE
+            or new_state == HordeProcessState.INFERENCE_FAILED
+            or new_state == HordeProcessState.WAITING_FOR_JOB
+        ):
+            self.reset_heartbeat_state(process_id)
 
     def on_last_job_reference_change(
         self,
@@ -410,16 +419,25 @@ class ProcessMap(dict[int, HordeProcessInfo]):
                 and last_job_referenced != self[process_id].last_job_referenced
             ):
                 logger.debug(f"Resetting heartbeat for process {process_id}")
-                self[process_id].last_heartbeat_delta = 0
-                self[process_id].last_heartbeat_timestamp = time.time()
-                self[process_id].heartbeats_inference_steps = 0
+                self.reset_heartbeat_state(process_id)
             self[process_id].last_job_referenced = last_job_referenced
+
+    def reset_heartbeat_state(self, process_id: int) -> None:
+        """Reset the heartbeat state for the given process ID.
+
+        Args:
+            process_id (int): The ID of the process to update.
+        """
+        logger.debug(f"Resetting heartbeat for process {process_id}")
+        self[process_id].last_heartbeat_delta = 0
+        self[process_id].last_heartbeat_timestamp = time.time()
+        self[process_id].heartbeats_inference_steps = 0
 
     def is_stuck_on_inference(self, process_id: int) -> bool:
         """Return true if the process is actively doing inference but we haven't received a heartbeat in a while."""
         if self[process_id].last_process_state != HordeProcessState.INFERENCE_STARTING:
             return False
-        if self[process_id].heartbeats_inference_steps == 0:
+        if self[process_id].heartbeats_inference_steps <= 1:
             return False
         if (
             self[process_id].last_heartbeat_type == HordeHeartbeatType.INFERENCE_STEP
@@ -1469,7 +1487,15 @@ class HordeWorkerProcessManager:
                     continue
 
                 job_info = self.jobs_lookup[message.sdk_api_job_info]
-                self.jobs_in_progress.remove(message.sdk_api_job_info)
+
+                if message.sdk_api_job_info in self.jobs_in_progress:
+                    self.jobs_in_progress.remove(message.sdk_api_job_info)
+                else:
+                    logger.error(
+                        f"Job {message.sdk_api_job_info.id_} not found in jobs_in_progress. "
+                        "Did it fault? "
+                        f"(Process {message.process_id})",
+                    )
 
                 for job in self.job_deque:
                     if job.id_ == message.sdk_api_job_info.id_:
@@ -2511,11 +2537,6 @@ class HordeWorkerProcessManager:
             else:
                 logger.warning(f"Job {faulted_job.id_} already in completed_jobs")
 
-            if faulted_job in self.job_pop_timestamps:
-                del self.job_pop_timestamps[faulted_job]
-            else:
-                logger.warning(f"Job {faulted_job.id_} not found in job_pop_timestamps")
-
     def get_single_job_effective_megapixelsteps(self, job: ImageGenerateJobPopResponse) -> int:
         """Return the number of megapixelsteps for a single job.
 
@@ -3355,6 +3376,31 @@ class HordeWorkerProcessManager:
         self._process_map.clear()
         self._horde_model_map.root.clear()
 
+    def _check_and_replace_process(
+        self,
+        process_info: HordeProcessInfo,
+        timeout: float,
+        state: HordeProcessState,
+        error_message: str,
+    ) -> bool:
+        """Check if a process has been stuck in a state for too long and replace it if it has.
+
+        Args:
+            process_info (HordeProcessInfo): The process to check
+            timeout (float): The time in seconds to wait before replacing the process
+            state (HordeProcessState): The state to check for
+            error_message (str): The error message to log if the process is replaced
+
+        Returns:
+            True if the process was replaced, False otherwise
+        """
+        time_elapsed = time.time() - process_info.last_received_timestamp
+        if time_elapsed > timeout and process_info.last_process_state == state:
+            logger.error(f"{process_info} {error_message}, replacing it")
+            self._replace_inference_process(process_info)
+            return True
+        return False
+
     def replace_hung_processes(self) -> bool:
         """Replaces processes that haven't checked in since `process_timeout` seconds in bridgeData."""
         now = time.time()
@@ -3402,43 +3448,36 @@ class HordeWorkerProcessManager:
 
         any_replaced = False
         for process_info in self._process_map.values():
-
             if self._process_map.is_stuck_on_inference(process_info.process_id):
                 logger.error(f"{process_info} seems to be stuck mid inference, replacing it")
                 self._replace_inference_process(process_info)
                 any_replaced = True
-                continue
-
-            time_elapsed = now - process_info.last_received_timestamp
-
-            if time_elapsed > self.bridge_data.process_timeout and (
-                process_info.is_process_busy() or process_info.last_process_state == HordeProcessState.PRELOADED_MODEL
-            ):
-                logger.error(f"{process_info} has exceeded its timeout and will be replaced")
-                self._replace_inference_process(process_info)
-                any_replaced = True
-                continue
-
-            if time_elapsed > self.bridge_data.preload_timeout and (
-                process_info.last_process_state == HordeProcessState.PRELOADING_MODEL
-                or process_info.last_process_state == HordeProcessState.DOWNLOADING_AUX_MODEL
-            ):
-                logger.error(f"{process_info} seems to be stuck preloading a model, replacing it")
-                logger.error(
-                    "If you have a slow disk, reduce the number of models to load to 1 and possibly"
-                    " raise preload_timeout in your config.",
-                )
-                self._replace_inference_process(process_info)
-                any_replaced = True
-                continue
-
-            if (
-                time_elapsed > self.bridge_data.preload_timeout
-                and process_info.last_process_state == HordeProcessState.PROCESS_STARTING
-            ):
-                logger.error(f"{process_info} seems to be stuck starting, replacing it")
-                self._replace_inference_process(process_info)
-                any_replaced = True
-                continue
+            else:
+                conditions: list[tuple[float, HordeProcessState, str]] = [
+                    (
+                        self.bridge_data.process_timeout,
+                        HordeProcessState.PRELOADED_MODEL,
+                        "has exceeded its timeout",
+                    ),
+                    (
+                        self.bridge_data.preload_timeout,
+                        HordeProcessState.PRELOADING_MODEL,
+                        "seems to be stuck preloading a model",
+                    ),
+                    (
+                        self.bridge_data.download_timeout,
+                        HordeProcessState.DOWNLOADING_AUX_MODEL,
+                        "seems to be stuck downloading an auxiliary model (LoRa, etc)",
+                    ),
+                    (
+                        self.bridge_data.preload_timeout,
+                        HordeProcessState.PROCESS_STARTING,
+                        "seems to be stuck starting",
+                    ),
+                ]
+                for timeout, state, error_message in conditions:
+                    if self._check_and_replace_process(process_info, timeout, state, error_message):
+                        any_replaced = True
+                        break
 
         return any_replaced

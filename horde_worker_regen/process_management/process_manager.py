@@ -1812,13 +1812,6 @@ class HordeWorkerProcessManager:
 
     def start_inference(self) -> None:
         """Start inference for the next job in the deque, if possible."""
-        processes_post_processing = 0
-        if self.bridge_data.moderate_performance_mode or self.bridge_data.high_performance_mode:
-            processes_post_processing = self._process_map.num_busy_with_post_processing()
-
-        if len(self.jobs_in_progress) >= (self.max_concurrent_inference_processes + processes_post_processing):
-            return
-
         next_job_and_process = self.get_next_job_and_process()
 
         if next_job_and_process is None:
@@ -1834,10 +1827,14 @@ class HordeWorkerProcessManager:
                 "which is currently downloading extra models.",
             )
 
-        if self._process_map.num_busy_with_post_processing() > 0:
+        processes_post_processing = 0
+        if self.bridge_data.moderate_performance_mode or self.bridge_data.high_performance_mode:
+            processes_post_processing = self._process_map.num_busy_with_post_processing()
+
+        if processes_post_processing > 0 and len(self.jobs_in_progress) >= self.max_concurrent_inference_processes:
             logger.debug(
                 "Proceeding with inference, but post processing is still running on "
-                f"{self._process_map.num_busy_with_post_processing()} processes",
+                f"{processes_post_processing} processes",
             )
 
         # Unload all models from vram from any other process that isn't running a job if configured to do so

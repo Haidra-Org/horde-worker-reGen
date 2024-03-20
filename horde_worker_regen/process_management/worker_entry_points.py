@@ -53,12 +53,9 @@ def start_inference_process(
                     setup_logging=None,
                     process_id=process_id,
                     logging_verbosity=0,
-                    force_normal_vram_mode=False,
+                    force_normal_vram_mode=not high_memory_mode,
                     extra_comfyui_args=(
-                        [
-                            "--disable-smart-memory",
-                            "--lowvram",
-                        ]
+                        ["--disable-smart-memory"]
                         if not high_memory_mode
                         else [
                             "--disable-smart-memory",

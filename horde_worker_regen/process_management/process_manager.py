@@ -3474,6 +3474,11 @@ class HordeWorkerProcessManager:
                         HordeProcessState.PROCESS_STARTING,
                         "seems to be stuck starting",
                     ),
+                    (
+                        self.bridge_data.post_process_timeout,
+                        HordeProcessState.INFERENCE_POST_PROCESSING,
+                        "seems to be stuck post processing",
+                    ),
                 ]
                 for timeout, state, error_message in conditions:
                     if self._check_and_replace_process(process_info, timeout, state, error_message):

@@ -9,6 +9,7 @@ from loguru import logger
 from pydantic import Field, model_validator
 from ruamel.yaml import YAML
 
+from horde_worker_regen.consts import TOTAL_LORA_DOWNLOAD_TIMEOUT
 from horde_worker_regen.locale_info.regen_bridge_data_fields import BRIDGE_DATA_FIELD_DESCRIPTIONS
 
 
@@ -43,6 +44,7 @@ class reGenBridgeData(CombinedHordeBridgeData):
     process_timeout: int = Field(default=900)
     """The maximum amount of time to allow a job to run before it is killed"""
 
+    download_timeout: int = Field(default=TOTAL_LORA_DOWNLOAD_TIMEOUT + 1)
     preload_timeout: int = Field(default=60, ge=15)
 
     horde_model_stickiness: float = Field(default=0.0, le=1.0, ge=0.0, alias="model_stickiness")

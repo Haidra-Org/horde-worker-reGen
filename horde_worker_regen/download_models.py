@@ -47,11 +47,10 @@ def download_all_models(
         exit(1)
 
     import hordelib
-    from horde_safety.deep_danbooru_model import get_deep_danbooru_model
+    from horde_safety.deep_danbooru_model import download_deep_danbooru_model
     from horde_safety.interrogate import get_interrogator_no_blip
 
-    _ = get_deep_danbooru_model()
-    del _
+    download_deep_danbooru_model()
     _ = get_interrogator_no_blip()
     del _
 

@@ -8,6 +8,8 @@ import io
 import sys
 import time
 
+from horde_worker_regen.consts import BASE_LORA_DOWNLOAD_TIMEOUT, EXTRA_LORA_DOWNLOAD_TIMEOUT
+
 try:
     from multiprocessing.connection import PipeConnection as Connection  # type: ignore
 except Exception:
@@ -275,6 +277,7 @@ class HordeInferenceProcess(HordeProcess):
             except Exception as e:
                 logger.error(f"Failed to reset adhoc loras: {type(e).__name__} {e}")
 
+            time_to_wait_for_downloads = 0
             for lora_entry in loras:
                 if not lora_manager.is_model_available(lora_entry.name):
                     if not performed_a_download:
@@ -285,9 +288,13 @@ class HordeInferenceProcess(HordeProcess):
                             job_info=job_info,
                         )
                         performed_a_download = True
-                    lora_manager.fetch_adhoc_lora(lora_entry.name, timeout=45, is_version=lora_entry.is_version)
+                    lora_manager.fetch_adhoc_lora(lora_entry.name, timeout=None, is_version=lora_entry.is_version)
+                    if time_to_wait_for_downloads == 0:
+                        time_to_wait_for_downloads = BASE_LORA_DOWNLOAD_TIMEOUT
+                    else:
+                        time_to_wait_for_downloads += EXTRA_LORA_DOWNLOAD_TIMEOUT
                 try:
-                    lora_manager.wait_for_downloads(45)
+                    lora_manager.wait_for_downloads(time_to_wait_for_downloads)
                 except Exception as e:
                     logger.error(f"Failed to wait for downloads: {type(e).__name__} {e}")
 

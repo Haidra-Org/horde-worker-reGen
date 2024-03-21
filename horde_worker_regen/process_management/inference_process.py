@@ -405,6 +405,7 @@ class HordeInferenceProcess(HordeProcess):
                 info="Post Processing",
                 time_elapsed=time.time() - self._start_inference_time,
             )
+            self._in_post_processing = True
             try:
                 self._inference_semaphore.release()
                 logger.debug("Released inference semaphore")

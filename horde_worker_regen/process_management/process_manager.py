@@ -49,7 +49,7 @@ from typing_extensions import Any
 import horde_worker_regen
 from horde_worker_regen.bridge_data.data_model import reGenBridgeData
 from horde_worker_regen.bridge_data.load_config import BridgeDataLoader
-from horde_worker_regen.consts import BRIDGE_CONFIG_FILENAME, KNOWN_SLOW_MODELS_DIFFICULTIES
+from horde_worker_regen.consts import BRIDGE_CONFIG_FILENAME, KNOWN_SLOW_MODELS_DIFFICULTIES, VRAM_HEAVY_MODELS
 from horde_worker_regen.process_management._aliased_types import ProcessQueue
 from horde_worker_regen.process_management.horde_process import HordeProcessType
 from horde_worker_regen.process_management.messages import (
@@ -1000,6 +1000,13 @@ class HordeWorkerProcessManager:
 
         self.target_ram_overhead_bytes = target_ram_overhead_bytes
         self.target_ram_overhead_bytes = min(int(self.total_ram_bytes / 2), 9)
+
+        if any(model in VRAM_HEAVY_MODELS for model in self.bridge_data.image_models_to_load):
+            self.target_ram_overhead_bytes = min(self.target_ram_overhead_bytes, int(20 * 1024 * 1024 * 1024 / 2))
+            logger.warning(
+                "VRAM heavy models detected. Target RAM overhead set to 20GB. "
+                "This may cause the worker to run differently than expected.",
+            )
 
         if self.target_ram_overhead_bytes > self.total_ram_bytes:
             raise ValueError(

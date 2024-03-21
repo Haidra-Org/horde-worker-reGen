@@ -476,7 +476,7 @@ class ProcessMap(dict[int, HordeProcessInfo]):
                     or p.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING
                 )
                 and p.last_job_referenced is not None
-                and p.last_job_referenced.model in KNOWN_SLOW_MODELS_DIFFICULTIES
+                and p.last_job_referenced.model in VRAM_HEAVY_MODELS
             ):
                 return True
             if p.batch_amount == 1:

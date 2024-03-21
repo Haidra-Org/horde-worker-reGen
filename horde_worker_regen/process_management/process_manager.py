@@ -1365,6 +1365,8 @@ class HordeWorkerProcessManager:
         while not self._process_message_queue.empty():
             message: HordeProcessMessage = self._process_message_queue.get()
 
+            self._in_deadlock = False
+
             if isinstance(message, HordeProcessHeartbeatMessage):
                 self._process_map.on_heartbeat(
                     message.process_id,
@@ -3176,6 +3178,7 @@ class HordeWorkerProcessManager:
             async with self._job_deque_lock, self._jobs_safety_check_lock, self._completed_jobs_lock:
                 self.receive_and_handle_process_messages()
                 self.detect_deadlock()
+                self.replace_hung_processes()  # Only checks for hung processes, doesn't replace them during shutdown
             await asyncio.sleep(0.2)
 
         self.end_safety_processes()
@@ -3528,6 +3531,9 @@ class HordeWorkerProcessManager:
             threading.Thread(target=timed_unset_recently_recovered).start()
 
             return True
+
+        if self._shutting_down:
+            return False
 
         any_replaced = False
         for process_info in self._process_map.values():

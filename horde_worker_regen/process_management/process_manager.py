@@ -3538,7 +3538,7 @@ class HordeWorkerProcessManager:
                         "seems to be stuck starting",
                     ),
                     (
-                        self.bridge_data.post_process_timeout,
+                        self.bridge_data.post_process_timeout + (3 * self.bridge_data.max_batch),
                         HordeProcessState.INFERENCE_POST_PROCESSING,
                         "seems to be stuck post processing",
                     ),

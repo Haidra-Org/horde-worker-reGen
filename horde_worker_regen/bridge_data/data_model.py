@@ -77,10 +77,10 @@ class reGenBridgeData(CombinedHordeBridgeData):
         Returns:
             reGenBridgeData: The config model with the performance modes set appropriately.
         """
-        if self.max_threads == 2 and self.queue_size > 2:
-            self.queue_size = 2
+        if self.max_threads == 2 and self.queue_size > 3:
+            self.queue_size = 3
             logger.warning(
-                "The queue_size value has been set to 2 because the max_threads value is 2.",
+                "The queue_size value has been set to 3 because the max_threads value is 2.",
             )
 
         if self.max_threads > 2 and self.queue_size > 1:

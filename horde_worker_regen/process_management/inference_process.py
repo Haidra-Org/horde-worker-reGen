@@ -384,6 +384,8 @@ class HordeInferenceProcess(HordeProcess):
 
     _start_inference_time: float = 0.0
 
+    _in_post_processing: bool = False
+
     def progress_callback(
         self,
         progress_report: ProgressReport,
@@ -395,7 +397,9 @@ class HordeInferenceProcess(HordeProcess):
         """
         from hordelib.horde import ProgressState
 
-        if progress_report.hordelib_progress_state == ProgressState.post_processing:
+        if progress_report.hordelib_progress_state == ProgressState.post_processing or (
+            self._in_post_processing and progress_report.hordelib_progress_state == ProgressState.progress
+        ):
             self.send_process_state_change_message(
                 process_state=HordeProcessState.INFERENCE_POST_PROCESSING,
                 info="Post Processing",
@@ -438,6 +442,7 @@ class HordeInferenceProcess(HordeProcess):
             return None
         finally:
             self._is_busy = False
+            self._in_post_processing = False
             with contextlib.suppress(Exception):
                 self._inference_semaphore.release()
         return results

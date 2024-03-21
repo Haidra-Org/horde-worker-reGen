@@ -2075,23 +2075,43 @@ class HordeWorkerProcessManager:
 
         completed_job_info = self.jobs_pending_safety_check[0]
 
-        if completed_job_info.job_image_results is None:
-            raise ValueError("completed_job_info.job_image_results is None")
-
-        if completed_job_info.sdk_api_job_info.id_ is None:
-            raise ValueError("completed_job_info.sdk_api_job_info.id_ is None")
-
-        if completed_job_info.sdk_api_job_info.model is None:
-            raise ValueError("completed_job_info.sdk_api_job_info.model is None")
-
         if self.stable_diffusion_reference is None:
             raise ValueError("stable_diffusion_reference is None")
 
+        critical_fault = False
+
+        if completed_job_info.job_image_results is None:
+            logger.error("completed_job_info.job_image_results is None")
+            critical_fault = True
+
+        if completed_job_info.sdk_api_job_info.id_ is None:
+            logger.error("completed_job_info.sdk_api_job_info.id_ is None")
+            critical_fault = True
+
+        if completed_job_info.sdk_api_job_info.model is None:
+            logger.error("completed_job_info.sdk_api_job_info.model is None")
+            critical_fault = True
+
         if completed_job_info.sdk_api_job_info.payload.prompt is None:
-            raise ValueError("completed_job_info.sdk_api_job_info.payload.prompt is None")
+            logger.error("completed_job_info.sdk_api_job_info.payload.prompt is None")
+            critical_fault = True
 
         self.jobs_pending_safety_check.remove(completed_job_info)
+
+        if critical_fault:
+            self.handle_job_fault(faulted_job=completed_job_info.sdk_api_job_info, process_info=safety_process)
+            logger.error(f"Failed to start safety evaluation for job {completed_job_info.sdk_api_job_info.id_}")
+            return
+
         self.jobs_being_safety_checked.append(completed_job_info)
+
+        # Duplicated for static type checking
+        if completed_job_info.sdk_api_job_info.id_ is None:
+            raise ValueError("completed_job_info.sdk_api_job_info.id_ is None")
+        if completed_job_info.sdk_api_job_info.payload.prompt is None:
+            raise ValueError("completed_job_info.sdk_api_job_info.payload.prompt is None")
+        if completed_job_info.sdk_api_job_info.model is None:
+            raise ValueError("completed_job_info.sdk_api_job_info.model is None")
 
         safety_process.safe_send_message(
             HordeSafetyControlMessage(

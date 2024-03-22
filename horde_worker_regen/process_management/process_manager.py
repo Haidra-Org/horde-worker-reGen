@@ -435,6 +435,17 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         self[process_id].last_heartbeat_timestamp = time.time()
         self[process_id].heartbeats_inference_steps = 0
 
+    def delete_safety_processes(self) -> None:
+        """Clear all safety processes."""
+        ids_to_delete = []
+        for p in self.values():
+            if p.process_type == HordeProcessType.SAFETY:
+                ids_to_delete.append(p.process_id)
+
+        for process_id in ids_to_delete:
+            logger.debug(f"Deleting safety process {process_id} from process map")
+            self.pop(process_id)
+
     def is_stuck_on_inference(self, process_id: int) -> bool:
         """Return true if the process is actively doing inference but we haven't received a heartbeat in a while."""
         if self[process_id].last_process_state != HordeProcessState.INFERENCE_STARTING:
@@ -546,6 +557,20 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         for p in self.values():
             if p.process_type == HordeProcessType.SAFETY:
                 count += 1
+        return count
+
+    def num_loaded_safety_processes(self) -> int:
+        """Return the number of safety processes that are loaded."""
+        count = 0
+        for p in self.values():
+            if (
+                p.process_type == HordeProcessType.SAFETY
+                and p.last_process_state != HordeProcessState.PROCESS_STARTING
+                and p.last_process_state != HordeProcessState.PROCESS_ENDING
+                and p.last_process_state != HordeProcessState.PROCESS_ENDED
+            ):
+                count += 1
+
         return count
 
     def get_first_available_safety_process(self) -> HordeProcessInfo | None:
@@ -1170,7 +1195,7 @@ class HordeWorkerProcessManager:
 
         for _ in range(num_processes_to_start):
             # Create a two-way communication pipe for the parent and child processes
-            pid = len(self._process_map)
+            pid = self._process_map.num_safety_processes()
             pipe_connection, child_pipe_connection = multiprocessing.Pipe(duplex=True)
 
             cpu_only = not self.bridge_data.safety_on_gpu
@@ -1287,11 +1312,40 @@ class HordeWorkerProcessManager:
         if not self._shutting_down:
             logger.info(f"Ended inference process {process_info.process_id}")
 
+    _safety_processes_should_be_replaced: bool = False
+    _safety_processes_ending: bool = False
+
+    def _replace_all_safety_process(self) -> None:
+        """Replace all of the safety processes.
+
+        Args:
+            process_info: The process to replace.
+        """
+        if not self._safety_processes_should_be_replaced:
+            return
+
+        if not self._safety_processes_ending and self._process_map.num_loaded_safety_processes() > 0:
+            self._safety_processes_ending = True
+            self.end_safety_processes()
+            return
+
+        if self._process_map.num_loaded_safety_processes() == 0 and self._process_map.num_safety_processes() > 0:
+            self._process_map.delete_safety_processes()
+
+        if (
+            self._safety_processes_ending
+            and self._process_map.num_loaded_safety_processes() == 0
+            and self._process_map.num_safety_processes() == 0
+        ):
+            self.start_safety_processes()
+            self._safety_processes_ending = False
+            self._safety_processes_should_be_replaced = False
+
     def _replace_inference_process(self, process_info: HordeProcessInfo) -> None:
         """Replaces an inference process (for whatever reason; probably because it crashed).
 
-        :param process_info: process to replace
-        :return: None
+        Args:
+            process_info: The process to replace.
         """
         logger.debug(f"Replacing {process_info}")
         # job = next(((job, pid) for job, pid in self.jobs_in_progress if pid == process_info.process_id), None)
@@ -2100,14 +2154,12 @@ class HordeWorkerProcessManager:
             logger.error("completed_job_info.sdk_api_job_info.payload.prompt is None")
             critical_fault = True
 
-        self.jobs_pending_safety_check.remove(completed_job_info)
-
         if critical_fault:
             self.handle_job_fault(faulted_job=completed_job_info.sdk_api_job_info, process_info=safety_process)
             logger.error(f"Failed to start safety evaluation for job {completed_job_info.sdk_api_job_info.id_}")
-            return
+            self.jobs_pending_safety_check.remove(completed_job_info)
 
-        self.jobs_being_safety_checked.append(completed_job_info)
+            return
 
         # Duplicated for static type checking
         if completed_job_info.sdk_api_job_info.id_ is None:
@@ -2117,7 +2169,7 @@ class HordeWorkerProcessManager:
         if completed_job_info.sdk_api_job_info.model is None:
             raise ValueError("completed_job_info.sdk_api_job_info.model is None")
 
-        safety_process.safe_send_message(
+        safety_message_sent_succeeded = safety_process.safe_send_message(
             HordeSafetyControlMessage(
                 control_flag=HordeControlFlag.EVALUATE_SAFETY,
                 job_id=completed_job_info.sdk_api_job_info.id_,
@@ -2131,6 +2183,13 @@ class HordeWorkerProcessManager:
                 # TODO: update this to use a class instead of a dict?
             ),
         )
+
+        if not safety_message_sent_succeeded:
+            logger.error(f"Failed to start safety evaluation for job {completed_job_info.sdk_api_job_info.id_}")
+            self._safety_processes_should_be_replaced = True
+        else:
+            self.jobs_pending_safety_check.remove(completed_job_info)
+            self.jobs_being_safety_checked.append(completed_job_info)
 
     def base64_image_to_stream_buffer(self, image_base64: str) -> BytesIO | None:
         """Convert a base64 image to a BytesIO stream buffer.
@@ -3110,6 +3169,7 @@ class HordeWorkerProcessManager:
                     ):
                         self.receive_and_handle_process_messages()
                         self.detect_deadlock()
+
                     if len(self.jobs_pending_safety_check) > 0:
                         async with self._jobs_safety_check_lock:
                             self.start_evaluate_safety()
@@ -3159,6 +3219,10 @@ class HordeWorkerProcessManager:
                         await asyncio.sleep(self._loop_interval / 2)
                         self.receive_and_handle_process_messages()
                         self.replace_hung_processes()
+                        self._replace_all_safety_process()
+                        if self._safety_processes_should_be_replaced:
+                            await asyncio.sleep(self._loop_interval / 2)
+                            self._replace_all_safety_process()
 
                     # self.unload_models()
 
@@ -3525,7 +3589,7 @@ class HordeWorkerProcessManager:
                     self._replace_inference_process(process_info)
 
             def timed_unset_recently_recovered() -> None:
-                time.sleep(15)
+                time.sleep(60)
                 self._recently_recovered = False
 
             import threading

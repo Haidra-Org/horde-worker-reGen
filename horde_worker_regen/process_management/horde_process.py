@@ -257,7 +257,7 @@ def signal_handler(sig: int, frame: object) -> None:
     or exit immediately if the process has received two signals.
     """
     global _signals_caught
-    if _signals_caught >= 1:
+    if _signals_caught >= 2:
         logger.warning("Received second signal, exiting immediately")
         sys.exit(0)
 

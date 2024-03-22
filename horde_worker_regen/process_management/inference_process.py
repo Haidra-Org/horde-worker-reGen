@@ -412,7 +412,10 @@ class HordeInferenceProcess(HordeProcess):
             except Exception as e:
                 logger.error(f"Failed to release inference semaphore: {type(e).__name__} {e}")
 
-        self.send_heartbeat_message(heartbeat_type=HordeHeartbeatType.INFERENCE_STEP)
+        if progress_report.comfyui_progress is not None and progress_report.comfyui_progress.current_step >= 0:
+            self.send_heartbeat_message(heartbeat_type=HordeHeartbeatType.INFERENCE_STEP)
+        else:
+            self.send_heartbeat_message(heartbeat_type=HordeHeartbeatType.PIPELINE_STATE_CHANGE)
 
     def start_inference(self, job_info: ImageGenerateJobPopResponse) -> list[ResultingImageReturn] | None:
         """Start an inference job in the HordeLib instance.

@@ -322,6 +322,8 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         self[process_id].last_heartbeat_type = heartbeat_type
         if heartbeat_type == HordeHeartbeatType.INFERENCE_STEP:
             self[process_id].heartbeats_inference_steps += 1
+        else:
+            self[process_id].heartbeats_inference_steps = 0
 
     def on_process_ended(self, process_id: int) -> None:
         """Update the process map when a process has ended.

@@ -167,7 +167,7 @@ class HordeProcess(abc.ABC):
     def send_memory_report_message(
         self,
         include_vram: bool = False,
-    ) -> None:
+    ) -> bool:
         """Send a memory report message to the main process.
 
         Args:
@@ -180,11 +180,16 @@ class HordeProcess(abc.ABC):
             ram_usage_bytes=psutil.Process().memory_info().rss,
         )
 
-        if include_vram:
-            message.vram_usage_bytes = self.get_vram_usage_bytes()
-            message.vram_total_bytes = self.get_vram_total_bytes()
+        try:
+            if include_vram:
+                message.vram_usage_bytes = self.get_vram_usage_bytes()
+                message.vram_total_bytes = self.get_vram_total_bytes()
+        except Exception as e:
+            logger.error(f"Failed to get VRAM usage: {e}")
+            return False
 
         self.process_message_queue.put(message)
+        return True
 
     @abstractmethod
     def _receive_and_handle_control_message(self, message: HordeControlMessage) -> None:

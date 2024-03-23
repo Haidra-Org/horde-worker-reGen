@@ -293,6 +293,8 @@ class HordeInferenceProcess(HordeProcess):
                         time_to_wait_for_downloads = BASE_LORA_DOWNLOAD_TIMEOUT
                     else:
                         time_to_wait_for_downloads += EXTRA_LORA_DOWNLOAD_TIMEOUT
+                else:
+                    logger.info(f"Model {lora_entry.name} already downloaded")
                 try:
                     lora_manager.wait_for_downloads(time_to_wait_for_downloads)
                 except Exception as e:
@@ -305,6 +307,8 @@ class HordeInferenceProcess(HordeProcess):
             if performed_a_download:
                 logger.info(f"Downloaded auxiliary models in {time_elapsed} seconds")
                 return time_elapsed
+
+            logger.info("No auxiliary models downloaded")
 
             return None
 

@@ -165,6 +165,21 @@ class HordeInferenceProcess(HordeProcess):
     def _comfyui_callback(self, label: str, data: dict, _id: str) -> None:
         self.send_heartbeat_message(heartbeat_type=HordeHeartbeatType.PIPELINE_STATE_CHANGE)
 
+    @override
+    def send_memory_report_message(self, include_vram: bool = False) -> bool:
+        """Send a memory report message to the main process.
+
+        Args:
+            include_vram (bool, optional): Whether or not to include VRAM usage in the report. Defaults to False.
+
+        Returns:
+            bool: Whether or not the message was sent successfully.
+        """
+        if not super().send_memory_report_message(include_vram=include_vram):
+            self._end_process = True
+
+        return not self._end_process
+
     @logger.catch(reraise=True)
     def on_horde_model_state_change(
         self,

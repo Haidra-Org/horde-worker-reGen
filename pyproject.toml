@@ -101,6 +101,9 @@ exclude = '''
  | build
  | dist
  | conda
+ | clip_blip
+ | hf_transformers
+ | horde_model_reference
 )/
 '''
 

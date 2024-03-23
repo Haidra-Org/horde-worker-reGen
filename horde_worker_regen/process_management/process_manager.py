@@ -2336,6 +2336,13 @@ class HordeWorkerProcessManager:
                 )
                 time_popped = time.time()
 
+            elif time_popped == -1:
+                logger.warning(
+                    f"Job {new_submit.completed_job_info.sdk_api_job_info.id_} will have an incorrect kudos/second "
+                    "calculation.",
+                )
+                time_popped = time.time()
+
         time_taken = round(time.time() - time_popped, 2)
 
         kudos_per_second = 0.0
@@ -2487,7 +2494,22 @@ class HordeWorkerProcessManager:
                 # If any of the submits failed, we consider the whole job failed
                 self._consecutive_failed_jobs = 0
             try:
-                self.jobs_lookup[completed_job_info.sdk_api_job_info].time_submitted = time.time()
+                if completed_job_info.sdk_api_job_info in self.jobs_lookup:
+                    self.jobs_lookup[completed_job_info.sdk_api_job_info].time_submitted = time.time()
+                else:
+                    self.jobs_lookup[completed_job_info.sdk_api_job_info] = HordeJobInfo(
+                        sdk_api_job_info=completed_job_info.sdk_api_job_info,
+                        time_popped=-1,
+                        job_image_results=completed_job_info.job_image_results,
+                        state=completed_job_info.state,
+                        censored=completed_job_info.censored,
+                        time_to_generate=completed_job_info.time_to_generate,
+                        time_to_download_aux_models=completed_job_info.time_to_download_aux_models,
+                    )
+                    logger.error(
+                        f"Job {completed_job_info.sdk_api_job_info.id_} not found in jobs_lookup "
+                        "during submit. Creating a new HordeJobInfo object.",
+                    )
 
                 if self.bridge_data.capture_kudos_training_data:
                     if self.bridge_data.kudos_training_data_file is None:
@@ -2513,8 +2535,14 @@ class HordeWorkerProcessManager:
                             break
 
                     try:
-                        with logger.catch():
-                            hji = self.jobs_lookup[completed_job_info.sdk_api_job_info]
+                        with logger.catch(reraise=False):
+                            if completed_job_info.sdk_api_job_info in self.jobs_lookup:
+                                hji = self.jobs_lookup[completed_job_info.sdk_api_job_info]
+                            else:
+                                logger.error(
+                                    f"Job {completed_job_info.sdk_api_job_info.id_} not found in jobs_lookup "
+                                    " during kudos training data capture.",
+                                )
                             model_dump = hji.model_dump(
                                 exclude=_excludes_for_job_dump,
                             )
@@ -2550,7 +2578,10 @@ class HordeWorkerProcessManager:
                                 with open(file_name_to_use, "w") as f:
                                     json.dump(data, f, indent=4)
                     except Exception as e:
-                        logger.error(f"Failed to write kudos training data: {e}")
+                        logger.error(
+                            f"Failed to write kudos training data for job {completed_job_info.sdk_api_job_info.id_} "
+                            f"{type(e)}: {e}",
+                        )
 
                 if completed_job_info in self.completed_jobs:
                     self.completed_jobs.remove(completed_job_info)

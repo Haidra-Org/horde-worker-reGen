@@ -2519,9 +2519,9 @@ class HordeWorkerProcessManager:
                                 exclude=_excludes_for_job_dump,
                             )
                             if self.stable_diffusion_reference is not None and hji.sdk_api_job_info.model is not None:
-                                model_dump["sdk_api_job_info"]["model_baseline"] = (
-                                    self.stable_diffusion_reference.root[hji.sdk_api_job_info.model].baseline
-                                )
+                                model_dump["sdk_api_job_info"][
+                                    "model_baseline"
+                                ] = self.stable_diffusion_reference.root[hji.sdk_api_job_info.model].baseline
                             # Preparation for multiple schedulers
                             if hji.sdk_api_job_info.payload.karras:
                                 model_dump["sdk_api_job_info"]["payload"]["scheduler"] = "karras"
@@ -2714,14 +2714,14 @@ class HordeWorkerProcessManager:
         if job_pop_response.id_ is None:
             logger.error("Received ImageGenerateJobPopResponse with id_ is None. Please let the devs know!")
             return job_pop_response
-        image_fields: list[str] = ["source_image", "source_mask"]
 
-        new_response_dict: dict[str, Any] = job_pop_response.model_dump(by_alias=True)
-
-        # TODO: Move this into horde_sdk
-        for field_name in image_fields:
-            field_value = new_response_dict[field_name]
-            if field_value is not None and "https://" in field_value:
+        async def download_source_image_value(
+            souce_image_value: str, field_name: str, esi_index: int | None = None
+        ) -> str:
+            log_reference = field_name
+            if esi_index:
+                log_reference = f"{field_name}_{esi_index}"
+            if souce_image_value is not None and "https://" in souce_image_value:
                 fail_count = 0
                 while True:
                     try:
@@ -2729,48 +2729,72 @@ class HordeWorkerProcessManager:
                             new_meta_entry = GenMetadataEntry(
                                 type=METADATA_TYPE[field_name],
                                 value=METADATA_VALUE.download_failed,
+                                ref=esi_index,
                             )
                             self.job_faults[job_pop_response.id_].append(new_meta_entry)
-                            logger.error(f"Failed to download {field_name} after {fail_count} attempts")
+                            logger.error(f"Failed to download {log_reference} after {fail_count} attempts")
                             break
                         response = await self._aiohttp_session.get(
-                            field_value,
+                            souce_image_value,
                             timeout=aiohttp.ClientTimeout(total=10),
                         )
                         response.raise_for_status()
 
                         content = await response.content.read()
+                        souce_image_value = base64.b64encode(content).decode("utf-8")
 
-                        new_response_dict[field_name] = base64.b64encode(content).decode("utf-8")
-
-                        logger.debug(f"Downloaded {field_name} for job {job_pop_response.id_}")
+                        logger.debug(f"Downloaded {log_reference} for job {job_pop_response.id_}")
                         break
                     except Exception as e:
                         logger.debug(f"{type(e)}: {e}")
-                        logger.warning(f"Failed to download {field_name}: {e}")
+                        logger.warning(f"Failed to download {log_reference}: {e}")
                         fail_count += 1
                         await asyncio.sleep(0.5)
 
-        for field in image_fields:
             try:
-                field_value = new_response_dict[field]
-                if field_value is not None:
-                    image = PIL.Image.open(BytesIO(base64.b64decode(field_value)))
+                if souce_image_value is not None:
+                    image = PIL.Image.open(BytesIO(base64.b64decode(souce_image_value)))
                     image.verify()
 
             except Exception as e:
-                logger.error(f"Failed to verify {field}: {e}")
+                logger.error(f"Failed to verify {log_reference}: {e}")
                 if job_pop_response.id_ is None:
                     raise ValueError("job_pop_response.id_ is None") from e
 
                 new_meta_entry = GenMetadataEntry(
-                    type=METADATA_TYPE[field],
+                    type=METADATA_TYPE[field_name],
                     value=METADATA_VALUE.parse_failed,
+                    ref=esi_index,
                 )
                 self.job_faults[job_pop_response.id_].append(new_meta_entry)
 
-                new_response_dict[field] = None
-                new_response_dict["source_processing"] = "txt2img"
+                souce_image_value = None
+            return souce_image_value
+
+        image_fields: list[str] = ["source_image", "source_mask", "extra_source_images"]
+
+        new_response_dict: dict[str, Any] = job_pop_response.model_dump(by_alias=True)
+
+        for field_name in image_fields:
+            field_value = new_response_dict[field_name]
+            if field_name == "extra_source_images":
+                for esi_index, esi in enumerate(field_value):
+                    esi["image"] = await download_source_image_value(
+                        esi["image"], field_name=field_name, esi_index=esi_index
+                    )
+                extra_sources_count = 0
+                for esi in enumerate(field_value):
+                    if esi["image"] is not None:
+                        extra_sources_count += 1
+                if extra_sources_count == 0:
+                    # TODO: If we add any payloads that rely on having Extra Source Images,
+                    # Then here we should add correct fallback on the source_processing etc
+                    # Note that remix works with 0 extra sources, as it uses source_image as well
+                    pass
+            else:
+                new_response_dict[field_name] = await download_source_image_value(field_value, field_name=field_name)
+                if new_response_dict[field_name] is None:
+                    new_response_dict["source_processing"] = "txt2img"
 
         return ImageGenerateJobPopResponse(**new_response_dict)
 
@@ -3567,7 +3591,6 @@ class HordeWorkerProcessManager:
             )
             or ((now - self._last_job_submitted_time) > self.bridge_data.process_timeout)
         ) and not (self._last_pop_no_jobs_available or self._recently_recovered):
-
             self._cleanup_jobs()
 
             if self.bridge_data.exit_on_unhandled_faults:

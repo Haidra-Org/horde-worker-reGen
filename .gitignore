@@ -174,3 +174,6 @@ cython_debug/
 bin/*
 conda/*
 models/*
+clip_blip/*
+hf_transformers/*
+horde_model_reference/*

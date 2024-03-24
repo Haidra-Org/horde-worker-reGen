@@ -1,7 +1,7 @@
 This repository allows you to set up a AI Horde Worker to generate, post-process or analyze images for others
 
 
-If you want the latest information or have questions, come to [the thread in discord](https://discord.com/channels/781145214752129095/1159154031151812650)
+If you want the latest information or have questions, come to [the #local-workers channel in discord](https://discord.com/channels/781145214752129095/1076124012305993768)
 
 
 # AI Horde Worker reGen
@@ -9,7 +9,7 @@ If you want the latest information or have questions, come to [the thread in dis
 This repo contains the latest implementation for the [AI Horde](https://aihorde.net) Worker. This will turn your graphics card(s) into a worker for the AI Horde where you will create images for others. You you will receive in turn earn 'kudos' which will give you priority for your own generations.
 
 
-Please note that **AMD card are not currently well supported**, but may be in the future. If you are willing to try with your AMD card, join the [discord thread](https://discord.com/channels/781145214752129095/1159154031151812650).
+Please note that **AMD card are not currently well supported**, but may be in the future. If you are willing to try with your AMD card, join the [discord discussion](https://discord.com/channels/781145214752129095/1076124012305993768).
 
 
 ## Some important details you should know before you start

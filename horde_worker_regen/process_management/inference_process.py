@@ -432,12 +432,11 @@ class HordeInferenceProcess(HordeProcess):
         self._is_busy = True
         try:
             logger.info(f"Starting inference for job(s) {job_info.ids}")
+            esi_count = len(job_info.extra_source_images) if job_info.extra_source_images is not None else 0
             logger.debug(
                 f"has source_image: {job_info.source_image is not None}, "
                 f"has source_mask: {job_info.source_mask is not None}, "
-                f"extra_source_images: {
-                    len(job_info.extra_source_images) if job_info.extra_source_images is not None else 0,
-                }",
+                f"extra_source_images: {esi_count}",
             )
             logger.debug(f"{job_info.payload.model_dump(exclude={'prompt'})}")
 

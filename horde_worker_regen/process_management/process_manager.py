@@ -767,7 +767,7 @@ class PendingSourceDownloadJob(PendingJob):
             log_reference = f"{self.field_name}_{self.esi_index}"
         return log_reference
 
-    def retry(self, metadata_value: METADATA_TYPE) -> None:
+    def retry(self, metadata_value: METADATA_VALUE) -> None:
         """Marks this task to be retried. Adds GenMetadataEntry if retries exceeded."""
         super().retry()
         if self.is_faulted:
@@ -777,7 +777,7 @@ class PendingSourceDownloadJob(PendingJob):
                 ref=str(self.esi_index),
             )
 
-    def fault(self, metadata_value: METADATA_TYPE) -> None:
+    def fault(self, metadata_value: METADATA_VALUE) -> None:
         """Faults this task and adds a GenMetadataEntry."""
         self.fault_metadata = GenMetadataEntry(
             type=METADATA_TYPE[self.field_name],
@@ -2758,7 +2758,7 @@ class HordeWorkerProcessManager:
 
     async def download_source_image(self, new_download: PendingSourceDownloadJob) -> PendingSourceDownloadJob:
         """Downloads a single source image asynchronously."""
-        if "https://" not in new_download.download_url:
+        if new_download.download_url is not None and "https://" not in new_download.download_url:
             new_download.fault(METADATA_VALUE.download_failed)
             return new_download
         logger.debug(f"Starting download of {new_download.log_reference}")
@@ -2812,7 +2812,7 @@ class HordeWorkerProcessManager:
             # Nested because we don't try to download source mask if source image doesn't exist
             if job_pop_response.source_mask is not None:
                 new_download = PendingSourceDownloadJob(
-                    payload=job_pop_response,
+                    job_pop_response=job_pop_response,
                     field_name="source_mask",
                     download_url=job_pop_response.source_mask,
                 )

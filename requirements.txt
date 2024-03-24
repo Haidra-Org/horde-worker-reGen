@@ -2,7 +2,7 @@ torch>=2.1.2
 
 horde_sdk~=0.8.3
 horde_safety~=0.2.3
-hordelib~=2.7.4
+hordelib~=2.7.6
 horde_model_reference~=0.6.3
 
 python-dotenv

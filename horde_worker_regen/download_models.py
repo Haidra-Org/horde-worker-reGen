@@ -59,7 +59,7 @@ def download_all_models(
 
     SharedModelManager.load_model_managers()
 
-    if purge_unused_loras:
+    if purge_unused_loras or bridge_data.purge_loras_on_download:
         logger.info("Purging unused LORAs...")
         if SharedModelManager.manager.lora is None:
             logger.error("Failed to load LORA model manager")

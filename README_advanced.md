@@ -50,3 +50,50 @@
 Pressing control-c will have the worker complete any jobs in progress before ending. Please try and avoid hard killing it unless you are seeing many major errors. You can force kill by repeatedly pressing control-c or doing a SIGKILL.
 
 ## Advanced users, container install
+
+You can find the docker images at https://hub.docker.com/r/tazlin/horde-worker-regen/tags.
+
+> **Important**: Be sure to select the correct Cuda version for your machine. **The physical host must have at least the version of Cuda installed as the image**.
+
+You should set all of the settings for the docker worker via environment variables.
+
+A typical config might include (be sure to change any settings as appropriate as these settings will not work for every machine):
+
+```
+AIWORKER_API_KEY=your_api_key_here          # Important
+AIWORKER_CACHE_HOME=/workspace/models       # Important
+AIWORKER_DREAMER_NAME=your_worker_name_here # Important
+AIWORKER_ALLOW_CONTROLNET=True
+AIWORKER_ALLOW_LORA=True
+AIWORKER_MAX_LORA_CACHE_SIZE=50
+AIWORKER_ALLOW_PAINTING=True
+AIWORKER_MAX_POWER=38
+AIWORKER_MAX_THREADS=1 # Only set to 2 on high end or xx90 machines
+AIWORKER_MODELS_TO_LOAD=['TOP 3', 'AlbedoBase XL (SDXL)'] # Be mindful of download times; each model average 2-8 gb
+AIWORKER_MODELS_TO_SKIP=['pix2pix', 'SDXL_beta::stability.ai#6901']
+AIWORKER_QUEUE_SIZE=2
+AIWORKER_MAX_BATCH=4
+AIWORKER_SAFETY_ON_GPU=True
+AIWORKER_CIVITAI_API_TOKEN=your_token_here
+```
+
+See the bridgeData_template.yaml for more specific information.
+
+If you have a local install of the worker, you can use the script `convert_config_to_env.py` to convert a bridgeData.yaml to a valid .env file, as seen here:
+
+- update-runtime users, windows
+  ```
+  .\runtime.cmd python -s -m convert_config_to_env --file .\bridgeData.yaml
+  ```
+
+- update-runtime users, linux
+  ```
+  ./runtime.sh python -s -m convert_config_to_env --file .\bridgeData.yaml
+  ```
+
+- venv users
+  ```
+  python -m convert_config_to_env --file .\bridgeData.yaml
+  ```
+
+... which will write a file to your current working directory named `bridgeData.env`, which is suitable for passing to `docker run` with the `--env-file` cli option. Note that the models_to_load and models_to_skip will be resolved to a list of models if you specified a meta-load command such as `TOP 5` (it would write out the top 5 at that time, **not** the literal `TOP 5`). If you want the dynamic nature of those commands, you should specify them manually.

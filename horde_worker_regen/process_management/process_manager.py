@@ -761,7 +761,7 @@ class PendingSourceDownloadJob(PendingJob):
     @property
     def log_reference(self):
         log_reference = self.field_name
-        if self.esi_index:
+        if self.esi_index is not None:
             log_reference = f"{self.field_name}_{self.esi_index}"
         return log_reference
 
@@ -771,14 +771,14 @@ class PendingSourceDownloadJob(PendingJob):
             self.fault_metadata = GenMetadataEntry(
                 type=METADATA_TYPE[self.field_name],
                 value=metadata_value,
-                ref=self.esi_index,
+                ref=str(self.esi_index),
             )
 
     def fault(self, metadata_value) -> None:
         self.fault_metadata = GenMetadataEntry(
             type=METADATA_TYPE[self.field_name],
             value=metadata_value,
-            ref=self.esi_index,
+            ref=str(self.esi_index),
         )
         super().fault()
 
@@ -2757,6 +2757,7 @@ class HordeWorkerProcessManager:
         if "https://" not in new_download.download_url:
             new_download.fault(METADATA_VALUE.download_failed)
             return new_download
+        logger.debug(f"Starting download of {new_download.log_reference}")
         try:
             # self.job_faults[job_pop_response.id_].append(new_meta_entry)
             # logger.error(f"Failed to download {new_download.log_reference} after {fail_count} attempts")
@@ -2785,6 +2786,7 @@ class HordeWorkerProcessManager:
             if new_download.job_pop_response.id_ is None:
                 raise ValueError("job_pop_response.id_ is None") from err
             new_download.fault(METADATA_VALUE.parse_failed)
+        new_download.succeed()
         return new_download
 
 
@@ -2794,16 +2796,12 @@ class HordeWorkerProcessManager:
             logger.error("Received ImageGenerateJobPopResponse with id_ is None. Please let the devs know!")
             return job_pop_response
 
-        image_fields: list[str] = ["source_image", "source_mask", "extra_source_images"]
-
-        new_response_dict: dict[str, Any] = job_pop_response.model_dump(by_alias=True)
-
         download_tasks: list[Task[PendingSourceDownloadJob]] = []
         finished_download_tasks: list[PendingSourceDownloadJob] = []
 
         if job_pop_response.source_image is not None:
             new_download = PendingSourceDownloadJob(
-                payload=job_pop_response,
+                job_pop_response=job_pop_response,
                 field_name="source_image",
                 download_url=job_pop_response.source_image
             )
@@ -2815,6 +2813,16 @@ class HordeWorkerProcessManager:
                     field_name="source_mask",
                     download_url=job_pop_response.source_mask
                 )
+                download_tasks.append(asyncio.create_task(self.download_source_image(new_download)))
+        if job_pop_response.extra_source_images is not None:
+            for esi_index, esi in enumerate(job_pop_response.extra_source_images):
+                new_download = PendingSourceDownloadJob(
+                    job_pop_response=job_pop_response,
+                    field_name="extra_source_images",
+                    download_url=esi.image,
+                    esi_index=esi_index,
+                )
+                download_tasks.append(asyncio.create_task(self.download_source_image(new_download)))
 
         while len(download_tasks) > 0:
             retry_submits: list[PendingSourceDownloadJob] = []
@@ -2838,25 +2846,35 @@ class HordeWorkerProcessManager:
             for retry_submit in retry_submits:
                 download_tasks.append(asyncio.create_task(self.download_source_image(retry_submit)))
 
+        updated_souces = {
+            "source_image": job_pop_response.source_image,
+            "source_mask": job_pop_response.source_mask,
+            "extra_source_images": job_pop_response.extra_source_images,
+            "source_processing": job_pop_response.source_processing,
+        }
+
         for finished_download in finished_download_tasks:
             if finished_download.is_faulted and finished_download.fault_metadata is not None:
                 self.job_faults[job_pop_response.id_].append(finished_download.fault_metadata)
                 logger.error(f"Failed to {finished_download.fault_metadata.value} on {new_download.log_reference}")
             if finished_download.field_name == "source_image":                
-                job_pop_response.source_image = finished_download.image_b64
+                updated_souces["source_image"] = finished_download.image_b64
             if finished_download.field_name == "source_mask":                
-                job_pop_response.source_mask = finished_download.image_b64
-            if finished_download.field_name == "extra_source_images" and job_pop_response.extra_source_images is not None:                
-                job_pop_response.extra_source_images[finished_download.esi_index].image = finished_download.image_b64
-        if job_pop_response.source_image is None:
-            job_pop_response.source_processing = 'text2img'
-        if job_pop_response.extra_source_images is not None:
+                updated_souces["source_mask"] = finished_download.image_b64
+            if finished_download.field_name == "extra_source_images" and job_pop_response.extra_source_images is not None:
+                upd_esi = updated_souces["extra_source_images"][finished_download.esi_index].model_copy(update={"image":finished_download.image_b64})
+                updated_souces["extra_source_images"][finished_download.esi_index] = upd_esi
+        if updated_souces["source_image"] is None:
+            updated_souces["source_processing"] = 'text2img'
+        if updated_souces["extra_source_images"] is not None:
             valid_extra_source_images: list[ExtraSourceImageEntry] = []
-            for esi in job_pop_response.extra_source_images:
+            for esi in updated_souces["extra_source_images"]:
                 if esi.image is not None:
                     valid_extra_source_images.append(esi)
-            job_pop_response.extra_source_images = valid_extra_source_images
-        return job_pop_response
+            updated_souces["extra_source_images"] = valid_extra_source_images
+
+        updated_job_response  = job_pop_response.model_copy(update=updated_souces)
+        return updated_job_response
 
     _last_pop_no_jobs_available: bool = False
 

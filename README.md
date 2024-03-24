@@ -8,7 +8,6 @@ If you want the latest information or have questions, come to [the thread in dis
 
 This repo contains the latest implementation for the [AI Horde](https://aihorde.net) Worker. This will turn your graphics card(s) into a worker for the AI Horde where you will create images for others. You you will receive in turn earn 'kudos' which will give you priority for your own generations.
 
-Alternatively you can become an Alchemist worker which is much more lightweight and can even run certain modes on CPU (i.e. without a GPU).
 
 Please note that **AMD card are not currently well supported**, but may be in the future. If you are willing to try with your AMD card, join the [discord thread](https://discord.com/channels/781145214752129095/1159154031151812650).
 
@@ -16,18 +15,11 @@ Please note that **AMD card are not currently well supported**, but may be in th
 ## Some important details you should know before you start
 
 - If you are upgrading from `AI-Horde-Worker`, you will have to manually move your models folder to the `horde-worker-reGen` folder. This folder may be named `models` or `nataili` (depending on when you installed) and should contain a folder named `compvis`.
+  - We recommend you start with a fresh bridge data file (`bridgeData_template.yaml` -> `bridgeData.yaml`). See Configure section
 - When submitting debug information **do not publish `.log` files in the discord server channels - send them to tazlin directly** as we cannot guarantee that your API key would not be in it (though, this warning should relax over time).
-- You will need to monitor the worker a little closer during the beta, as new ways of failing are possible and potentially not yet accounted for.
-  - Workers especially interested in logs should note that there is a main log (`bridge.log`) and a log for each subprocess. `bridge_0.log` is the safety process, and all ones after that (`bridge_1.log`, `brige_2.log`, etc) are inference processes.
-  - You could `Get-Content bridge_1.log -Wait` each log on windows , or `less +F bridge_1.log` on linux to monitor these logs.
-- Dynamic models is not implemented
-- Style meta load commands like `ALL SFW` are not implemented, but `BOTTOM n` has been added.
-- We recommend you start with a fresh bridge data file (`bridgeData_template.yaml` -> `bridgeData.yaml`). See Configure section
-
 - Do not set threads higher than 2.
-- Your memory usage will increase up until the number of queued jobs. It is our belief that you should set your queue size to at least 1.
-  - Feel free to try queue size 2 with threads at one or two and let me know if your kudos/hr goes up or down.
-- If you have a low amount of system memory (16gb or under), do not attempt a queue size greater than 1 if you have more than one model set to load.
+- Your memory usage will increase up until the number of queued jobs. You should set your queue size to at least 1.
+- If you have a low amount of **system** memory (16gb or under), do not attempt a queue size greater than 1 if you have more than one model set to load.
 - If you plan on running SDXL, you will need to ensure at least 9 gb of system ram remains free.
 - If you have an 8 gb card, SDXL will only reliably work at max_power values close to 32. 42 was too high for tests on a 2080 in certain cases.
 
@@ -91,7 +83,8 @@ Continue with the [Basic Usage](#Basic-Usage) instructions
 
 ## Basic Usage
 
-The below instructions refers to `horde-bridge` or `update-runtime`. Depending on your OS, append `.cmd` for windows, or `.sh` for linux (for example, `horde-bridge.cmd` and `update-runtime.cmd` for windows).
+The below instructions refers to `horde-bridge` or `update-runtime`. Depending on your OS, append `.cmd` for windows, or `.sh` for linux
+- for example, `horde-bridge.cmd` and `update-runtime.cmd` for windows
 
 You can double click the provided script files below from a file explorer or run it from a terminal like `bash`, `cmd` depending on your OS. The latter option will allow you to **see errors in case of a crash**, so it's recommended.
 
@@ -102,10 +95,6 @@ You can double click the provided script files below from a file explorer or run
 
 1. Make a copy of `bridgeData_template.yaml` to `bridgeData.yaml`
 1. Edit `bridgeData.yaml` and follow the instructions within to fill in your details.
-
-#### WebUI
-
-- **WebUI config is not available on reGen yet**
 
 
 ### Starting/stopping
@@ -141,13 +130,13 @@ etc
 
 ## Updating
 
-The AI Horde workers are under constant improvement. You can follow progress [in our discord](https://discord.gg/3DxrhksKzn) and get notifications about updates there. If you are interested in beta notifications, go to the [#get-roles channel](https://discord.com/channels/781145214752129095/977498954616954890) and get the appropriate role.
+The AI Horde workers are under constant improvement. You can follow progress [in our discord](https://discord.gg/3DxrhksKzn) and get notifications about updates there. If you are interested in receiving notifications for worker updates or betas, go to the [#get-roles channel](https://discord.com/channels/781145214752129095/977498954616954890) and get the appropriate role(s).
 
 To update:
 
 1. Shut down your worker by pressing ctrl+c once and waiting for the worker to stop.
 
-1. Update this repo using the appropriate method:
+2. Update this repo using the appropriate method:
     ### git method
 
     Use this approach if you cloned the original repository using `git clone`
@@ -171,11 +160,10 @@ To update:
    - **Advanced users**: If you do not want to use mamba or you are comfortable with python/venvs, see [README_advanced.md](README_advanced.md).
 1. Continue with [Starting/stopping](#startingstopping) instructions above
 
+# Docker
+
+See [README_advanced.md](README_advanced.md).
+
 
 # Model Usage
 Many models in this project use the CreativeML OpenRAIL License.  [Please read the full license here.](https://huggingface.co/spaces/CompVis/stable-diffusion-license)
-
-
-# Docker
-
-Not yet supported in reGen.

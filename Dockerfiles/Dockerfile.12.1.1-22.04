@@ -24,7 +24,6 @@ RUN apt-get update && apt-get install libgl1 -y
 
 CMD cd /horde-worker-reGen && \
     git pull && \
-    git switch docker && \
     . venv/bin/activate && \
     python -m pip install -r requirements.txt opencv-python-headless -U && \
     python download_models.py -e && \

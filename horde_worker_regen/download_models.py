@@ -12,9 +12,9 @@ def download_all_models(
     if not load_config_from_env_vars:
         load_env_vars_from_config()
 
-    from horde_model_reference.model_reference_manager import ModelReferenceManager
     from loguru import logger
 
+    from horde_model_reference.model_reference_manager import ModelReferenceManager
     from horde_worker_regen.bridge_data.load_config import BridgeDataLoader, reGenBridgeData
     from horde_worker_regen.consts import BRIDGE_CONFIG_FILENAME
 

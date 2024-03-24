@@ -26,28 +26,27 @@ import PIL.Image
 import psutil
 import yarl
 from aiohttp import ClientSession
-from horde_model_reference.meta_consts import MODEL_REFERENCE_CATEGORY, STABLE_DIFFUSION_BASELINE_CATEGORY
-from horde_model_reference.model_reference_manager import ModelReferenceManager
-from horde_model_reference.model_reference_records import StableDiffusion_ModelReference
 from horde_sdk import RequestErrorResponse
 from horde_sdk.ai_horde_api import GENERATION_STATE
 from horde_sdk.ai_horde_api.ai_horde_clients import AIHordeAPIAsyncClientSession, AIHordeAPIAsyncSimpleClient
 from horde_sdk.ai_horde_api.apimodels import (
+    ExtraSourceImageEntry,
     FindUserRequest,
     FindUserResponse,
     GenMetadataEntry,
     ImageGenerateJobPopRequest,
     ImageGenerateJobPopResponse,
     JobSubmitResponse,
-    ExtraSourceImageEntry,
 )
 from horde_sdk.ai_horde_api.consts import KNOWN_UPSCALERS, METADATA_TYPE, METADATA_VALUE
 from horde_sdk.ai_horde_api.fields import JobID
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, RootModel, ValidationError
-from typing_extensions import Any
 
 import horde_worker_regen
+from horde_model_reference.meta_consts import MODEL_REFERENCE_CATEGORY, STABLE_DIFFUSION_BASELINE_CATEGORY
+from horde_model_reference.model_reference_manager import ModelReferenceManager
+from horde_model_reference.model_reference_records import StableDiffusion_ModelReference
 from horde_worker_regen.bridge_data.data_model import reGenBridgeData
 from horde_worker_regen.bridge_data.load_config import BridgeDataLoader
 from horde_worker_regen.consts import BRIDGE_CONFIG_FILENAME, KNOWN_SLOW_MODELS_DIFFICULTIES, VRAM_HEAVY_MODELS
@@ -712,7 +711,10 @@ class JobSubmitState(enum.Enum):  # TODO: Split into a new file
     FAULTED = auto()
     """The job submit faulted for some reason."""
 
+
 class PendingJob(BaseModel):
+    """Base class for all PendingJobs async tasks."""
+
     state: JobSubmitState = JobSubmitState.PENDING
     _max_consecutive_failed_job_submits: int = 10
     _consecutive_failed_job_submits: int = 0
@@ -739,8 +741,7 @@ class PendingJob(BaseModel):
             self.state = JobSubmitState.FAULTED
 
     def succeed(self) -> None:
-        """Mark the job as successfully submitted.
-        """
+        """Mark the job as successfully submitted."""
         self.state = JobSubmitState.SUCCESS
 
     def fault(self) -> None:
@@ -748,7 +749,7 @@ class PendingJob(BaseModel):
         self.state = JobSubmitState.FAULTED
 
 
-class PendingSourceDownloadJob(PendingJob):  
+class PendingSourceDownloadJob(PendingJob):
     """Information about a source image to download from the horde."""
 
     job_pop_response: ImageGenerateJobPopResponse
@@ -759,13 +760,15 @@ class PendingSourceDownloadJob(PendingJob):
     fault_metadata: GenMetadataEntry | None = None
 
     @property
-    def log_reference(self):
+    def log_reference(self) -> str:
+        """Returns a string identifying the source image for logs."""
         log_reference = self.field_name
         if self.esi_index is not None:
             log_reference = f"{self.field_name}_{self.esi_index}"
         return log_reference
 
-    def retry(self, metadata_value) -> None:
+    def retry(self, metadata_value: METADATA_TYPE) -> None:
+        """Marks this task to be retried. Adds GenMetadataEntry if retries exceeded."""
         super().retry()
         if self.is_faulted:
             self.fault_metadata = GenMetadataEntry(
@@ -774,13 +777,15 @@ class PendingSourceDownloadJob(PendingJob):
                 ref=str(self.esi_index),
             )
 
-    def fault(self, metadata_value) -> None:
+    def fault(self, metadata_value: METADATA_TYPE) -> None:
+        """Faults this task and adds a GenMetadataEntry."""
         self.fault_metadata = GenMetadataEntry(
             type=METADATA_TYPE[self.field_name],
             value=metadata_value,
             ref=str(self.esi_index),
         )
         super().fault()
+
 
 class PendingSubmitJob(PendingJob):  # TODO: Split into a new file
     """Information about a job to submit to the horde."""
@@ -824,7 +829,6 @@ class PendingSubmitJob(PendingJob):  # TODO: Split into a new file
         self.kudos_reward = kudos_reward
         self.kudos_per_second = kudos_per_second
         super().succeed()
-
 
 
 class NextJobAndProcess(BaseModel):
@@ -2562,9 +2566,9 @@ class HordeWorkerProcessManager:
                                 exclude=_excludes_for_job_dump,
                             )
                             if self.stable_diffusion_reference is not None and hji.sdk_api_job_info.model is not None:
-                                model_dump["sdk_api_job_info"][
-                                    "model_baseline"
-                                ] = self.stable_diffusion_reference.root[hji.sdk_api_job_info.model].baseline
+                                model_dump["sdk_api_job_info"]["model_baseline"] = (
+                                    self.stable_diffusion_reference.root[hji.sdk_api_job_info.model].baseline
+                                )
                             # Preparation for multiple schedulers
                             if hji.sdk_api_job_info.payload.karras:
                                 model_dump["sdk_api_job_info"]["payload"]["scheduler"] = "karras"
@@ -2752,8 +2756,8 @@ class HordeWorkerProcessManager:
 
         return self.get_pending_megapixelsteps() > self._max_pending_megapixelsteps
 
-    async def download_source_image(
-        self, new_download: PendingSourceDownloadJob) -> PendingSourceDownloadJob:
+    async def download_source_image(self, new_download: PendingSourceDownloadJob) -> PendingSourceDownloadJob:
+        """Downloads a single source image asynchronously."""
         if "https://" not in new_download.download_url:
             new_download.fault(METADATA_VALUE.download_failed)
             return new_download
@@ -2789,7 +2793,6 @@ class HordeWorkerProcessManager:
         new_download.succeed()
         return new_download
 
-
     async def _get_source_images(self, job_pop_response: ImageGenerateJobPopResponse) -> ImageGenerateJobPopResponse:
         # Adding this to stop mypy complaining
         if job_pop_response.id_ is None:
@@ -2803,7 +2806,7 @@ class HordeWorkerProcessManager:
             new_download = PendingSourceDownloadJob(
                 job_pop_response=job_pop_response,
                 field_name="source_image",
-                download_url=job_pop_response.source_image
+                download_url=job_pop_response.source_image,
             )
             download_tasks.append(asyncio.create_task(self.download_source_image(new_download)))
             # Nested because we don't try to download source mask if source image doesn't exist
@@ -2811,7 +2814,7 @@ class HordeWorkerProcessManager:
                 new_download = PendingSourceDownloadJob(
                     payload=job_pop_response,
                     field_name="source_mask",
-                    download_url=job_pop_response.source_mask
+                    download_url=job_pop_response.source_mask,
                 )
                 download_tasks.append(asyncio.create_task(self.download_source_image(new_download)))
         if job_pop_response.extra_source_images is not None:
@@ -2857,15 +2860,22 @@ class HordeWorkerProcessManager:
             if finished_download.is_faulted and finished_download.fault_metadata is not None:
                 self.job_faults[job_pop_response.id_].append(finished_download.fault_metadata)
                 logger.error(f"Failed to {finished_download.fault_metadata.value} on {new_download.log_reference}")
-            if finished_download.field_name == "source_image":                
+            if finished_download.field_name == "source_image":
                 updated_souces["source_image"] = finished_download.image_b64
-            if finished_download.field_name == "source_mask":                
+            if finished_download.field_name == "source_mask":
                 updated_souces["source_mask"] = finished_download.image_b64
-            if finished_download.field_name == "extra_source_images" and job_pop_response.extra_source_images is not None:
-                upd_esi = updated_souces["extra_source_images"][finished_download.esi_index].model_copy(update={"image":finished_download.image_b64})
+            if (
+                finished_download.field_name == "extra_source_images"
+                and job_pop_response.extra_source_images is not None
+            ):
+                upd_esi = updated_souces["extra_source_images"][finished_download.esi_index].model_copy(
+                    update={
+                        "image": finished_download.image_b64,
+                    },
+                )
                 updated_souces["extra_source_images"][finished_download.esi_index] = upd_esi
         if updated_souces["source_image"] is None:
-            updated_souces["source_processing"] = 'text2img'
+            updated_souces["source_processing"] = "text2img"
         if updated_souces["extra_source_images"] is not None:
             valid_extra_source_images: list[ExtraSourceImageEntry] = []
             for esi in updated_souces["extra_source_images"]:
@@ -2873,8 +2883,7 @@ class HordeWorkerProcessManager:
                     valid_extra_source_images.append(esi)
             updated_souces["extra_source_images"] = valid_extra_source_images
 
-        updated_job_response  = job_pop_response.model_copy(update=updated_souces)
-        return updated_job_response
+        return job_pop_response.model_copy(update=updated_souces)
 
     _last_pop_no_jobs_available: bool = False
 

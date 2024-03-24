@@ -14,9 +14,9 @@ from loguru import logger
 
 def main(ctx: BaseContext, load_from_env_vars: bool = False) -> None:
     """Check for a valid config and start the driver ('main') process for the reGen worker."""
-    from horde_model_reference.model_reference_manager import ModelReferenceManager
     from pydantic import ValidationError
 
+    from horde_model_reference.model_reference_manager import ModelReferenceManager
     from horde_worker_regen.bridge_data.load_config import BridgeDataLoader, reGenBridgeData
     from horde_worker_regen.consts import BRIDGE_CONFIG_FILENAME
     from horde_worker_regen.process_management.main_entry_point import start_working

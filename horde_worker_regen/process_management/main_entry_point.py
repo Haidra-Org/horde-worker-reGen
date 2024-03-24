@@ -1,7 +1,6 @@
 from multiprocessing.context import BaseContext
 
 from horde_model_reference.model_reference_manager import ModelReferenceManager
-
 from horde_worker_regen.bridge_data.data_model import reGenBridgeData
 from horde_worker_regen.process_management.process_manager import HordeWorkerProcessManager
 

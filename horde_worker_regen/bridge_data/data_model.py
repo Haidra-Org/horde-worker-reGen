@@ -70,6 +70,8 @@ class reGenBridgeData(CombinedHordeBridgeData):
 
     exit_on_unhandled_faults: bool = Field(default=False)
 
+    purge_loras_on_download: bool = Field(default=False)
+
     @model_validator(mode="after")
     def validate_performance_modes(self) -> reGenBridgeData:
         """Validate the performance modes and set the appropriate values.

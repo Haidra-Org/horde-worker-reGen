@@ -1312,6 +1312,7 @@ class HordeWorkerProcessManager:
         if not self._shutting_down:
             logger.info(f"Ended inference process {process_info.process_id}")
 
+    _num_process_recoveries = 0
     _safety_processes_should_be_replaced: bool = False
     _safety_processes_ending: bool = False
 
@@ -1340,6 +1341,7 @@ class HordeWorkerProcessManager:
             self.start_safety_processes()
             self._safety_processes_ending = False
             self._safety_processes_should_be_replaced = False
+            self._num_process_recoveries += 1
 
     def _replace_inference_process(self, process_info: HordeProcessInfo) -> None:
         """Replaces an inference process (for whatever reason; probably because it crashed).
@@ -1386,6 +1388,8 @@ class HordeWorkerProcessManager:
 
         self._end_inference_process(process_info)
         self._start_inference_process(process_info.process_id)
+
+        self._num_process_recoveries += 1
 
     total_num_completed_jobs: int = 0
 
@@ -2215,6 +2219,8 @@ class HordeWorkerProcessManager:
             logger.error(f"Failed to convert base64 image to stream buffer: {e}")
             return None
 
+    _num_job_slowdowns = 0
+
     @logger.catch(reraise=True)
     async def submit_single_generation(self, new_submit: PendingSubmitJob) -> PendingSubmitJob:
         """Tries to upload and submit a single image from a batch.
@@ -2372,6 +2378,7 @@ class HordeWorkerProcessManager:
                     "lowering your max_power, using less threads, disabling post processing and/or controlnets.",
                 )
                 logger.warning("Be sure your models are on an SSD. Freeing up RAM or VRAM may also help.")
+                self._num_job_slowdowns += 1
         # If the job was faulted, log an error
         else:
             logger.error(
@@ -3348,6 +3355,8 @@ class HordeWorkerProcessManager:
                         f"allow_lora: {self.bridge_data.allow_lora}",
                         f"allow_controlnet: {self.bridge_data.allow_controlnet}",
                         f"allow_post_processing: {self.bridge_data.allow_post_processing}",
+                        f"jobs_pending_safety_check: {len(self.jobs_pending_safety_check)}"
+                        f"jobs_being_safety_checked: {len(self.jobs_being_safety_checked)}",
                     ],
                 ),
             )
@@ -3368,9 +3377,10 @@ class HordeWorkerProcessManager:
             job_info_message = "Session job info: " + " | ".join(
                 [
                     f"popped: {len(self.job_deque)} (eMPS: {self.get_pending_megapixelsteps()})",
-                    f"safety checking: {num_jobs_safety_checking}",
-                    f"faulted: {self._num_jobs_faulted}",
                     f"submitted: {self.total_num_completed_jobs}",
+                    f"faulted: {self._num_jobs_faulted}",
+                    f"slow_jobs: {self._num_job_slowdowns}",
+                    f"process_recoveries: {self._num_process_recoveries}",
                 ],
             )
 
@@ -3577,7 +3587,10 @@ class HordeWorkerProcessManager:
         Returns:
             True if the process was replaced, False otherwise
         """
-        time_elapsed = time.time() - process_info.last_received_timestamp
+        now = time.time()
+        time_elapsed = now - process_info.last_received_timestamp
+        time_elapsed = min(time_elapsed, now - process_info.last_heartbeat_timestamp)
+
         if time_elapsed > timeout and process_info.last_process_state == state:
             logger.error(f"{process_info} {error_message}, replacing it")
             self._replace_inference_process(process_info)

@@ -2773,17 +2773,19 @@ class HordeWorkerProcessManager:
         source_image_is_url = False
         if job_pop_response.source_image is not None and job_pop_response.source_image.startswith("http"):
             source_image_is_url = True
+            logger.debug(f"Source image for job {job_pop_response.id_} is a URL")
 
         source_mask_is_url = False
         if job_pop_response.source_mask is not None and job_pop_response.source_mask.startswith("http"):
             source_mask_is_url = True
+            logger.debug(f"Source mask for job {job_pop_response.id_} is a URL")
 
         any_extra_source_images_are_urls = False
         if job_pop_response.extra_source_images is not None:
             for extra_source_image in job_pop_response.extra_source_images:
                 if extra_source_image.image.startswith("http"):
                     any_extra_source_images_are_urls = True
-                    break
+                    logger.debug(f"Extra source image for job {job_pop_response.id_} is a URL")
 
         attempts = 0
         while attempts < MAX_SOURCE_IMAGE_RETRIES:
@@ -2829,6 +2831,69 @@ class HordeWorkerProcessManager:
                     break
             else:
                 break
+
+        if attempts >= MAX_SOURCE_IMAGE_RETRIES:
+            if source_image_is_url and job_pop_response.get_downloaded_source_image() is None:
+                if self.job_faults.get(job_pop_response.id_) is None:
+                    self.job_faults[job_pop_response.id_] = []
+
+                logger.error(f"Failed to download source image for job {job_pop_response.id_}")
+                self.job_faults[job_pop_response.id_].append(
+                    GenMetadataEntry(
+                        type=METADATA_TYPE.source_image,
+                        value=METADATA_VALUE.download_failed,
+                        ref="source_image",
+                    ),
+                )
+
+            if source_mask_is_url and job_pop_response.get_downloaded_source_mask() is None:
+                if self.job_faults.get(job_pop_response.id_) is None:
+                    self.job_faults[job_pop_response.id_] = []
+                logger.error(f"Failed to download source mask for job {job_pop_response.id_}")
+
+                self.job_faults[job_pop_response.id_].append(
+                    GenMetadataEntry(
+                        type=METADATA_TYPE.source_mask,
+                        value=METADATA_VALUE.download_failed,
+                        ref="source_mask",
+                    ),
+                )
+            downloaded_extra_source_images = job_pop_response.get_downloaded_extra_source_images()
+            if (
+                any_extra_source_images_are_urls
+                and downloaded_extra_source_images is None
+                or (
+                    downloaded_extra_source_images is not None
+                    and job_pop_response.extra_source_images is not None
+                    and len(downloaded_extra_source_images) != len(job_pop_response.extra_source_images)
+                )
+            ):
+                if self.job_faults.get(job_pop_response.id_) is None:
+                    self.job_faults[job_pop_response.id_] = []
+                logger.error(f"Failed to download extra source images for job {job_pop_response.id_}")
+
+                ref = []
+                if job_pop_response.extra_source_images is not None and downloaded_extra_source_images is not None:
+                    for predownload_extra_source_image in job_pop_response.extra_source_images:
+                        if predownload_extra_source_image.image.startswith("http"):
+                            if any(
+                                predownload_extra_source_image.original_url == extra_source_image.image
+                                for extra_source_image in downloaded_extra_source_images
+                            ):
+                                continue
+
+                            ref.append(str(job_pop_response.extra_source_images.index(predownload_extra_source_image)))
+                elif job_pop_response.extra_source_images is not None and downloaded_extra_source_images is None:
+                    ref = [str(i) for i in range(len(job_pop_response.extra_source_images))]
+
+                for r in ref:
+                    self.job_faults[job_pop_response.id_].append(
+                        GenMetadataEntry(
+                            type=METADATA_TYPE.extra_source_images,
+                            value=METADATA_VALUE.download_failed,
+                            ref=r,
+                        ),
+                    )
 
         return job_pop_response
 

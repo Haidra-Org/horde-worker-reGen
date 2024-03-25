@@ -454,7 +454,7 @@ class ProcessMap(dict[int, HordeProcessInfo]):
             return False
         if (
             self[process_id].last_heartbeat_type == HordeHeartbeatType.INFERENCE_STEP
-            and (time.time() - self[process_id].last_heartbeat_timestamp) > 30
+            and (time.time() - self[process_id].last_heartbeat_timestamp) > 45
         ):
             return True
         return False

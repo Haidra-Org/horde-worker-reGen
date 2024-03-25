@@ -18,6 +18,7 @@ from io import BytesIO
 from multiprocessing.context import BaseContext
 from multiprocessing.synchronize import Lock as Lock_MultiProcessing
 from multiprocessing.synchronize import Semaphore
+from typing import override
 
 import aiohttp
 import aiohttp.client_exceptions
@@ -49,7 +50,12 @@ from horde_model_reference.model_reference_manager import ModelReferenceManager
 from horde_model_reference.model_reference_records import StableDiffusion_ModelReference
 from horde_worker_regen.bridge_data.data_model import reGenBridgeData
 from horde_worker_regen.bridge_data.load_config import BridgeDataLoader
-from horde_worker_regen.consts import BRIDGE_CONFIG_FILENAME, KNOWN_SLOW_MODELS_DIFFICULTIES, VRAM_HEAVY_MODELS
+from horde_worker_regen.consts import (
+    BRIDGE_CONFIG_FILENAME,
+    KNOWN_SLOW_MODELS_DIFFICULTIES,
+    MAX_SOURCE_IMAGE_RETRIES,
+    VRAM_HEAVY_MODELS,
+)
 from horde_worker_regen.process_management._aliased_types import ProcessQueue
 from horde_worker_regen.process_management.horde_process import HordeProcessType
 from horde_worker_regen.process_management.messages import (
@@ -767,6 +773,7 @@ class PendingSourceDownloadJob(PendingJob):
             log_reference = f"{self.field_name}_{self.esi_index}"
         return log_reference
 
+    @override
     def retry(self, metadata_value: METADATA_VALUE) -> None:
         """Marks this task to be retried. Adds GenMetadataEntry if retries exceeded."""
         super().retry()
@@ -777,6 +784,7 @@ class PendingSourceDownloadJob(PendingJob):
                 ref=str(self.esi_index),
             )
 
+    @override
     def fault(self, metadata_value: METADATA_VALUE) -> None:
         """Faults this task and adds a GenMetadataEntry."""
         self.fault_metadata = GenMetadataEntry(
@@ -819,6 +827,7 @@ class PendingSubmitJob(PendingJob):  # TODO: Split into a new file
         """Return the number of jobs in the batch."""
         return len(self.completed_job_info.sdk_api_job_info.ids)
 
+    @override
     def succeed(self, kudos_reward: int, kudos_per_second: float) -> None:
         """Mark the job as successfully submitted.
 
@@ -948,7 +957,7 @@ class HordeWorkerProcessManager:
     kudos_generated_this_session: float = 0
     session_start_time: float = 0
 
-    _aiohttp_session: aiohttp.ClientSession
+    _aiohttp_client_session: aiohttp.ClientSession
 
     stable_diffusion_reference: StableDiffusion_ModelReference | None
     horde_client: AIHordeAPIAsyncSimpleClient
@@ -2301,7 +2310,7 @@ class HordeWorkerProcessManager:
                 new_submit.fault()
                 return new_submit
             try:
-                async with self._aiohttp_session.put(
+                async with self._aiohttp_client_session.put(
                     yarl.URL(new_submit.r2_upload, encoded=True),
                     data=image_in_buffer.getvalue(),
                     skip_auto_headers=["content-type"],
@@ -2794,134 +2803,75 @@ class HordeWorkerProcessManager:
 
         return self.get_pending_megapixelsteps() > self._max_pending_megapixelsteps
 
-    async def download_source_image(self, new_download: PendingSourceDownloadJob) -> PendingSourceDownloadJob:
-        """Downloads a single source image asynchronously."""
-        if new_download.download_url is not None and "https://" not in new_download.download_url:
-            new_download.fault(METADATA_VALUE.download_failed)
-            return new_download
-        logger.debug(f"Starting download of {new_download.log_reference}")
-        try:
-            # self.job_faults[job_pop_response.id_].append(new_meta_entry)
-            # logger.error(f"Failed to download {new_download.log_reference} after {fail_count} attempts")
-            response = await self._aiohttp_session.get(
-                new_download.download_url,
-                timeout=aiohttp.ClientTimeout(total=10),
-            )
-            response.raise_for_status()
-
-            content = await response.content.read()
-            new_download.image_b64 = base64.b64encode(content).decode("utf-8")
-
-            logger.debug(f"Downloaded {new_download.log_reference} for job {new_download.job_pop_response.id_}")
-        except Exception as err:
-            logger.debug(f"{type(err)}: {err}")
-            logger.warning(f"Failed to download {new_download.log_reference}: {err}")
-            new_download.retry(METADATA_VALUE.download_failed)
-            return new_download
-
-        try:
-            if new_download.image_b64 is not None:
-                image = PIL.Image.open(BytesIO(base64.b64decode(new_download.image_b64)))
-                image.verify()
-        except Exception as err:
-            logger.error(f"Failed to verify {new_download.log_reference}: {err}")
-            if new_download.job_pop_response.id_ is None:
-                raise ValueError("job_pop_response.id_ is None") from err
-            new_download.fault(METADATA_VALUE.parse_failed)
-        new_download.succeed()
-        return new_download
-
     async def _get_source_images(self, job_pop_response: ImageGenerateJobPopResponse) -> ImageGenerateJobPopResponse:
         # Adding this to stop mypy complaining
         if job_pop_response.id_ is None:
             logger.error("Received ImageGenerateJobPopResponse with id_ is None. Please let the devs know!")
             return job_pop_response
 
-        download_tasks: list[Task[PendingSourceDownloadJob]] = []
-        finished_download_tasks: list[PendingSourceDownloadJob] = []
+        download_tasks: list[Task] = []
 
-        if job_pop_response.source_image is not None:
-            new_download = PendingSourceDownloadJob(
-                job_pop_response=job_pop_response,
-                field_name="source_image",
-                download_url=job_pop_response.source_image,
-            )
-            download_tasks.append(asyncio.create_task(self.download_source_image(new_download)))
-            # Nested because we don't try to download source mask if source image doesn't exist
-            if job_pop_response.source_mask is not None:
-                new_download = PendingSourceDownloadJob(
-                    job_pop_response=job_pop_response,
-                    field_name="source_mask",
-                    download_url=job_pop_response.source_mask,
-                )
-                download_tasks.append(asyncio.create_task(self.download_source_image(new_download)))
+        source_image_is_url = False
+        if job_pop_response.source_image is not None and job_pop_response.source_image.startswith("http"):
+            source_image_is_url = True
+
+        source_mask_is_url = False
+        if job_pop_response.source_mask is not None and job_pop_response.source_mask.startswith("http"):
+            source_mask_is_url = True
+
+        any_extra_source_images_are_urls = False
         if job_pop_response.extra_source_images is not None:
-            for esi_index, esi in enumerate(job_pop_response.extra_source_images):
-                new_download = PendingSourceDownloadJob(
-                    job_pop_response=job_pop_response,
-                    field_name="extra_source_images",
-                    download_url=esi.image,
-                    esi_index=esi_index,
-                )
-                download_tasks.append(asyncio.create_task(self.download_source_image(new_download)))
+            for extra_source_image in job_pop_response.extra_source_images:
+                if extra_source_image.image.startswith("http"):
+                    any_extra_source_images_are_urls = True
+                    break
 
-        while len(download_tasks) > 0:
-            retry_submits: list[PendingSourceDownloadJob] = []
-            results = await asyncio.gather(*download_tasks, return_exceptions=True)
-            for result in results:
-                if isinstance(result, Exception):
-                    logger.exception(f"Exception in source image download task: {result}")
-                    fault_metadata = GenMetadataEntry(
-                        # When an exception occurs, we don't know what kind of source type was being download
-                        # So we just report that the source image failed.
-                        type=METADATA_TYPE.source_image,
-                        value=METADATA_VALUE.download_failed,
-                    )
-                    self.job_faults[job_pop_response.id_].append(fault_metadata)
-                elif isinstance(result, PendingSourceDownloadJob):
-                    if not result.is_finished:
-                        retry_submits.append(result)
-                    else:
-                        finished_download_tasks.append(result)
-            download_tasks = []
-            for retry_submit in retry_submits:
-                download_tasks.append(asyncio.create_task(self.download_source_image(retry_submit)))
-
-        updated_souces = {
-            "source_image": job_pop_response.source_image,
-            "source_mask": job_pop_response.source_mask,
-            "extra_source_images": job_pop_response.extra_source_images,
-            "source_processing": job_pop_response.source_processing,
-        }
-
-        for finished_download in finished_download_tasks:
-            if finished_download.is_faulted and finished_download.fault_metadata is not None:
-                self.job_faults[job_pop_response.id_].append(finished_download.fault_metadata)
-                logger.error(f"Failed to {finished_download.fault_metadata.value} on {new_download.log_reference}")
-            if finished_download.field_name == "source_image":
-                updated_souces["source_image"] = finished_download.image_b64
-            if finished_download.field_name == "source_mask":
-                updated_souces["source_mask"] = finished_download.image_b64
+        attempts = 0
+        while attempts < MAX_SOURCE_IMAGE_RETRIES:
             if (
-                finished_download.field_name == "extra_source_images"
-                and job_pop_response.extra_source_images is not None
+                source_image_is_url
+                and job_pop_response.source_image is not None
+                and job_pop_response.get_downloaded_source_image() is None
             ):
-                upd_esi = updated_souces["extra_source_images"][finished_download.esi_index].model_copy(
-                    update={
-                        "image": finished_download.image_b64,
-                    },
-                )
-                updated_souces["extra_source_images"][finished_download.esi_index] = upd_esi
-        if updated_souces["source_image"] is None:
-            updated_souces["source_processing"] = "text2img"
-        if updated_souces["extra_source_images"] is not None:
-            valid_extra_source_images: list[ExtraSourceImageEntry] = []
-            for esi in updated_souces["extra_source_images"]:
-                if esi.image is not None:
-                    valid_extra_source_images.append(esi)
-            updated_souces["extra_source_images"] = valid_extra_source_images
+                download_tasks.append(job_pop_response.async_download_source_image(self._aiohttp_client_session))
+            if (
+                source_mask_is_url
+                and job_pop_response.source_mask is not None
+                and job_pop_response.get_downloaded_source_mask() is None
+            ):
+                download_tasks.append(job_pop_response.async_download_source_mask(self._aiohttp_client_session))
 
-        return job_pop_response.model_copy(update=updated_souces)
+            download_extra_source_images = job_pop_response.get_downloaded_extra_source_images()
+            if (
+                any_extra_source_images_are_urls
+                and job_pop_response.extra_source_images is not None
+                or (
+                    download_extra_source_images is not None
+                    and job_pop_response.extra_source_images is not None
+                    and len(download_extra_source_images) != len(job_pop_response.extra_source_images)
+                )
+            ):
+
+                download_tasks.append(
+                    asyncio.create_task(
+                        job_pop_response.async_download_extra_source_images(
+                            self._aiohttp_client_session,
+                            max_retries=MAX_SOURCE_IMAGE_RETRIES,
+                        ),
+                    ),
+                )
+
+            gather_results = await asyncio.gather(*download_tasks, return_exceptions=True)
+
+            for result in gather_results:
+                if isinstance(result, Exception):
+                    logger.error(f"Failed to download source image: {result}")
+                    attempts += 1
+                    break
+            else:
+                break
+
+        return job_pop_response
 
     _last_pop_no_jobs_available: bool = False
 
@@ -3259,8 +3209,8 @@ class HordeWorkerProcessManager:
     async def _api_call_loop(self) -> None:
         """Run the API call loop for popping jobs and doing miscellaneous API calls."""
         logger.debug("In _api_call_loop")
-        self._aiohttp_session = ClientSession(requote_redirect_url=False)
-        async with self._aiohttp_session as aiohttp_session:
+        self._aiohttp_client_session = ClientSession(requote_redirect_url=False)
+        async with self._aiohttp_client_session as aiohttp_session:
             self.horde_client_session = AIHordeAPIAsyncClientSession(aiohttp_session=aiohttp_session)
             self.horde_client = AIHordeAPIAsyncSimpleClient(
                 aiohttp_session=None,

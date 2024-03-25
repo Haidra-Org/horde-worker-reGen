@@ -18,7 +18,6 @@ from io import BytesIO
 from multiprocessing.context import BaseContext
 from multiprocessing.synchronize import Lock as Lock_MultiProcessing
 from multiprocessing.synchronize import Semaphore
-from typing import override
 
 import aiohttp
 import aiohttp.client_exceptions
@@ -27,11 +26,13 @@ import PIL.Image
 import psutil
 import yarl
 from aiohttp import ClientSession
+from horde_model_reference.meta_consts import MODEL_REFERENCE_CATEGORY, STABLE_DIFFUSION_BASELINE_CATEGORY
+from horde_model_reference.model_reference_manager import ModelReferenceManager
+from horde_model_reference.model_reference_records import StableDiffusion_ModelReference
 from horde_sdk import RequestErrorResponse
 from horde_sdk.ai_horde_api import GENERATION_STATE
 from horde_sdk.ai_horde_api.ai_horde_clients import AIHordeAPIAsyncClientSession, AIHordeAPIAsyncSimpleClient
 from horde_sdk.ai_horde_api.apimodels import (
-    ExtraSourceImageEntry,
     FindUserRequest,
     FindUserResponse,
     GenMetadataEntry,
@@ -43,11 +44,9 @@ from horde_sdk.ai_horde_api.consts import KNOWN_UPSCALERS, METADATA_TYPE, METADA
 from horde_sdk.ai_horde_api.fields import JobID
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, RootModel, ValidationError
+from typing_extensions import override
 
 import horde_worker_regen
-from horde_model_reference.meta_consts import MODEL_REFERENCE_CATEGORY, STABLE_DIFFUSION_BASELINE_CATEGORY
-from horde_model_reference.model_reference_manager import ModelReferenceManager
-from horde_model_reference.model_reference_records import StableDiffusion_ModelReference
 from horde_worker_regen.bridge_data.data_model import reGenBridgeData
 from horde_worker_regen.bridge_data.load_config import BridgeDataLoader
 from horde_worker_regen.consts import (
@@ -746,53 +745,13 @@ class PendingJob(BaseModel):
         if self._consecutive_failed_job_submits > self._max_consecutive_failed_job_submits:
             self.state = JobSubmitState.FAULTED
 
-    def succeed(self) -> None:
+    def succeed(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
         """Mark the job as successfully submitted."""
         self.state = JobSubmitState.SUCCESS
 
     def fault(self) -> None:
         """Mark the job as faulted."""
         self.state = JobSubmitState.FAULTED
-
-
-class PendingSourceDownloadJob(PendingJob):
-    """Information about a source image to download from the horde."""
-
-    job_pop_response: ImageGenerateJobPopResponse
-    field_name: str
-    download_url: str | None
-    esi_index: int | None = None
-    image_b64: str | None = None
-    fault_metadata: GenMetadataEntry | None = None
-
-    @property
-    def log_reference(self) -> str:
-        """Returns a string identifying the source image for logs."""
-        log_reference = self.field_name
-        if self.esi_index is not None:
-            log_reference = f"{self.field_name}_{self.esi_index}"
-        return log_reference
-
-    @override
-    def retry(self, metadata_value: METADATA_VALUE) -> None:
-        """Marks this task to be retried. Adds GenMetadataEntry if retries exceeded."""
-        super().retry()
-        if self.is_faulted:
-            self.fault_metadata = GenMetadataEntry(
-                type=METADATA_TYPE[self.field_name],
-                value=metadata_value,
-                ref=str(self.esi_index),
-            )
-
-    @override
-    def fault(self, metadata_value: METADATA_VALUE) -> None:
-        """Faults this task and adds a GenMetadataEntry."""
-        self.fault_metadata = GenMetadataEntry(
-            type=METADATA_TYPE[self.field_name],
-            value=metadata_value,
-            ref=str(self.esi_index),
-        )
-        super().fault()
 
 
 class PendingSubmitJob(PendingJob):  # TODO: Split into a new file
@@ -828,7 +787,7 @@ class PendingSubmitJob(PendingJob):  # TODO: Split into a new file
         return len(self.completed_job_info.sdk_api_job_info.ids)
 
     @override
-    def succeed(self, kudos_reward: int, kudos_per_second: float) -> None:
+    def succeed(self, kudos_reward: int = 0, kudos_per_second: float = 0) -> None:
         """Mark the job as successfully submitted.
 
         Args:

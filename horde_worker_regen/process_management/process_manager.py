@@ -2585,17 +2585,22 @@ class HordeWorkerProcessManager:
                             model_dump["sdk_api_job_info"]["payload"]["ti_count"] = len(
                                 model_dump["sdk_api_job_info"]["payload"]["tis"],
                             )
-                            model_dump["sdk_api_job_info"]["extra_source_images_count"] = len(
-                                hji.sdk_api_job_info.extra_source_images) if hji.sdk_api_job_info.extra_source_images else 0
+                            model_dump["sdk_api_job_info"]["extra_source_images_count"] = (
+                                len(hji.sdk_api_job_info.extra_source_images)
+                                if hji.sdk_api_job_info.extra_source_images
+                                else 0
+                            )
                             esi_combined_size = 0
                             if hji.sdk_api_job_info.extra_source_images:
                                 for esi in hji.sdk_api_job_info.extra_source_images:
                                     esi_combined_size += len(esi.image)
                             model_dump["sdk_api_job_info"]["extra_source_images_combined_size"] = esi_combined_size
-                            model_dump["sdk_api_job_info"]["source_image_size"] = len(
-                                hji.sdk_api_job_info.source_image) if hji.sdk_api_job_info.source_image else 0
-                            model_dump["sdk_api_job_info"]["source_mask_size"] = len(
-                                hji.sdk_api_job_info.source_mask) if hji.sdk_api_job_info.source_mask else 0
+                            model_dump["sdk_api_job_info"]["source_image_size"] = (
+                                len(hji.sdk_api_job_info.source_image) if hji.sdk_api_job_info.source_image else 0
+                            )
+                            model_dump["sdk_api_job_info"]["source_mask_size"] = (
+                                len(hji.sdk_api_job_info.source_mask) if hji.sdk_api_job_info.source_mask else 0
+                            )
                             if not os.path.exists(file_name_to_use):
                                 with open(file_name_to_use, "w") as f:
                                     json.dump([model_dump], f, indent=4)

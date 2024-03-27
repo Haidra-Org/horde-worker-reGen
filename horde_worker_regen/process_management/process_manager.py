@@ -3003,6 +3003,7 @@ class HordeWorkerProcessManager:
                 else:
                     logger.error(f"Failed to pop job (API Error): {job_pop_response}")
                 self._job_pop_frequency = self._error_job_pop_frequency
+                self._last_pop_no_jobs_available = True
                 return
 
         except Exception as e:
@@ -3601,6 +3602,12 @@ class HordeWorkerProcessManager:
         """Replaces processes that haven't checked in since `process_timeout` seconds in bridgeData."""
         now = time.time()
 
+        import threading
+
+        def timed_unset_recently_recovered() -> None:
+            time.sleep(60)
+            self._recently_recovered = False
+
         # If every process hasn't done anything for a while or if we haven't submitted a job for a while,
         # AND the last job pop returned a job, we're in a black hole and we need to exit because none of the ways to
         # recover worked
@@ -3632,17 +3639,14 @@ class HordeWorkerProcessManager:
                 if process_info.process_type == HordeProcessType.INFERENCE:
                     self._replace_inference_process(process_info)
 
-            def timed_unset_recently_recovered() -> None:
-                time.sleep(60)
-                self._recently_recovered = False
-
-            import threading
-
             threading.Thread(target=timed_unset_recently_recovered).start()
 
             return True
 
         if self._shutting_down:
+            return False
+
+        if self._last_pop_no_jobs_available or self._recently_recovered:
             return False
 
         any_replaced = False
@@ -3651,6 +3655,7 @@ class HordeWorkerProcessManager:
                 logger.error(f"{process_info} seems to be stuck mid inference, replacing it")
                 self._replace_inference_process(process_info)
                 any_replaced = True
+                self._recently_recovered = True
             else:
                 conditions: list[tuple[float, HordeProcessState, str]] = [
                     (
@@ -3682,6 +3687,10 @@ class HordeWorkerProcessManager:
                 for timeout, state, error_message in conditions:
                     if self._check_and_replace_process(process_info, timeout, state, error_message):
                         any_replaced = True
+                        self._recently_recovered = True
                         break
+
+        if any_replaced:
+            threading.Thread(target=timed_unset_recently_recovered).start()
 
         return any_replaced

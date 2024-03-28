@@ -431,7 +431,7 @@ class HordeInferenceProcess(HordeProcess):
             except Exception as e:
                 logger.error(f"Failed to release inference semaphore: {type(e).__name__} {e}")
 
-        if progress_report.comfyui_progress is not None and progress_report.comfyui_progress.current_step >= 0:
+        if progress_report.comfyui_progress is not None and progress_report.comfyui_progress.current_step > 0:
             self.send_heartbeat_message(heartbeat_type=HordeHeartbeatType.INFERENCE_STEP)
         else:
             self.send_heartbeat_message(heartbeat_type=HordeHeartbeatType.PIPELINE_STATE_CHANGE)
@@ -451,9 +451,11 @@ class HordeInferenceProcess(HordeProcess):
         self._is_busy = True
         try:
             logger.info(f"Starting inference for job(s) {job_info.ids}")
+            esi_count = len(job_info.extra_source_images) if job_info.extra_source_images is not None else 0
             logger.debug(
-                f"has source_image: {job_info.source_image is not None} "
-                f"has source_mask: {job_info.source_mask is not None}",
+                f"has source_image: {job_info.source_image is not None}, "
+                f"has source_mask: {job_info.source_mask is not None}, "
+                f"extra_source_images: {esi_count}",
             )
             logger.debug(f"{job_info.payload.model_dump(exclude={'prompt'})}")
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "horde_worker_regen"
-version = "4.3.9"
+version = "5.0.1"
 description = "Allows you to connect to the AI Horde and generate images for users."
 authors = [
     {name = "tazlin", email = "tazlin.on.github@gmail.com"},
@@ -101,6 +101,9 @@ exclude = '''
  | build
  | dist
  | conda
+ | clip_blip
+ | hf_transformers
+ | horde_model_reference
 )/
 '''
 

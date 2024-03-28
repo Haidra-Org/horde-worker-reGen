@@ -140,14 +140,17 @@ class HordeProcess(abc.ABC):
 
     _heartbeat_limit_interval_seconds: float = 1.0
     _last_heartbeat_time: float = 0.0
+    _last_heartbeat_type: HordeHeartbeatType = HordeHeartbeatType.OTHER
 
     def send_heartbeat_message(self, heartbeat_type: HordeHeartbeatType) -> None:
         """Send a heartbeat message to the main process, indicating that the process is still alive.
 
         Note that this will only send a heartbeat message if the last heartbeat was sent more than
-        `_heartbeat_limit_interval_seconds` ago.
+        `_heartbeat_limit_interval_seconds` ago or if the heartbeat type has changed.
         """
-        if (time.time() - self._last_heartbeat_time) < self._heartbeat_limit_interval_seconds:  # FIXME?
+        if (heartbeat_type != self._last_heartbeat_type) and (
+            time.time() - self._last_heartbeat_time
+        ) < self._heartbeat_limit_interval_seconds:
             return
 
         message = HordeProcessHeartbeatMessage(
@@ -158,6 +161,7 @@ class HordeProcess(abc.ABC):
         )
         self.process_message_queue.put(message)
 
+        self._last_heartbeat_type = heartbeat_type
         self._last_heartbeat_time = time.time()
 
     @abstractmethod

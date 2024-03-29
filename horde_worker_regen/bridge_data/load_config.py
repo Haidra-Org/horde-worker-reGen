@@ -6,13 +6,13 @@ import re
 from enum import auto
 from pathlib import Path
 
+from horde_model_reference.model_reference_manager import ModelReferenceManager
 from horde_sdk.ai_horde_api.ai_horde_clients import AIHordeAPIManualClient
 from horde_sdk.ai_horde_worker.model_meta import ImageModelLoadResolver
 from loguru import logger
 from ruamel.yaml import YAML
 from strenum import StrEnum
 
-from horde_model_reference.model_reference_manager import ModelReferenceManager
 from horde_worker_regen.bridge_data import AIWORKER_REGEN_PREFIX
 from horde_worker_regen.bridge_data.data_model import reGenBridgeData
 

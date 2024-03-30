@@ -44,12 +44,17 @@ from horde_sdk.ai_horde_api.consts import KNOWN_UPSCALERS, METADATA_TYPE, METADA
 from horde_sdk.ai_horde_api.fields import JobID
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, RootModel, ValidationError
-from typing_extensions import Any
+from typing_extensions import override
 
 import horde_worker_regen
 from horde_worker_regen.bridge_data.data_model import reGenBridgeData
 from horde_worker_regen.bridge_data.load_config import BridgeDataLoader
-from horde_worker_regen.consts import BRIDGE_CONFIG_FILENAME, KNOWN_SLOW_MODELS_DIFFICULTIES, VRAM_HEAVY_MODELS
+from horde_worker_regen.consts import (
+    BRIDGE_CONFIG_FILENAME,
+    KNOWN_SLOW_MODELS_DIFFICULTIES,
+    MAX_SOURCE_IMAGE_RETRIES,
+    VRAM_HEAVY_MODELS,
+)
 from horde_worker_regen.process_management._aliased_types import ProcessQueue
 from horde_worker_regen.process_management.horde_process import HordeProcessType
 from horde_worker_regen.process_management.messages import (
@@ -98,6 +103,7 @@ _excludes_for_job_dump = {
         "skipped": ...,
         "source_image": ...,
         "source_mask": ...,
+        "extra_source_images": ...,
         "r2_upload": ...,
         "r2_uploads": ...,
     },
@@ -454,7 +460,7 @@ class ProcessMap(dict[int, HordeProcessInfo]):
             return False
         if (
             self[process_id].last_heartbeat_type == HordeHeartbeatType.INFERENCE_STEP
-            and (time.time() - self[process_id].last_heartbeat_timestamp) > 30
+            and (time.time() - self[process_id].last_heartbeat_timestamp) > 45
         ):
             return True
         return False
@@ -712,16 +718,50 @@ class JobSubmitState(enum.Enum):  # TODO: Split into a new file
     """The job submit faulted for some reason."""
 
 
-class PendingSubmitJob(BaseModel):  # TODO: Split into a new file
+class PendingJob(BaseModel):
+    """Base class for all PendingJobs async tasks."""
+
+    state: JobSubmitState = JobSubmitState.PENDING
+    _max_consecutive_failed_job_submits: int = 10
+    _consecutive_failed_job_submits: int = 0
+
+    @property
+    def is_finished(self) -> bool:
+        """Return true if the job submit has finished."""
+        return self.state != JobSubmitState.PENDING
+
+    @property
+    def is_faulted(self) -> bool:
+        """Return true if the job submit has faulted."""
+        return self.state == JobSubmitState.FAULTED
+
+    @property
+    def retry_attempts_string(self) -> str:
+        """Return a string containing the number of consecutive failed job submits and the maximum allowed."""
+        return f"{self._consecutive_failed_job_submits}/{self._max_consecutive_failed_job_submits}"
+
+    def retry(self) -> None:
+        """Mark the job as needing to be retried. Fault the job if it has been retried too many times."""
+        self._consecutive_failed_job_submits += 1
+        if self._consecutive_failed_job_submits > self._max_consecutive_failed_job_submits:
+            self.state = JobSubmitState.FAULTED
+
+    def succeed(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
+        """Mark the job as successfully submitted."""
+        self.state = JobSubmitState.SUCCESS
+
+    def fault(self) -> None:
+        """Mark the job as faulted."""
+        self.state = JobSubmitState.FAULTED
+
+
+class PendingSubmitJob(PendingJob):  # TODO: Split into a new file
     """Information about a job to submit to the horde."""
 
     completed_job_info: HordeJobInfo
     gen_iter: int
-    state: JobSubmitState = JobSubmitState.PENDING
     kudos_reward: int = 0
     kudos_per_second: float = 0.0
-    _max_consecutive_failed_job_submits: int = 10
-    _consecutive_failed_job_submits: int = 0
 
     @property
     def image_result(self) -> HordeImageResult | None:
@@ -743,32 +783,12 @@ class PendingSubmitJob(BaseModel):  # TODO: Split into a new file
         return self.completed_job_info.sdk_api_job_info.r2_uploads[self.gen_iter]
 
     @property
-    def is_finished(self) -> bool:
-        """Return true if the job submit has finished."""
-        return self.state != JobSubmitState.PENDING
-
-    @property
-    def is_faulted(self) -> bool:
-        """Return true if the job submit has faulted."""
-        return self.state == JobSubmitState.FAULTED
-
-    @property
-    def retry_attempts_string(self) -> str:
-        """Return a string containing the number of consecutive failed job submits and the maximum allowed."""
-        return f"{self._consecutive_failed_job_submits}/{self._max_consecutive_failed_job_submits}"
-
-    @property
     def batch_count(self) -> int:
         """Return the number of jobs in the batch."""
         return len(self.completed_job_info.sdk_api_job_info.ids)
 
-    def retry(self) -> None:
-        """Mark the job as needing to be retried. Fault the job if it has been retried too many times."""
-        self._consecutive_failed_job_submits += 1
-        if self._consecutive_failed_job_submits > self._max_consecutive_failed_job_submits:
-            self.state = JobSubmitState.FAULTED
-
-    def succeed(self, kudos_reward: int, kudos_per_second: float) -> None:
+    @override
+    def succeed(self, kudos_reward: int = 0, kudos_per_second: float = 0) -> None:
         """Mark the job as successfully submitted.
 
         Args:
@@ -777,11 +797,7 @@ class PendingSubmitJob(BaseModel):  # TODO: Split into a new file
         """
         self.kudos_reward = kudos_reward
         self.kudos_per_second = kudos_per_second
-        self.state = JobSubmitState.SUCCESS
-
-    def fault(self) -> None:
-        """Mark the job as faulted."""
-        self.state = JobSubmitState.FAULTED
+        super().succeed()
 
 
 class NextJobAndProcess(BaseModel):
@@ -901,7 +917,7 @@ class HordeWorkerProcessManager:
     kudos_generated_this_session: float = 0
     session_start_time: float = 0
 
-    _aiohttp_session: aiohttp.ClientSession
+    _aiohttp_client_session: aiohttp.ClientSession
 
     stable_diffusion_reference: StableDiffusion_ModelReference | None
     horde_client: AIHordeAPIAsyncSimpleClient
@@ -2254,7 +2270,7 @@ class HordeWorkerProcessManager:
                 new_submit.fault()
                 return new_submit
             try:
-                async with self._aiohttp_session.put(
+                async with self._aiohttp_client_session.put(
                     yarl.URL(new_submit.r2_upload, encoded=True),
                     data=image_in_buffer.getvalue(),
                     skip_auto_headers=["content-type"],
@@ -2569,6 +2585,22 @@ class HordeWorkerProcessManager:
                             model_dump["sdk_api_job_info"]["payload"]["ti_count"] = len(
                                 model_dump["sdk_api_job_info"]["payload"]["tis"],
                             )
+                            model_dump["sdk_api_job_info"]["extra_source_images_count"] = (
+                                len(hji.sdk_api_job_info.extra_source_images)
+                                if hji.sdk_api_job_info.extra_source_images
+                                else 0
+                            )
+                            esi_combined_size = 0
+                            if hji.sdk_api_job_info.extra_source_images:
+                                for esi in hji.sdk_api_job_info.extra_source_images:
+                                    esi_combined_size += len(esi.image)
+                            model_dump["sdk_api_job_info"]["extra_source_images_combined_size"] = esi_combined_size
+                            model_dump["sdk_api_job_info"]["source_image_size"] = (
+                                len(hji.sdk_api_job_info.source_image) if hji.sdk_api_job_info.source_image else 0
+                            )
+                            model_dump["sdk_api_job_info"]["source_mask_size"] = (
+                                len(hji.sdk_api_job_info.source_mask) if hji.sdk_api_job_info.source_mask else 0
+                            )
                             if not os.path.exists(file_name_to_use):
                                 with open(file_name_to_use, "w") as f:
                                     json.dump([model_dump], f, indent=4)
@@ -2752,65 +2784,135 @@ class HordeWorkerProcessManager:
         if job_pop_response.id_ is None:
             logger.error("Received ImageGenerateJobPopResponse with id_ is None. Please let the devs know!")
             return job_pop_response
-        image_fields: list[str] = ["source_image", "source_mask"]
 
-        new_response_dict: dict[str, Any] = job_pop_response.model_dump(by_alias=True)
+        download_tasks: list[Task] = []
 
-        # TODO: Move this into horde_sdk
-        for field_name in image_fields:
-            field_value = new_response_dict[field_name]
-            if field_value is not None and "https://" in field_value:
-                fail_count = 0
-                while True:
-                    try:
-                        if fail_count >= 10:
-                            new_meta_entry = GenMetadataEntry(
-                                type=METADATA_TYPE[field_name],
-                                value=METADATA_VALUE.download_failed,
-                            )
-                            self.job_faults[job_pop_response.id_].append(new_meta_entry)
-                            logger.error(f"Failed to download {field_name} after {fail_count} attempts")
-                            break
-                        response = await self._aiohttp_session.get(
-                            field_value,
-                            timeout=aiohttp.ClientTimeout(total=10),
-                        )
-                        response.raise_for_status()
+        source_image_is_url = False
+        if job_pop_response.source_image is not None and job_pop_response.source_image.startswith("http"):
+            source_image_is_url = True
+            logger.debug(f"Source image for job {job_pop_response.id_} is a URL")
 
-                        content = await response.content.read()
+        source_mask_is_url = False
+        if job_pop_response.source_mask is not None and job_pop_response.source_mask.startswith("http"):
+            source_mask_is_url = True
+            logger.debug(f"Source mask for job {job_pop_response.id_} is a URL")
 
-                        new_response_dict[field_name] = base64.b64encode(content).decode("utf-8")
+        any_extra_source_images_are_urls = False
+        if job_pop_response.extra_source_images is not None:
+            for extra_source_image in job_pop_response.extra_source_images:
+                if extra_source_image.image.startswith("http"):
+                    any_extra_source_images_are_urls = True
+                    logger.debug(f"Extra source image for job {job_pop_response.id_} is a URL")
 
-                        logger.debug(f"Downloaded {field_name} for job {job_pop_response.id_}")
-                        break
-                    except Exception as e:
-                        logger.debug(f"{type(e)}: {e}")
-                        logger.warning(f"Failed to download {field_name}: {e}")
-                        fail_count += 1
-                        await asyncio.sleep(0.5)
+        attempts = 0
+        while attempts < MAX_SOURCE_IMAGE_RETRIES:
+            if (
+                source_image_is_url
+                and job_pop_response.source_image is not None
+                and job_pop_response.get_downloaded_source_image() is None
+            ):
+                download_tasks.append(job_pop_response.async_download_source_image(self._aiohttp_client_session))
+            if (
+                source_mask_is_url
+                and job_pop_response.source_mask is not None
+                and job_pop_response.get_downloaded_source_mask() is None
+            ):
+                download_tasks.append(job_pop_response.async_download_source_mask(self._aiohttp_client_session))
 
-        for field in image_fields:
-            try:
-                field_value = new_response_dict[field]
-                if field_value is not None:
-                    image = PIL.Image.open(BytesIO(base64.b64decode(field_value)))
-                    image.verify()
-
-            except Exception as e:
-                logger.error(f"Failed to verify {field}: {e}")
-                if job_pop_response.id_ is None:
-                    raise ValueError("job_pop_response.id_ is None") from e
-
-                new_meta_entry = GenMetadataEntry(
-                    type=METADATA_TYPE[field],
-                    value=METADATA_VALUE.parse_failed,
+            download_extra_source_images = job_pop_response.get_downloaded_extra_source_images()
+            if (
+                any_extra_source_images_are_urls
+                and job_pop_response.extra_source_images is not None
+                or (
+                    download_extra_source_images is not None
+                    and job_pop_response.extra_source_images is not None
+                    and len(download_extra_source_images) != len(job_pop_response.extra_source_images)
                 )
-                self.job_faults[job_pop_response.id_].append(new_meta_entry)
+            ):
 
-                new_response_dict[field] = None
-                new_response_dict["source_processing"] = "txt2img"
+                download_tasks.append(
+                    asyncio.create_task(
+                        job_pop_response.async_download_extra_source_images(
+                            self._aiohttp_client_session,
+                            max_retries=MAX_SOURCE_IMAGE_RETRIES,
+                        ),
+                    ),
+                )
 
-        return ImageGenerateJobPopResponse(**new_response_dict)
+            gather_results = await asyncio.gather(*download_tasks, return_exceptions=True)
+
+            for result in gather_results:
+                if isinstance(result, Exception):
+                    logger.error(f"Failed to download source image: {result}")
+                    attempts += 1
+                    break
+            else:
+                break
+
+        if attempts >= MAX_SOURCE_IMAGE_RETRIES:
+            if source_image_is_url and job_pop_response.get_downloaded_source_image() is None:
+                if self.job_faults.get(job_pop_response.id_) is None:
+                    self.job_faults[job_pop_response.id_] = []
+
+                logger.error(f"Failed to download source image for job {job_pop_response.id_}")
+                self.job_faults[job_pop_response.id_].append(
+                    GenMetadataEntry(
+                        type=METADATA_TYPE.source_image,
+                        value=METADATA_VALUE.download_failed,
+                        ref="source_image",
+                    ),
+                )
+
+            if source_mask_is_url and job_pop_response.get_downloaded_source_mask() is None:
+                if self.job_faults.get(job_pop_response.id_) is None:
+                    self.job_faults[job_pop_response.id_] = []
+                logger.error(f"Failed to download source mask for job {job_pop_response.id_}")
+
+                self.job_faults[job_pop_response.id_].append(
+                    GenMetadataEntry(
+                        type=METADATA_TYPE.source_mask,
+                        value=METADATA_VALUE.download_failed,
+                        ref="source_mask",
+                    ),
+                )
+            downloaded_extra_source_images = job_pop_response.get_downloaded_extra_source_images()
+            if (
+                any_extra_source_images_are_urls
+                and downloaded_extra_source_images is None
+                or (
+                    downloaded_extra_source_images is not None
+                    and job_pop_response.extra_source_images is not None
+                    and len(downloaded_extra_source_images) != len(job_pop_response.extra_source_images)
+                )
+            ):
+                if self.job_faults.get(job_pop_response.id_) is None:
+                    self.job_faults[job_pop_response.id_] = []
+                logger.error(f"Failed to download extra source images for job {job_pop_response.id_}")
+
+                ref = []
+                if job_pop_response.extra_source_images is not None and downloaded_extra_source_images is not None:
+                    for predownload_extra_source_image in job_pop_response.extra_source_images:
+                        if predownload_extra_source_image.image.startswith("http"):
+                            if any(
+                                predownload_extra_source_image.original_url == extra_source_image.image
+                                for extra_source_image in downloaded_extra_source_images
+                            ):
+                                continue
+
+                            ref.append(str(job_pop_response.extra_source_images.index(predownload_extra_source_image)))
+                elif job_pop_response.extra_source_images is not None and downloaded_extra_source_images is None:
+                    ref = [str(i) for i in range(len(job_pop_response.extra_source_images))]
+
+                for r in ref:
+                    self.job_faults[job_pop_response.id_].append(
+                        GenMetadataEntry(
+                            type=METADATA_TYPE.extra_source_images,
+                            value=METADATA_VALUE.download_failed,
+                            ref=r,
+                        ),
+                    )
+
+        return job_pop_response
 
     _last_pop_no_jobs_available: bool = False
 
@@ -3003,6 +3105,7 @@ class HordeWorkerProcessManager:
                 else:
                     logger.error(f"Failed to pop job (API Error): {job_pop_response}")
                 self._job_pop_frequency = self._error_job_pop_frequency
+                self._last_pop_no_jobs_available = True
                 return
 
         except Exception as e:
@@ -3147,8 +3250,8 @@ class HordeWorkerProcessManager:
     async def _api_call_loop(self) -> None:
         """Run the API call loop for popping jobs and doing miscellaneous API calls."""
         logger.debug("In _api_call_loop")
-        self._aiohttp_session = ClientSession(requote_redirect_url=False)
-        async with self._aiohttp_session as aiohttp_session:
+        self._aiohttp_client_session = ClientSession(requote_redirect_url=False)
+        async with self._aiohttp_client_session as aiohttp_session:
             self.horde_client_session = AIHordeAPIAsyncClientSession(aiohttp_session=aiohttp_session)
             self.horde_client = AIHordeAPIAsyncSimpleClient(
                 aiohttp_session=None,
@@ -3601,6 +3704,12 @@ class HordeWorkerProcessManager:
         """Replaces processes that haven't checked in since `process_timeout` seconds in bridgeData."""
         now = time.time()
 
+        import threading
+
+        def timed_unset_recently_recovered() -> None:
+            time.sleep(60)
+            self._recently_recovered = False
+
         # If every process hasn't done anything for a while or if we haven't submitted a job for a while,
         # AND the last job pop returned a job, we're in a black hole and we need to exit because none of the ways to
         # recover worked
@@ -3611,7 +3720,6 @@ class HordeWorkerProcessManager:
             )
             or ((now - self._last_job_submitted_time) > self.bridge_data.process_timeout)
         ) and not (self._last_pop_no_jobs_available or self._recently_recovered):
-
             self._cleanup_jobs()
 
             if self.bridge_data.exit_on_unhandled_faults:
@@ -3632,17 +3740,14 @@ class HordeWorkerProcessManager:
                 if process_info.process_type == HordeProcessType.INFERENCE:
                     self._replace_inference_process(process_info)
 
-            def timed_unset_recently_recovered() -> None:
-                time.sleep(60)
-                self._recently_recovered = False
-
-            import threading
-
             threading.Thread(target=timed_unset_recently_recovered).start()
 
             return True
 
         if self._shutting_down:
+            return False
+
+        if self._last_pop_no_jobs_available or self._recently_recovered:
             return False
 
         any_replaced = False
@@ -3651,6 +3756,7 @@ class HordeWorkerProcessManager:
                 logger.error(f"{process_info} seems to be stuck mid inference, replacing it")
                 self._replace_inference_process(process_info)
                 any_replaced = True
+                self._recently_recovered = True
             else:
                 conditions: list[tuple[float, HordeProcessState, str]] = [
                     (
@@ -3682,6 +3788,10 @@ class HordeWorkerProcessManager:
                 for timeout, state, error_message in conditions:
                     if self._check_and_replace_process(process_info, timeout, state, error_message):
                         any_replaced = True
+                        self._recently_recovered = True
                         break
+
+        if any_replaced:
+            threading.Thread(target=timed_unset_recently_recovered).start()
 
         return any_replaced

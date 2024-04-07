@@ -26,9 +26,6 @@ import PIL.Image
 import psutil
 import yarl
 from aiohttp import ClientSession
-from horde_model_reference.meta_consts import MODEL_REFERENCE_CATEGORY, STABLE_DIFFUSION_BASELINE_CATEGORY
-from horde_model_reference.model_reference_manager import ModelReferenceManager
-from horde_model_reference.model_reference_records import StableDiffusion_ModelReference
 from horde_sdk import RequestErrorResponse
 from horde_sdk.ai_horde_api import GENERATION_STATE
 from horde_sdk.ai_horde_api.ai_horde_clients import AIHordeAPIAsyncClientSession, AIHordeAPIAsyncSimpleClient
@@ -47,6 +44,9 @@ from pydantic import BaseModel, ConfigDict, RootModel, ValidationError
 from typing_extensions import override
 
 import horde_worker_regen
+from horde_model_reference.meta_consts import MODEL_REFERENCE_CATEGORY, STABLE_DIFFUSION_BASELINE_CATEGORY
+from horde_model_reference.model_reference_manager import ModelReferenceManager
+from horde_model_reference.model_reference_records import StableDiffusion_ModelReference
 from horde_worker_regen.bridge_data.data_model import reGenBridgeData
 from horde_worker_regen.bridge_data.load_config import BridgeDataLoader
 from horde_worker_regen.consts import (
@@ -2189,6 +2189,10 @@ class HordeWorkerProcessManager:
         if completed_job_info.sdk_api_job_info.model is None:
             raise ValueError("completed_job_info.sdk_api_job_info.model is None")
 
+        # Custom models don't appear in the downloaded model reference
+        model_info = {}
+        if completed_job_info.sdk_api_job_info.model in self.stable_diffusion_reference.root:
+            model_info = self.stable_diffusion_reference.root[completed_job_info.sdk_api_job_info.model].model_dump()
         safety_message_sent_succeeded = safety_process.safe_send_message(
             HordeSafetyControlMessage(
                 control_flag=HordeControlFlag.EVALUATE_SAFETY,
@@ -2197,9 +2201,7 @@ class HordeWorkerProcessManager:
                 prompt=completed_job_info.sdk_api_job_info.payload.prompt,
                 censor_nsfw=completed_job_info.sdk_api_job_info.payload.use_nsfw_censor,
                 sfw_worker=not self.bridge_data.nsfw,
-                horde_model_info=self.stable_diffusion_reference.root[
-                    completed_job_info.sdk_api_job_info.model
-                ].model_dump(),
+                horde_model_info=model_info,
                 # TODO: update this to use a class instead of a dict?
             ),
         )
@@ -2569,7 +2571,7 @@ class HordeWorkerProcessManager:
                         f"Job {completed_job_info.sdk_api_job_info.id_} not found in jobs_lookup "
                         "during submit. Creating a new HordeJobInfo object.",
                     )
-
+                # TODO: Too much indent. Split into own method
                 if self.bridge_data.capture_kudos_training_data:
                     if self.bridge_data.kudos_training_data_file is None:
                         self.bridge_data.kudos_training_data_file = "kudos_training_data.json"
@@ -2602,56 +2604,64 @@ class HordeWorkerProcessManager:
                                     f"Job {completed_job_info.sdk_api_job_info.id_} not found in jobs_lookup "
                                     " during kudos training data capture.",
                                 )
-                            model_dump = hji.model_dump(
-                                exclude=_excludes_for_job_dump,
-                            )
-                            if self.stable_diffusion_reference is not None and hji.sdk_api_job_info.model is not None:
-                                model_dump["sdk_api_job_info"]["model_baseline"] = (
-                                    self.stable_diffusion_reference.root[hji.sdk_api_job_info.model].baseline
+                            if (
+                                self.stable_diffusion_reference is not None
+                                and hji.sdk_api_job_info.model is not None
+                                and hji.sdk_api_job_info.model in self.stable_diffusion_reference.root
+                            ):
+                                model_dump = hji.model_dump(
+                                    exclude=_excludes_for_job_dump,
                                 )
-                            # Preparation for multiple schedulers
-                            if hji.sdk_api_job_info.payload.karras:
-                                model_dump["sdk_api_job_info"]["payload"]["scheduler"] = "karras"
-                            else:
-                                model_dump["sdk_api_job_info"]["payload"]["scheduler"] = "simple"
-                            del model_dump["sdk_api_job_info"]["payload"]["karras"]
-                            model_dump["sdk_api_job_info"]["payload"]["lora_count"] = len(
-                                model_dump["sdk_api_job_info"]["payload"]["loras"],
-                            )
-                            model_dump["sdk_api_job_info"]["payload"]["ti_count"] = len(
-                                model_dump["sdk_api_job_info"]["payload"]["tis"],
-                            )
-                            model_dump["sdk_api_job_info"]["extra_source_images_count"] = (
-                                len(hji.sdk_api_job_info.extra_source_images)
-                                if hji.sdk_api_job_info.extra_source_images
-                                else 0
-                            )
-                            esi_combined_size = 0
-                            if hji.sdk_api_job_info.extra_source_images:
-                                for esi in hji.sdk_api_job_info.extra_source_images:
-                                    esi_combined_size += len(esi.image)
-                            model_dump["sdk_api_job_info"]["extra_source_images_combined_size"] = esi_combined_size
-                            model_dump["sdk_api_job_info"]["source_image_size"] = (
-                                len(hji.sdk_api_job_info.source_image) if hji.sdk_api_job_info.source_image else 0
-                            )
-                            model_dump["sdk_api_job_info"]["source_mask_size"] = (
-                                len(hji.sdk_api_job_info.source_mask) if hji.sdk_api_job_info.source_mask else 0
-                            )
-                            if not os.path.exists(file_name_to_use):
-                                with open(file_name_to_use, "w") as f:
-                                    json.dump([model_dump], f, indent=4)
-                            elif hji.sdk_api_job_info.payload.n_iter == 1:
-                                data = []
-                                with open(file_name_to_use) as f:
-                                    data = json.load(f)
-                                    if not isinstance(data, list):
-                                        logger.warning(
-                                            f"Kudos training data file {file_name_to_use} " "is not a list",
-                                        )
-                                        data = []
-                                data.append(model_dump)
-                                with open(file_name_to_use, "w") as f:
-                                    json.dump(data, f, indent=4)
+                                if (
+                                    self.stable_diffusion_reference is not None
+                                    and hji.sdk_api_job_info.model is not None
+                                ):
+                                    model_dump["sdk_api_job_info"]["model_baseline"] = (
+                                        self.stable_diffusion_reference.root[hji.sdk_api_job_info.model].baseline
+                                    )
+                                # Preparation for multiple schedulers
+                                if hji.sdk_api_job_info.payload.karras:
+                                    model_dump["sdk_api_job_info"]["payload"]["scheduler"] = "karras"
+                                else:
+                                    model_dump["sdk_api_job_info"]["payload"]["scheduler"] = "simple"
+                                del model_dump["sdk_api_job_info"]["payload"]["karras"]
+                                model_dump["sdk_api_job_info"]["payload"]["lora_count"] = len(
+                                    model_dump["sdk_api_job_info"]["payload"]["loras"],
+                                )
+                                model_dump["sdk_api_job_info"]["payload"]["ti_count"] = len(
+                                    model_dump["sdk_api_job_info"]["payload"]["tis"],
+                                )
+                                model_dump["sdk_api_job_info"]["extra_source_images_count"] = (
+                                    len(hji.sdk_api_job_info.extra_source_images)
+                                    if hji.sdk_api_job_info.extra_source_images
+                                    else 0
+                                )
+                                esi_combined_size = 0
+                                if hji.sdk_api_job_info.extra_source_images:
+                                    for esi in hji.sdk_api_job_info.extra_source_images:
+                                        esi_combined_size += len(esi.image)
+                                model_dump["sdk_api_job_info"]["extra_source_images_combined_size"] = esi_combined_size
+                                model_dump["sdk_api_job_info"]["source_image_size"] = (
+                                    len(hji.sdk_api_job_info.source_image) if hji.sdk_api_job_info.source_image else 0
+                                )
+                                model_dump["sdk_api_job_info"]["source_mask_size"] = (
+                                    len(hji.sdk_api_job_info.source_mask) if hji.sdk_api_job_info.source_mask else 0
+                                )
+                                if not os.path.exists(file_name_to_use):
+                                    with open(file_name_to_use, "w") as f:
+                                        json.dump([model_dump], f, indent=4)
+                                elif hji.sdk_api_job_info.payload.n_iter == 1:
+                                    data = []
+                                    with open(file_name_to_use) as f:
+                                        data = json.load(f)
+                                        if not isinstance(data, list):
+                                            logger.warning(
+                                                f"Kudos training data file {file_name_to_use} " "is not a list",
+                                            )
+                                            data = []
+                                    data.append(model_dump)
+                                    with open(file_name_to_use, "w") as f:
+                                        json.dump(data, f, indent=4)
                     except Exception as e:
                         logger.error(
                             f"Failed to write kudos training data for job {completed_job_info.sdk_api_job_info.id_} "

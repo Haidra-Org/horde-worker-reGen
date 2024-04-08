@@ -177,3 +177,4 @@ models/*
 clip_blip/*
 hf_transformers/*
 horde_model_reference/*
+custom_models.json

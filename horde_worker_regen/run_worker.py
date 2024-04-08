@@ -61,6 +61,7 @@ def main(ctx: BaseContext, load_from_env_vars: bool = False) -> None:
                 file_path=BRIDGE_CONFIG_FILENAME,
                 horde_model_reference_manager=horde_model_reference_manager,
             )
+            bridge_data.load_custom_models()
     except ConnectionRefusedError:
         logger.error("Could not connect to the the horde. Is it down?")
         input("Press any key to exit...")

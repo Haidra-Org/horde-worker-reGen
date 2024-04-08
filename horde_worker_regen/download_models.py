@@ -34,6 +34,7 @@ def download_all_models(
                 horde_model_reference_manager=horde_model_reference_manager,
             )
             bridge_data.load_env_vars()
+            bridge_data.prepare_custom_models()
         else:
             bridge_data = BridgeDataLoader.load_from_env_vars(
                 horde_model_reference_manager=horde_model_reference_manager,

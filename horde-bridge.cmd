@@ -4,7 +4,7 @@ cd /d %~dp0
 : This first call to runtime activates the environment for the rest of the script
 call runtime python -s -m pip -V
 
-call python -s -m pip install horde_sdk~=0.9.2 horde_model_reference~=0.6.3 hordelib~=2.8.1 -U
+call python -s -m pip install horde_sdk~=0.9.3 horde_model_reference~=0.6.3 hordelib~=2.8.1 -U
 if %ERRORLEVEL% NEQ 0 (
     echo "Please run update-runtime.cmd."
     GOTO END

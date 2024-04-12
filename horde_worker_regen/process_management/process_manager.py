@@ -2245,9 +2245,15 @@ class HordeWorkerProcessManager:
             new_submit: The job to attempt to submit.
 
         Returns:
-                The modified in place job with the results of the submission attempt.
+            The modified in place job with the results of the submission attempt.
         """
         logger.debug(f"Preparing to submit job {new_submit.job_id}")
+
+        if new_submit.image_result is None and not new_submit.is_faulted:
+            logger.error(f"Job {new_submit.job_id} has no image result")
+            new_submit.fault()
+            return new_submit
+
         if new_submit.image_result is not None:
             image_in_buffer = self.base64_image_to_stream_buffer(
                 new_submit.image_result.image_base64,
@@ -2269,19 +2275,34 @@ class HordeWorkerProcessManager:
                         logger.error(f"Failed to submit followup request: {follow_up_response}")
                 new_submit.fault()
                 return new_submit
-            try:
+
+            async def _do_upload(new_submit: PendingSubmitJob, image_in_buffer_bytes: bytes) -> bool:
                 async with self._aiohttp_client_session.put(
                     yarl.URL(new_submit.r2_upload, encoded=True),
-                    data=image_in_buffer.getvalue(),
+                    data=image_in_buffer_bytes,
                     skip_auto_headers=["content-type"],
                     timeout=aiohttp.ClientTimeout(total=10),
                 ) as response:
                     if response.status != 200:
                         logger.error(f"Failed to upload image to R2: {response}")
                         new_submit.retry()
-                        return new_submit
+                        return False
+                return True
+
+            try:
+                submit_success = await asyncio.wait_for(
+                    _do_upload(new_submit, image_in_buffer.getvalue()),
+                    timeout=10 + 1,
+                )
+                if not submit_success:
+                    return new_submit
             except _async_client_exceptions as e:
                 logger.warning("Upload to AI Horde R2 timed out. Will retry.")
+                logger.debug(f"{type(e).__name__}: {e}")
+                new_submit.retry()
+                return new_submit
+            except Exception as e:
+                logger.error(f"Failed to upload image to R2: {e}")
                 logger.debug(f"{type(e).__name__}: {e}")
                 new_submit.retry()
                 return new_submit
@@ -2313,10 +2334,20 @@ class HordeWorkerProcessManager:
             censored=bool(new_submit.completed_job_info.censored),  # TODO: is this cast problematic?
             gen_metadata=metadata,
         )
-        job_submit_response = await self.horde_client_session.submit_request(
-            submit_job_request,
-            JobSubmitResponse,
-        )
+        logger.debug(f"Submitting job {new_submit.job_id}")
+        job_submit_response = None
+        try:
+            job_submit_response = await asyncio.wait_for(
+                self.horde_client_session.submit_request(
+                    submit_job_request,
+                    JobSubmitResponse,
+                ),
+                timeout=10 + 1,
+            )
+        except TimeoutError:
+            logger.error(f"Job {new_submit.job_id} submission timed out")
+            new_submit.retry()
+            return new_submit
 
         # If the job submit response is an error,
         # log it and increment the number of consecutive failed job submits
@@ -2345,6 +2376,11 @@ class HordeWorkerProcessManager:
                 f"Failed to submit job (API Error) " f"{new_submit.retry_attempts_string}: {job_submit_response}"
             )
             logger.error(error_string)
+            new_submit.retry()
+            return new_submit
+
+        if job_submit_response is None:
+            logger.error(f"Failed to submit job {new_submit.job_id}")
             new_submit.retry()
             return new_submit
 

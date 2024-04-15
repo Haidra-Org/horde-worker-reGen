@@ -28,6 +28,8 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
       - name: Run pre-commit
         uses: pre-commit/action@v3.0.0
+        with:
+          extra_args: --all-files
 
   unit-tests:
     runs-on: ubuntu-latest

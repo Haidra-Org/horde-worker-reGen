@@ -26,7 +26,7 @@ done
 
 CONDA_ENVIRONMENT_FILE=environment.yaml
 
-wget -qO- https://micromamba.snakepit.net/api/micromamba/linux-64/latest | tar -xvj bin/micromamba
+wget -qO- https://github.com/mamba-org/micromamba-releases/releases/latest/download/micromamba-linux-64.tar.bz2 | tar -xvj bin/micromamba
 if [ ! -f "conda/envs/linux/bin/python" ]; then
     bin/micromamba create --no-shortcuts -r conda -n linux -f ${CONDA_ENVIRONMENT_FILE} -y
 fi

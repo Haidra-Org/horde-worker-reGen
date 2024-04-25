@@ -11,7 +11,7 @@ semver
 
 python-Levenshtein
 
-pydantic~=2.7.0
+pydantic~=2.7.1
 typing_extensions
 requests
 StrEnum

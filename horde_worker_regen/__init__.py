@@ -20,7 +20,7 @@ def check_hordelib_not_installed() -> None:
         pkg_resources.get_distribution("hordelib")
         raise RuntimeError(
             "hordelib is installed. Please uninstall it before running this package. "
-            "`hordelib` has been renamed to `horde-engine`.",
+            "`hordelib` has been renamed to `horde_engine`.",
         )
     except pkg_resources.DistributionNotFound:
         pass

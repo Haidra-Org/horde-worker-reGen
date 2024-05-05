@@ -50,8 +50,8 @@ call "%MAMBA_ROOT_PREFIX%\condabin\mamba_hook.bat"
 call "%MAMBA_ROOT_PREFIX%\condabin\micromamba.bat" activate windows
 
 if defined hordelib (
-  python -s -m pip uninstall -y hordelib horde_model_reference
-  python -s -m pip install hordelib horde_model_reference --extra-index-url https://download.pytorch.org/whl/cu121
+  python -s -m pip uninstall -y hordelib horde-engine horde_model_reference
+  python -s -m pip install horde-engine horde_model_reference --extra-index-url https://download.pytorch.org/whl/cu121
 ) else (
   if defined scribe (
     python -s -m pip install -r requirements-scribe.txt

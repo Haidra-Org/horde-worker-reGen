@@ -11,39 +11,39 @@ def test_pre_commit_dep_versions(horde_dependency_versions: list[tuple[str, str]
 
     Checked dependencies at the time of writing:
     - horde_sdk
-    - hordelib
+    - horde_engine
     - horde_model_reference
     """
-    # Make sure hordelib and horde_sdk version pins match
+    # Make sure horde-engine and horde_sdk version pins match
     with open(PRECOMMIT_FILE_PATH) as f:
         precommit_config = yaml.safe_load(f)
 
     horde_sdk_version = None
-    hordelib_version = None
+    horde_engine_version = None
     horde_model_reference_version = None
 
     for repo in precommit_config["repos"]:
         if "mypy" in repo["repo"]:
-            # Check additional_dependencies for horde_sdk, hordelib or horde_model_reference
+            # Check additional_dependencies for horde_sdk, horde-engine or horde_model_reference
             for dep in repo["hooks"][0]["additional_dependencies"]:
                 if dep.startswith("horde_sdk"):
                     horde_sdk_version = dep.split("==")[1]
 
-                if dep.startswith("hordelib"):
-                    hordelib_version = dep.split("==")[1]
+                if dep.startswith("horde-engine"):
+                    horde_engine_version = dep.split("==")[1]
 
                 if dep.startswith("horde_model_reference"):
                     horde_model_reference_version = dep.split("==")[1]
 
     assert horde_sdk_version is not None
-    assert hordelib_version is not None
+    assert horde_engine_version is not None
     assert horde_model_reference_version is not None
 
     matches = 0
     for dep, version in horde_dependency_versions:
         if dep == "horde_sdk" and version == horde_sdk_version:
             matches += 1
-        if dep == "hordelib" and version == hordelib_version:
+        if dep == "horde-engine" and version == horde_engine_version:
             matches += 1
         if dep == "horde_model_reference" and version == horde_model_reference_version:
             matches += 1

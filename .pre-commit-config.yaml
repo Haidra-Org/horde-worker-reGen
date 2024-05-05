@@ -1,25 +1,25 @@
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v4.6.0
     hooks:
     -   id: check-yaml
     -   id: end-of-file-fixer
     -   id: trailing-whitespace
 -   repo: https://github.com/psf/black
-    rev: 24.3.0
+    rev: 24.4.2
     hooks:
     -   id: black
 -   repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.3.3
+    rev: v0.4.3
     hooks:
     -    id: ruff
 -   repo: https://github.com/pre-commit/mirrors-mypy
-    rev: 'v1.9.0'
+    rev: 'v1.10.0'
     hooks:
     -   id: mypy
         args: []
         additional_dependencies:
-        - pydantic
+        - pydantic==2.7.1
         - types-requests
         - types-pytz
         - types-setuptools
@@ -37,10 +37,10 @@ repos:
         - loguru
         - python-dotenv
         - aiohttp
-        - horde_safety
-        - torch
+        - horde_safety==0.2.3
+        - torch==2.2.2
         - ruamel.yaml
-        - horde-engine==2.9.3
+        - horde_engine==2.9.3
         - horde_sdk==0.9.3
         - horde_model_reference==0.6.3
         - semver

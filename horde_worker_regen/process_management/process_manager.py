@@ -26,6 +26,9 @@ import PIL.Image
 import psutil
 import yarl
 from aiohttp import ClientSession
+from horde_model_reference.meta_consts import MODEL_REFERENCE_CATEGORY, STABLE_DIFFUSION_BASELINE_CATEGORY
+from horde_model_reference.model_reference_manager import ModelReferenceManager
+from horde_model_reference.model_reference_records import StableDiffusion_ModelReference
 from horde_sdk import RequestErrorResponse
 from horde_sdk.ai_horde_api import GENERATION_STATE
 from horde_sdk.ai_horde_api.ai_horde_clients import AIHordeAPIAsyncClientSession, AIHordeAPIAsyncSimpleClient
@@ -44,9 +47,6 @@ from pydantic import BaseModel, ConfigDict, RootModel, ValidationError
 from typing_extensions import override
 
 import horde_worker_regen
-from horde_model_reference.meta_consts import MODEL_REFERENCE_CATEGORY, STABLE_DIFFUSION_BASELINE_CATEGORY
-from horde_model_reference.model_reference_manager import ModelReferenceManager
-from horde_model_reference.model_reference_records import StableDiffusion_ModelReference
 from horde_worker_regen.bridge_data.data_model import reGenBridgeData
 from horde_worker_regen.bridge_data.load_config import BridgeDataLoader
 from horde_worker_regen.consts import (

@@ -19,10 +19,18 @@ REQUIREMENTS_FILE_PATH = Path(__file__).parent.parent / "requirements.txt"
 
 TRACKED_DEPENDENCIES = [
     "horde_sdk",
-    "hordelib",
+    "horde_engine",
     "horde_model_reference",
-    # "horde_safety"
+    "horde_safety",
+    "torch",
+    "pydantic",
 ]
+
+
+@pytest.fixture(scope="session")
+def tracked_dependencies() -> list[str]:
+    """Get the tracked dependencies."""
+    return TRACKED_DEPENDENCIES
 
 
 @pytest.fixture(scope="session")
@@ -35,6 +43,11 @@ def horde_dependency_versions() -> list[tuple[str, str]]:
     for req in requirements:
         for dep in TRACKED_DEPENDENCIES:
             if req.startswith(dep):
-                dependencies.append((dep, req.split("~=")[1].strip()))
+                if "==" in req:
+                    dependencies.append((dep, req.split("==")[1].strip()))
+                elif "~=" in req:
+                    dependencies.append((dep, req.split("~=")[1].strip()))
+                else:
+                    raise ValueError(f"Unsupported version pin: {req}")
 
     return dependencies

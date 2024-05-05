@@ -242,4 +242,4 @@ class HordeSafetyProcess(HordeProcess):
 
     @override
     def cleanup_for_exit(self) -> None:
-        return super().cleanup_for_exit()
+        return

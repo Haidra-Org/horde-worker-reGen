@@ -6,46 +6,53 @@ PRECOMMIT_FILE_PATH = Path(__file__).parent.parent / ".pre-commit-config.yaml"
 REQUIREMENTS_FILE_PATH = Path(__file__).parent.parent / "requirements.txt"
 
 
-def test_pre_commit_dep_versions(horde_dependency_versions: list[tuple[str, str]]) -> None:
+def test_pre_commit_dep_versions(
+    horde_dependency_versions: list[tuple[str, str]],
+    tracked_dependencies: list[str],
+) -> None:
     """Check that the versions of horde deps. in .pre-commit-config.yaml match the versions in requirements.txt.
 
-    Checked dependencies at the time of writing:
-    - horde_sdk
-    - horde_engine
-    - horde_model_reference
+    See the `tracked_dependencies` fixture for the dependencies tracked.
+
+    Args:
+        horde_dependency_versions (list[tuple[str, str]]): The versions of the dependencies in requirements.txt.
+        tracked_dependencies (list[str]): The dependencies to track.
+
     """
-    # Make sure horde-engine and horde_sdk version pins match
+    # Load the pre-commit config
     with open(PRECOMMIT_FILE_PATH) as f:
         precommit_config = yaml.safe_load(f)
 
-    horde_sdk_version = None
-    horde_engine_version = None
-    horde_model_reference_version = None
+    # Initialize a dictionary to hold the versions of the dependencies
+    versions = {dep: None for dep in tracked_dependencies}
 
+    # Extract versions from the pre-commit config
     for repo in precommit_config["repos"]:
         if "mypy" in repo["repo"]:
-            # Check additional_dependencies for horde_sdk, horde-engine or horde_model_reference
             for dep in repo["hooks"][0]["additional_dependencies"]:
-                if dep.startswith("horde_sdk"):
-                    horde_sdk_version = dep.split("==")[1]
+                try:
+                    if any(dep_name in dep for dep_name in versions):
+                        if "==" in dep:
+                            dep_name, dep_version = dep.split("==")[0], dep.split("==")[1]
+                        elif "~=" in dep:
+                            dep_name, dep_version = dep.split("~=")[0], dep.split("~=")[1]
+                        else:
+                            raise ValueError(f"Unsupported version pin: {dep}")
+                except Exception as e:
+                    raise ValueError(
+                        f"Failed to split dependency: {dep}. Are you missing an exact version pin?",
+                    ) from e
+                if dep_name in versions:
+                    versions[dep_name] = dep_version
 
-                if dep.startswith("horde-engine"):
-                    horde_engine_version = dep.split("==")[1]
+    # Ensure all versions were found
+    assert all(
+        version is not None for version in versions.values()
+    ), f"Some dependencies are missing their versions.\n{versions}"
 
-                if dep.startswith("horde_model_reference"):
-                    horde_model_reference_version = dep.split("==")[1]
+    # Check if the versions match
+    matches = sum(1 for dep, version in horde_dependency_versions if versions.get(dep) == version)
 
-    assert horde_sdk_version is not None
-    assert horde_engine_version is not None
-    assert horde_model_reference_version is not None
-
-    matches = 0
-    for dep, version in horde_dependency_versions:
-        if dep == "horde_sdk" and version == horde_sdk_version:
-            matches += 1
-        if dep == "horde-engine" and version == horde_engine_version:
-            matches += 1
-        if dep == "horde_model_reference" and version == horde_model_reference_version:
-            matches += 1
-
-    assert matches == len(horde_dependency_versions)
+    assert matches == len(
+        horde_dependency_versions,
+    ), f"Not all dependency versions match.\n`.pre-commit-config.yaml: {versions}"

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import os
 import json
+import os
 
 from horde_sdk.ai_horde_worker.bridge_data import CombinedHordeBridgeData
 from loguru import logger
@@ -128,10 +128,13 @@ class reGenBridgeData(CombinedHordeBridgeData):
 
         return self
 
-
-    def prepare_custom_models(self):
-        if os.getenv('HORDELIB_CUSTOM_MODELS'):
-            logger.info(f"HORDELIB_CUSTOM_MODELS already set to '{os.getenv('HORDELIB_CUSTOM_MODELS')}. Doing nothing for custom models.")
+    def prepare_custom_models(self) -> None:
+        """Prepare the custom models."""
+        if os.getenv("HORDELIB_CUSTOM_MODELS"):
+            logger.info(
+                f"HORDELIB_CUSTOM_MODELS already set to '{os.getenv('HORDELIB_CUSTOM_MODELS')}. "
+                "Doing nothing for custom models.",
+            )
             return
         custom_models_dict = {}
         for model in self.custom_models:
@@ -144,18 +147,12 @@ class reGenBridgeData(CombinedHordeBridgeData):
             if not model.get("filepath"):
                 logger.warning(f"Model filepath not specified for custom model entry {model}. Skipping")
                 continue
-            #TODO: Handle Stable Cascade models
-            custom_models_dict[model['name']] = {
-                "name": model['name'],
-                "baseline": model['baseline'],
-                "type": 'ckpt',
-                "config": {
-                    "files": [
-                        {
-                            "path": model['filepath']
-                        }
-                    ]
-                }
+            # TODO: Handle Stable Cascade models
+            custom_models_dict[model["name"]] = {
+                "name": model["name"],
+                "baseline": model["baseline"],
+                "type": "ckpt",
+                "config": {"files": [{"path": model["filepath"]}]},
             }
         cwd = os.getcwd()
         if len(custom_models_dict) > 0:
@@ -165,13 +162,13 @@ class reGenBridgeData(CombinedHordeBridgeData):
             if os.path.exists(f"{cwd}/custom_models.json"):
                 os.remove(f"{cwd}/custom_models.json")
         os.environ["HORDELIB_CUSTOM_MODELS"] = f"{cwd}/custom_models.json"
-    
+
     def load_custom_models(self) -> None:
+        """Load the custom models from the `custom_models.json` file."""
         cwd = os.getcwd()
-        if not os.getenv('HORDELIB_CUSTOM_MODELS') and os.path.exists(f"{cwd}/custom_models.json"):
+        if not os.getenv("HORDELIB_CUSTOM_MODELS") and os.path.exists(f"{cwd}/custom_models.json"):
             os.environ["HORDELIB_CUSTOM_MODELS"] = f"{cwd}/custom_models.json"
             logger.debug(f"HORDELIB_CUSTOM_MODELS: {cwd}/custom_models.json")
-
 
     def load_env_vars(self) -> None:
         """Load the environment variables into the config model."""

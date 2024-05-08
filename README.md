@@ -150,7 +150,7 @@ To update:
     Use this approach if you downloaded the git repository as a zip file and extracted it somewhere.
 
 
-    1. delete the `worker/` directory from your folder
+    1. delete the `horde_worker_regen/` directory from your folder
     1. Download the [repository from github as a zip file](https://github.com/db0/horde-worker-reGen/archive/refs/heads/main.zip)
     1. Extract its contents into the same the folder you have the AIPG Grid Worker repository installed, overwriting any existing files
 

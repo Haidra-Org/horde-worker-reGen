@@ -163,7 +163,7 @@ models_to_load:
   #- "top 2"
   #- "ALL MODELS"
   #- "TOP 3"
-  - "Juggernaut XL"
+  - "AIPG RED"
   #- "stable_diffusion_2.1"
   #- "stable_diffusion"
   #- "Anything Diffusion"

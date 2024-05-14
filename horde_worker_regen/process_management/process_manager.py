@@ -3742,7 +3742,10 @@ class HordeWorkerProcessManager:
 
         if time_elapsed > timeout and process_info.last_process_state == state:
             logger.error(f"{process_info} {error_message}, replacing it")
-            self._replace_inference_process(process_info)
+            if process_info.process_type == HordeProcessType.SAFETY:
+                self._replace_all_safety_process()
+            if process_info.process_type == HordeProcessType.INFERENCE:
+                self._replace_inference_process(process_info)
             return True
         return False
 

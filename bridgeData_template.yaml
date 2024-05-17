@@ -150,7 +150,7 @@ disable_disk_cache: false # Currently unused in reGen
 # Instead of a model name you may use of any of the following magic constants:
 #   "ALL"  - means load all possible models. Expect this to take over 1TB of space!
 #   "TOP n"  - load the top "N" most popular models, use for example, "top 5" or "top 3", etc.
-#   "BOTTOM n"  - load the top "N" most popular models, use for example, "top 5" or "top 3", etc.
+#   "BOTTOM n"  - load the bottom "N" models (i.e., the least popular N models) use for example, "bottom 5" or "bottom 3", etc.
 #
 #   "ALL SD15 MODELS" - All Stable Diffusion 1.5 models
 #   "ALL SD21 MODELS" - All Stable Diffusion 2.0/2.1 models

@@ -3126,6 +3126,7 @@ class HordeWorkerProcessManager:
                 allow_unsafe_ipaddr=self.bridge_data.allow_unsafe_ip,
                 allow_post_processing=self.bridge_data.allow_post_processing,
                 allow_controlnet=self.bridge_data.allow_controlnet,
+                allow_sdxl_controlnet=self.bridge_data.allow_sdxl_controlnet,
                 allow_lora=self.bridge_data.allow_lora,
                 amount=self.bridge_data.max_batch,
             )
@@ -3503,6 +3504,7 @@ class HordeWorkerProcessManager:
                         f"allow_img2img: {self.bridge_data.allow_img2img}",
                         f"allow_lora: {self.bridge_data.allow_lora}",
                         f"allow_controlnet: {self.bridge_data.allow_controlnet}",
+                        f"allow_sdxl_controlnet: {self.bridge_data.allow_sdxl_controlnet}",
                         f"allow_post_processing: {self.bridge_data.allow_post_processing}",
                         f"jobs_pending_safety_check: {len(self.jobs_pending_safety_check)}"
                         f"jobs_being_safety_checked: {len(self.jobs_being_safety_checked)}",

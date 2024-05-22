@@ -54,6 +54,8 @@ from horde_worker_regen.consts import (
     KNOWN_SLOW_MODELS_DIFFICULTIES,
     MAX_SOURCE_IMAGE_RETRIES,
     VRAM_HEAVY_MODELS,
+    KNOWN_SLOW_WORKFLOWS,
+    KNOWN_CONTROLNET_WORKFLOWS,
 )
 from horde_worker_regen.process_management._aliased_types import ProcessQueue
 from horde_worker_regen.process_management.horde_process import HordeProcessType
@@ -494,8 +496,13 @@ class ProcessMap(dict[int, HordeProcessInfo]):
                     or p.last_process_state == HordeProcessState.PRELOADED_MODEL
                     or p.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING
                 )
-                and p.last_job_referenced is not None
-                and p.last_job_referenced.model in VRAM_HEAVY_MODELS
+                and p.last_job_referenced is not None 
+                and (
+                    p.last_job_referenced.model in VRAM_HEAVY_MODELS
+                    # TODO: I want to only exclude CNs when the model is SDXL, but I have no way
+                    # To check their baseline at this point. So now just single-threading all CN workflows
+                    or p.last_job_referenced.payload.workflow in KNOWN_CONTROLNET_WORKFLOWS
+                    )
             ):
                 return True
             if p.batch_amount == 1:
@@ -2805,6 +2812,14 @@ class HordeWorkerProcessManager:
         if job.model in KNOWN_SLOW_MODELS_DIFFICULTIES:
             job_effective_pixel_steps *= KNOWN_SLOW_MODELS_DIFFICULTIES[job.model]
 
+        # We treat slow workflows add extra slowdowns (as they might perform many more steps of inference)
+        if job.payload.workflow in KNOWN_SLOW_WORKFLOWS:
+            job_effective_pixel_steps *= KNOWN_SLOW_WORKFLOWS[job.payload.workflow]
+        
+        # Some workflows by default require controlnets, but the user doesn't have to specify them.
+        # In this case, we use this to know when we have SDXL workflows, as they can double the VRAM usage
+        if job.payload.workflow in KNOWN_CONTROLNET_WORKFLOWS:
+            job_effective_pixel_steps *= 2
         return int(job_effective_pixel_steps / 1_000_000)
 
     def get_pending_megapixelsteps(self) -> int:

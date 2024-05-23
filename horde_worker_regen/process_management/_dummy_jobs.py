@@ -19,7 +19,7 @@ def dummy_job_factory(model_name: str) -> ImageGenerateJobPopResponse:
         ids=[JobID(root=uuid.uuid4())],
         id=JobID(root=uuid.uuid4()),
         source_processing=KNOWN_SOURCE_PROCESSING.txt2img,
-        skipped=ImageGenerateJobPopSkippedStatus(),
+        skipped=ImageGenerateJobPopSkippedStatus(),  # type: ignore
         model=model_name,
         payload=ImageGenerateJobPopPayload(
             sampler_name=sampler,

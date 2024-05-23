@@ -51,11 +51,11 @@ from horde_worker_regen.bridge_data.data_model import reGenBridgeData
 from horde_worker_regen.bridge_data.load_config import BridgeDataLoader
 from horde_worker_regen.consts import (
     BRIDGE_CONFIG_FILENAME,
+    KNOWN_CONTROLNET_WORKFLOWS,
     KNOWN_SLOW_MODELS_DIFFICULTIES,
+    KNOWN_SLOW_WORKFLOWS,
     MAX_SOURCE_IMAGE_RETRIES,
     VRAM_HEAVY_MODELS,
-    KNOWN_SLOW_WORKFLOWS,
-    KNOWN_CONTROLNET_WORKFLOWS,
 )
 from horde_worker_regen.process_management._aliased_types import ProcessQueue
 from horde_worker_regen.process_management.horde_process import HordeProcessType
@@ -496,13 +496,13 @@ class ProcessMap(dict[int, HordeProcessInfo]):
                     or p.last_process_state == HordeProcessState.PRELOADED_MODEL
                     or p.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING
                 )
-                and p.last_job_referenced is not None 
+                and p.last_job_referenced is not None
                 and (
                     p.last_job_referenced.model in VRAM_HEAVY_MODELS
                     # TODO: I want to only exclude CNs when the model is SDXL, but I have no way
                     # To check their baseline at this point. So now just single-threading all CN workflows
                     or p.last_job_referenced.payload.workflow in KNOWN_CONTROLNET_WORKFLOWS
-                    )
+                )
             ):
                 return True
             if p.batch_amount == 1:
@@ -2815,7 +2815,7 @@ class HordeWorkerProcessManager:
         # We treat slow workflows add extra slowdowns (as they might perform many more steps of inference)
         if job.payload.workflow in KNOWN_SLOW_WORKFLOWS:
             job_effective_pixel_steps *= KNOWN_SLOW_WORKFLOWS[job.payload.workflow]
-        
+
         # Some workflows by default require controlnets, but the user doesn't have to specify them.
         # In this case, we use this to know when we have SDXL workflows, as they can double the VRAM usage
         if job.payload.workflow in KNOWN_CONTROLNET_WORKFLOWS:

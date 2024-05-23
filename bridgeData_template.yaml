@@ -102,7 +102,7 @@ allow_controlnet: false
 
 # Allow SDXL controlnet jobs to be done by this worker.
 # Note: There is significant additional RAM/VRAM overhead with this option. Medium VRAM cards (<12gb) should be cautious to enable this.
-# Note that if this is true, allow_controlnet must also be true 
+# Note that if this is true, allow_controlnet must also be true
 allow_sdxl_controlnet: false
 
 # Allow LoRas to be used. This requires that you have a fast internet connection.

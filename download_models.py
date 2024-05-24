@@ -1,6 +1,7 @@
 import argparse
 
 from horde_worker_regen.download_models import download_all_models
+from horde_worker_regen.version_meta import do_version_check
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Download all models specified in the config file.")
@@ -18,6 +19,8 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
+
+    do_version_check()
 
     download_all_models(
         purge_unused_loras=args.purge_unused_loras,

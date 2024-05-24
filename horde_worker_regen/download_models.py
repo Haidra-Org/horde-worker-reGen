@@ -82,6 +82,7 @@ def download_all_models(
             logger.error("Failed to load controlnet model manager")
             exit(1)
         SharedModelManager.manager.controlnet.download_all_models()
+        SharedModelManager.manager.controlnet.download_all_models()
         if not SharedModelManager.preload_annotators():
             logger.error("Failed to download the controlnet annotators")
             exit(1)
@@ -98,6 +99,7 @@ def download_all_models(
             exit(1)
 
         SharedModelManager.manager.gfpgan.download_all_models()
+        SharedModelManager.manager.gfpgan.download_all_models()
         for model in SharedModelManager.manager.gfpgan.model_reference:
             if not SharedModelManager.manager.gfpgan.validate_model(
                 model,
@@ -108,6 +110,7 @@ def download_all_models(
             logger.success("Downloaded all GFPGAN models")
 
         SharedModelManager.manager.esrgan.download_all_models()
+        SharedModelManager.manager.esrgan.download_all_models()
         for model in SharedModelManager.manager.esrgan.model_reference:
             if not SharedModelManager.manager.esrgan.validate_model(
                 model,
@@ -117,6 +120,7 @@ def download_all_models(
         else:
             logger.success("Downloaded all ESRGAN models")
 
+        SharedModelManager.manager.codeformer.download_all_models()
         SharedModelManager.manager.codeformer.download_all_models()
         for model in SharedModelManager.manager.codeformer.model_reference:
             if not SharedModelManager.manager.codeformer.validate_model(

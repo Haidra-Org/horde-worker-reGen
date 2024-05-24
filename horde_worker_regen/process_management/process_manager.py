@@ -2015,6 +2015,11 @@ class HordeWorkerProcessManager:
                 extra_info += ", "
             extra_info += "HiRes fix"
 
+        if next_job.payload.workflow is not None:
+            if extra_info:
+                extra_info += ", "
+            extra_info += f"Workflow: {next_job.payload.workflow}"
+
         if extra_info:
             logger.info(extra_info)
 

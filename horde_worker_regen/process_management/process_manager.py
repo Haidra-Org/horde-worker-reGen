@@ -1052,6 +1052,15 @@ class HordeWorkerProcessManager:
         self.target_ram_overhead_bytes = min(int(self.total_ram_bytes / 2), 9)
 
         if any(model in VRAM_HEAVY_MODELS for model in self.bridge_data.image_models_to_load):
+            # If the system ram is less than 24GB, then we're going to exit with an error
+            if self.total_ram_bytes < (24 * 1024 * 1024 * 1024):
+                raise ValueError(
+                    "VRAM heavy models detected. Total RAM is less than 24GB. "
+                    "This is not enough RAM to run the worker."
+                    "Disable `Stable Cascade 1.0` by adding it to your `models_to_skip` or remove it from your "
+                    "`models_to_load`.",
+                )
+
             self.target_ram_overhead_bytes = min(self.target_ram_overhead_bytes, int(20 * 1024 * 1024 * 1024 / 2))
             logger.warning(
                 "VRAM heavy models detected. Target RAM overhead set to 20GB. "

@@ -199,11 +199,13 @@ class HordeProcessInfo:
         """
         return (
             self.last_process_state == HordeProcessState.INFERENCE_STARTING
+            or self.last_control_flag == HordeControlFlag.START_INFERENCE
             or self.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING
             or self.last_process_state == HordeProcessState.ALCHEMY_STARTING
             or self.last_process_state == HordeProcessState.DOWNLOADING_MODEL
             or self.last_process_state == HordeProcessState.DOWNLOADING_AUX_MODEL
             or self.last_process_state == HordeProcessState.PRELOADING_MODEL
+            or self.last_control_flag == HordeControlFlag.PRELOAD_MODEL
             or self.last_process_state == HordeProcessState.JOB_RECEIVED
             or self.last_process_state == HordeProcessState.EVALUATING_SAFETY
             or self.last_process_state == HordeProcessState.PROCESS_STARTING
@@ -483,7 +485,11 @@ class ProcessMap(dict[int, HordeProcessInfo]):
                 count += 1
         return count
 
-    def keep_single_inference(self) -> bool:
+    def keep_single_inference(
+        self,
+        *,
+        stable_diffusion_model_reference: StableDiffusion_ModelReference,
+    ) -> bool:
         """Return true if we should keep only a single inference process running.
 
         This is used to prevent overloading the system with inference processes, such as with batched jobs.
@@ -491,20 +497,32 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         for p in self.values():
             # We only parallelizing if we have a currently running inference with n_iter > 1
             if (
-                (
-                    p.last_process_state == HordeProcessState.INFERENCE_STARTING
-                    or p.last_process_state == HordeProcessState.PRELOADED_MODEL
-                    or p.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING
-                )
-                and p.last_job_referenced is not None
-                and (
-                    p.last_job_referenced.model in VRAM_HEAVY_MODELS
-                    # TODO: I want to only exclude CNs when the model is SDXL, but I have no way
-                    # To check their baseline at this point. So now just single-threading all CN workflows
-                    or p.last_job_referenced.payload.workflow in KNOWN_CONTROLNET_WORKFLOWS
-                )
-            ):
+                p.last_process_state == HordeProcessState.INFERENCE_STARTING
+                or p.last_process_state == HordeProcessState.PRELOADED_MODEL
+                or p.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING
+            ) and p.last_job_referenced is not None:
                 return True
+
+            if (
+                p.last_job_referenced is not None
+                and p.last_job_referenced.payload.workflow in KNOWN_CONTROLNET_WORKFLOWS
+            ):
+                model = p.last_job_referenced.model
+                if model is None:
+                    logger.error(
+                        f"Model is None for process {p.process_id} but workflow is "
+                        f"{p.last_job_referenced.payload.workflow}",
+                    )
+                    continue
+
+                model_info = stable_diffusion_model_reference.root[model]
+                if model_info.baseline == STABLE_DIFFUSION_BASELINE_CATEGORY.stable_diffusion_xl and (
+                    p.can_accept_job()
+                    or p.last_process_state == HordeProcessState.PRELOADING_MODEL
+                    or p.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING
+                ):
+                    return True
+
             if p.batch_amount == 1:
                 continue
             if (
@@ -3405,7 +3423,12 @@ class HordeWorkerProcessManager:
 
                             if not self.preload_models():
                                 next_job_and_process = self.get_next_job_and_process()
-                                if self._process_map.keep_single_inference():
+                                if (
+                                    self._process_map.keep_single_inference(
+                                        stable_diffusion_model_reference=self.stable_diffusion_reference,
+                                    )
+                                    and len(self.jobs_in_progress) > 0
+                                ):
                                     if self.has_queued_jobs() and time.time() - self._batch_wait_log_time > 10:
                                         logger.info(
                                             "Blocking further inference because batch or slow_model inference "
@@ -3498,8 +3521,8 @@ class HordeWorkerProcessManager:
             and (self._last_deadlock_detected_time + 5) < time.time()
             and self._process_map.num_busy_processes() == 0
         ):
-            logger.debug("Deadlock still detected after 5 seconds. Attempting to recover.")
-            self.jobs_in_progress.clear()
+            logger.debug("Deadlock still detected after 5 seconds")  # . Attempting to recover.")
+            # self.jobs_in_progress.clear()
             self._in_deadlock = False
         elif (
             self._in_deadlock

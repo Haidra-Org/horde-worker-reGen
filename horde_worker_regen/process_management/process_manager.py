@@ -1905,6 +1905,10 @@ class HordeWorkerProcessManager:
             if job.model is not None:
                 logger.debug(f"Expiring entry for model {job.model}")
                 self._horde_model_map.expire_entry(job.model)
+                try:
+                    self.jobs_in_progress.remove(job)
+                except ValueError:
+                    logger.error(f"Job {job.id_} not found in jobs_in_progress.")
 
         if self._horde_model_map.is_model_loaded(next_job.model):
             if process_with_model is None:
@@ -3579,8 +3583,9 @@ class HordeWorkerProcessManager:
                         f"allow_controlnet: {self.bridge_data.allow_controlnet}",
                         f"allow_sdxl_controlnet: {self.bridge_data.allow_sdxl_controlnet}",
                         f"allow_post_processing: {self.bridge_data.allow_post_processing}",
-                        f"jobs_pending_safety_check: {len(self.jobs_pending_safety_check)}"
+                        f"jobs_pending_safety_check: {len(self.jobs_pending_safety_check)}",
                         f"jobs_being_safety_checked: {len(self.jobs_being_safety_checked)}",
+                        f"jobs_in_progress: {len(self.jobs_in_progress)}",
                     ],
                 ),
             )

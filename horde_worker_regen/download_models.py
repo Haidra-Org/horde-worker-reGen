@@ -81,8 +81,17 @@ def download_all_models(
         if SharedModelManager.manager.controlnet is None:
             logger.error("Failed to load controlnet model manager")
             exit(1)
-        SharedModelManager.manager.controlnet.download_all_models()
-        SharedModelManager.manager.controlnet.download_all_models()
+        for cn_model in SharedModelManager.manager.controlnet.model_reference:
+            if (
+                cn_model not in SharedModelManager.manager.controlnet.available_models
+                and "sdxl" in cn_model.lower()
+                and not bridge_data.allow_sdxl_controlnet
+            ):
+                logger.warning(f"Skipping download of {cn_model} because `allow_sdxl_controlnet` is false.")
+                continue
+
+            SharedModelManager.manager.controlnet.download_model(cn_model)
+            SharedModelManager.manager.controlnet.download_model(cn_model)
         if not SharedModelManager.preload_annotators():
             logger.error("Failed to download the controlnet annotators")
             exit(1)

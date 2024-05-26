@@ -3420,9 +3420,23 @@ class HordeWorkerProcessManager:
                             # So long as we didn't preload a model this cycle, we can start inference
                             # We want to get any messages next cycle from preloading processes to make sure
                             # the state of everything is up to date
-
                             if not self.preload_models():
                                 next_job_and_process = self.get_next_job_and_process()
+
+                                next_job_heavy_model_and_workflow = False
+                                if next_job_and_process is not None:
+                                    next_model = next_job_and_process.next_job.model
+                                    if next_model is not None:
+                                        next_model_baseline = self.stable_diffusion_reference.root.get(next_model)
+                                        next_workflow = next_job_and_process.next_job.payload.workflow
+
+                                        next_job_heavy_model_and_workflow = (
+                                            next_model_baseline is not None
+                                            and next_model_baseline
+                                            == STABLE_DIFFUSION_BASELINE_CATEGORY.stable_diffusion_xl
+                                            and next_workflow in KNOWN_SLOW_WORKFLOWS
+                                        )
+
                                 if (
                                     self._process_map.keep_single_inference(
                                         stable_diffusion_model_reference=self.stable_diffusion_reference,
@@ -3438,7 +3452,10 @@ class HordeWorkerProcessManager:
 
                                 elif (
                                     next_job_and_process is not None
-                                    and next_job_and_process.next_job.payload.n_iter > 1
+                                    and (
+                                        next_job_and_process.next_job.payload.n_iter > 1
+                                        or next_job_heavy_model_and_workflow
+                                    )
                                     and self._process_map.num_busy_with_inference() > 0
                                     and (time.time() - self._batch_wait_log_time > 10)
                                 ):

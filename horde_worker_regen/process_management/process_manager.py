@@ -1070,7 +1070,7 @@ class HordeWorkerProcessManager:
         if self.target_ram_overhead_bytes > self.total_ram_bytes:
             raise ValueError(
                 f"target_ram_overhead_bytes ({self.target_ram_overhead_bytes}) is greater than "
-                "total_ram_bytes ({self.total_ram_bytes})",
+                f"total_ram_bytes ({self.total_ram_bytes})",
             )
 
         self._status_message_frequency = bridge_data.stats_output_frequency

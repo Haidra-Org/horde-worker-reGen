@@ -50,8 +50,8 @@
 Pressing control-c will have the worker complete any jobs in progress before ending. Please try and avoid hard killing it unless you are seeing many major errors. You can force kill by repeatedly pressing control-c or doing a SIGKILL.
 
 ### Important note if manually manage your venvs
-> If you manually manage your venvs you should be running `python -m pip install -r requirements.txt -U` everytime you `git pull`.
-> > `hordelib` has been renamed on pypi to `horde-engine`. The worker will no longer start if `hordelib` is installed. You must manually run `python -m pip uninstall hordelib -y` to be sure hordelib is uninstalled.
+- If you manually manage your venvs you should be running `python -m pip install -r requirements.txt -U` everytime you `git pull`.
+- `hordelib` has been renamed on pypi to `horde-engine`. The worker will no longer start if `hordelib` is installed. You must manually run `python -m pip uninstall hordelib -y` to be sure hordelib is uninstalled.
 
 ## Advanced users, container install
 

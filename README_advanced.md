@@ -30,7 +30,7 @@
   - If you had previously set `cache_home`, set it to what you were using before.
 
 ### Setup venv
-- `python -m venv regen`
+- `python -m venv regen` (only needed the first time you follow these instructions)
   - (certain windows setups) `py -3.11 -m venv regen`
 - (windows) `regen\Scripts\activate.bat` for cmd or `regen\Scripts\Activate.ps1` for power shell
 - (linux) `source regen/bin/activate`

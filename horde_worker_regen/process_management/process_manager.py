@@ -519,7 +519,11 @@ class ProcessMap(dict[int, HordeProcessInfo]):
                     )
                     continue
 
-                model_info = stable_diffusion_model_reference.root[model]
+                model_info = stable_diffusion_model_reference.root.get(model)
+                if model_info is None:
+                    logger.debug(f"Model {model} not found in stable diffusion model reference. Is it a custom model?")
+                    continue
+
                 if model_info.baseline == STABLE_DIFFUSION_BASELINE_CATEGORY.stable_diffusion_xl and (
                     p.can_accept_job()
                     or p.last_process_state == HordeProcessState.PRELOADING_MODEL

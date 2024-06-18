@@ -36,7 +36,7 @@
 - (linux) `source regen/bin/activate`
 - **Important**: You should now see `(regen)` prepended in your shell. If you do not, try again or ask for help.
 
-### Get worker beta
+### Get worker files and install dependencies
 - `git clone https://github.com/Haidra-Org/horde-worker-reGen.git`
 - `cd .\horde-worker-reGen\`
 - `pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu121`

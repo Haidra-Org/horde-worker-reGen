@@ -34,7 +34,7 @@ from horde_sdk.ai_horde_api import GENERATION_STATE
 from horde_sdk.ai_horde_api.ai_horde_clients import AIHordeAPIAsyncClientSession, AIHordeAPIAsyncSimpleClient
 from horde_sdk.ai_horde_api.apimodels import (
     FindUserRequest,
-    FindUserResponse,
+    UserDetailsResponse,
     GenMetadataEntry,
     ImageGenerateJobPopRequest,
     ImageGenerateJobPopResponse,
@@ -951,7 +951,7 @@ class HordeWorkerProcessManager:
     horde_client: AIHordeAPIAsyncSimpleClient
     horde_client_session: AIHordeAPIAsyncClientSession
 
-    user_info: FindUserResponse | None = None
+    user_info: UserDetailsResponse | None = None
     """The user info for the user that this worker is logged in as."""
     _last_user_info_fetch_time: float = 0
     """The time at which the user info was last fetched."""
@@ -3304,7 +3304,7 @@ class HordeWorkerProcessManager:
 
         request = FindUserRequest(apikey=self.bridge_data.api_key)
         try:
-            response = await self.horde_client_session.submit_request(request, FindUserResponse)
+            response = await self.horde_client_session.submit_request(request, UserDetailsResponse)
             if isinstance(response, RequestErrorResponse):
                 logger.error(f"Failed to get user info (API Error): {response}")
                 self._user_info_failed = True

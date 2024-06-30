@@ -55,7 +55,7 @@ def start_inference_process(
                     logging_verbosity=0,
                     force_normal_vram_mode=not high_memory_mode,
                     extra_comfyui_args=(
-                        ["--disable-smart-memory"]
+                        ["--disable-smart-memory", "--use-pytorch-cross-attention"]
                         if not high_memory_mode
                         else [
                             "--disable-smart-memory",
@@ -120,7 +120,7 @@ def start_safety_process(
                     setup_logging=None,
                     process_id=process_id,
                     logging_verbosity=0,
-                    extra_comfyui_args=["--disable-smart-memory"],
+                    extra_comfyui_args=["--disable-smart-memory", "--use-pytorch-cross-attention"],
                 )
         except Exception as e:
             logger.critical(f"Failed to initialise hordelib: {type(e).__name__} {e}")

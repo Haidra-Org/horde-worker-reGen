@@ -75,7 +75,7 @@ lint.ignore = [
   "D408",
   "D409",
   "D413",]
-extend-exclude = ["conda", "model-stats.py"]
+extend-exclude = ["conda", "model-stats.py", "amd_go_fast.py"]
 
 [tool.ruff.lint.per-file-ignores]
 "download_models.py" = ["E402"]
@@ -104,6 +104,7 @@ exclude = '''
  | clip_blip
  | hf_transformers
  | horde_model_reference
+ | amd_go_fast.py
 )/
 '''
 

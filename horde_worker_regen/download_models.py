@@ -96,6 +96,21 @@ def download_all_models(
             logger.error("Failed to download the controlnet annotators")
             exit(1)
 
+    if bridge_data.allow_sdxl_controlnet:
+        if SharedModelManager.manager.miscellaneous is None:
+            logger.error("Failed to load miscellaneous model manager")
+            exit(1)
+        SharedModelManager.manager.miscellaneous.download_all_models()
+        SharedModelManager.manager.miscellaneous.download_all_models()
+        for model in SharedModelManager.manager.miscellaneous.model_reference:
+            if not SharedModelManager.manager.miscellaneous.validate_model(
+                model,
+            ) and not SharedModelManager.manager.miscellaneous.download_model(model):
+                logger.error(f"Failed to download model {model}")
+                exit(1)
+        else:
+            logger.success("Downloaded all Miscellaneous models")
+
     if bridge_data.allow_post_processing:
         if SharedModelManager.manager.gfpgan is None:
             logger.error("Failed to load GFPGAN model manager")

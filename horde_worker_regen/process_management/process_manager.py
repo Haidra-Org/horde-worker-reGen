@@ -34,11 +34,11 @@ from horde_sdk.ai_horde_api import GENERATION_STATE
 from horde_sdk.ai_horde_api.ai_horde_clients import AIHordeAPIAsyncClientSession, AIHordeAPIAsyncSimpleClient
 from horde_sdk.ai_horde_api.apimodels import (
     FindUserRequest,
-    FindUserResponse,
     GenMetadataEntry,
     ImageGenerateJobPopRequest,
     ImageGenerateJobPopResponse,
     JobSubmitResponse,
+    UserDetailsResponse,
 )
 from horde_sdk.ai_horde_api.consts import KNOWN_UPSCALERS, METADATA_TYPE, METADATA_VALUE
 from horde_sdk.ai_horde_api.fields import JobID
@@ -956,7 +956,7 @@ class HordeWorkerProcessManager:
     horde_client: AIHordeAPIAsyncSimpleClient
     horde_client_session: AIHordeAPIAsyncClientSession
 
-    user_info: FindUserResponse | None = None
+    user_info: UserDetailsResponse | None = None
     """The user info for the user that this worker is logged in as."""
     _last_user_info_fetch_time: float = 0
     """The time at which the user info was last fetched."""
@@ -1773,7 +1773,7 @@ class HordeWorkerProcessManager:
             if job.model is None:
                 raise ValueError(f"job.model is None ({job})")
 
-            if len(job.payload.loras) > 0:
+            if job.payload.loras is not None and len(job.payload.loras) > 0:
                 for p in self._process_map.values():
                     if (
                         p.loaded_horde_model_name == job.model
@@ -2833,7 +2833,9 @@ class HordeWorkerProcessManager:
         # Each extra batched image increases our difficulty by 20%
         batching_multiplier = 1 + ((job.payload.n_iter - 1) * 0.2)
 
-        lora_adjustment = 4 * 1_000_000 if len(job.payload.loras) > 0 else 0
+        lora_adjustment = 0
+        if job.payload.loras is not None:
+            lora_adjustment = 4 * 1_000_000 if len(job.payload.loras) > 0 else 0
 
         hires_fix_adjustment = 0
 
@@ -3021,6 +3023,7 @@ class HordeWorkerProcessManager:
 
     _last_pop_no_jobs_available: bool = False
 
+    @logger.catch(reraise=True)
     async def api_job_pop(self) -> None:
         """If the job deque is not full, add any jobs that are available to the job deque."""
         if self._shutting_down:
@@ -3295,7 +3298,7 @@ class HordeWorkerProcessManager:
 
         request = FindUserRequest(apikey=self.bridge_data.api_key)
         try:
-            response = await self.horde_client_session.submit_request(request, FindUserResponse)
+            response = await self.horde_client_session.submit_request(request, UserDetailsResponse)
             if isinstance(response, RequestErrorResponse):
                 logger.error(f"Failed to get user info (API Error): {response}")
                 self._user_info_failed = True

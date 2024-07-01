@@ -55,8 +55,7 @@ def start_inference_process(
                     logging_verbosity=0,
                     force_normal_vram_mode=not high_memory_mode,
                     extra_comfyui_args=(
-                        ["--disable-smart-memory",
-                         "--use-pytorch-cross-attention"]
+                        ["--disable-smart-memory", "--use-pytorch-cross-attention"]
                         if not high_memory_mode
                         else [
                             "--disable-smart-memory",

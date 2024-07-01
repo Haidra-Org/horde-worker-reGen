@@ -1781,7 +1781,7 @@ class HordeWorkerProcessManager:
             if job.model is None:
                 raise ValueError(f"job.model is None ({job})")
 
-            if len(job.payload.loras) > 0:
+            if job.payload.loras is not None and len(job.payload.loras) > 0:
                 for p in self._process_map.values():
                     if (
                         p.loaded_horde_model_name == job.model
@@ -2841,7 +2841,9 @@ class HordeWorkerProcessManager:
         # Each extra batched image increases our difficulty by 20%
         batching_multiplier = 1 + ((job.payload.n_iter - 1) * 0.2)
 
-        lora_adjustment = 4 * 1_000_000 if len(job.payload.loras) > 0 else 0
+        lora_adjustment = 0
+        if job.payload.loras is not None:
+            lora_adjustment = 4 * 1_000_000 if len(job.payload.loras) > 0 else 0
 
         hires_fix_adjustment = 0
 
@@ -3029,6 +3031,7 @@ class HordeWorkerProcessManager:
 
     _last_pop_no_jobs_available: bool = False
 
+    @logger.catch(reraise=True)
     async def api_job_pop(self) -> None:
         """If the job deque is not full, add any jobs that are available to the job deque."""
         if self._shutting_down:

@@ -34,11 +34,11 @@ from horde_sdk.ai_horde_api import GENERATION_STATE
 from horde_sdk.ai_horde_api.ai_horde_clients import AIHordeAPIAsyncClientSession, AIHordeAPIAsyncSimpleClient
 from horde_sdk.ai_horde_api.apimodels import (
     FindUserRequest,
-    UserDetailsResponse,
     GenMetadataEntry,
     ImageGenerateJobPopRequest,
     ImageGenerateJobPopResponse,
     JobSubmitResponse,
+    UserDetailsResponse,
 )
 from horde_sdk.ai_horde_api.consts import KNOWN_UPSCALERS, METADATA_TYPE, METADATA_VALUE
 from horde_sdk.ai_horde_api.fields import JobID

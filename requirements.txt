@@ -1,10 +1,10 @@
-numpy==1.26.4
-torch==2.2.2
+numpy==2.0.0
+torch==2.3.1
 
-horde_sdk~=0.10.0
+horde_sdk~=0.13.0
 horde_safety~=0.2.3
-horde_engine~=2.11.1
-horde_model_reference~=0.6.3
+horde_engine~=2.12.0
+horde_model_reference~=0.7.0
 
 python-dotenv
 ruamel.yaml
@@ -12,7 +12,7 @@ semver
 
 python-Levenshtein
 
-pydantic~=2.7.1
+pydantic~=2.8.0
 typing_extensions
 requests
 StrEnum

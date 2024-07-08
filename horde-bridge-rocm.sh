@@ -43,7 +43,7 @@ fi
 
 if ./runtime-rocm.sh python -s download_models.py; then
     echo "Model Download OK. Starting worker..."
-    ./runtime-rocm.sh python -s run_worker.py $*
+    ./runtime-rocm.sh python -s run_worker.py --amd $*
 else
     echo "download_models.py exited with error code. Aborting"
 fi

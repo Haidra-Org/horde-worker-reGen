@@ -1006,6 +1006,8 @@ class HordeWorkerProcessManager:
 
     _lru: LRUCache
 
+    _amd_gpu: bool
+
     def __init__(
         self,
         *,
@@ -1016,6 +1018,7 @@ class HordeWorkerProcessManager:
         target_vram_overhead_bytes_map: Mapping[int, int] | None = None,  # FIXME
         max_safety_processes: int = 1,
         max_download_processes: int = 1,
+        amd_gpu: bool = False,
     ) -> None:
         """Initialise the process manager.
 
@@ -1050,6 +1053,8 @@ class HordeWorkerProcessManager:
 
         self.max_inference_processes = self.bridge_data.queue_size + self.bridge_data.max_threads
         self._lru = LRUCache(self.max_inference_processes)
+
+        self._amd_gpu = amd_gpu
 
         # If there is only one model to load and only one inference process, then we can only run one job at a time
         # and there is no point in having more than one inference process
@@ -1268,6 +1273,10 @@ class HordeWorkerProcessManager:
                     self._disk_lock,
                     cpu_only,
                 ),
+                kwargs={
+                    "high_memory_mode": self.bridge_data.high_memory_mode,
+                    "amd_gpu": self._amd_gpu,
+                },
             )
 
             process.start()
@@ -1325,7 +1334,10 @@ class HordeWorkerProcessManager:
                 self._disk_lock,
                 self._aux_model_lock,
             ),
-            kwargs={"high_memory_mode": self.bridge_data.high_memory_mode},
+            kwargs={
+                "high_memory_mode": self.bridge_data.high_memory_mode,
+                "amd_gpu": self._amd_gpu,
+            },
         )
         process.start()
         # Add the process to the process map

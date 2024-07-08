@@ -1034,6 +1034,7 @@ class HordeWorkerProcessManager:
                 Defaults to 1.
             max_download_processes (int, optional): The maximum number of download processes that can run at once. \
                 Defaults to 1.
+            amd_gpu (bool, optional): Whether or not the GPU is an AMD GPU. Defaults to False.
         """
         self.session_start_time = time.time()
 

@@ -22,9 +22,9 @@ Please note that **AMD card are not currently well supported**, but may be in th
 - If you have a low amount of **system** memory (16gb or under), do not attempt a queue size greater than 1 if you have more than one model set to load.
 - If you plan on running SDXL, you will need to ensure at least 9 gb of system ram remains free.
 - If you have an 8 gb card, SDXL will only reliably work at max_power values close to 32. 42 was too high for tests on a 2080 in certain cases.
-- **An SSD is strongly recommended** especially if you are offering more than one model. 
+- **An SSD is strongly recommended** especially if you are offering more than one model.
   - If you only have an HDD available to you, you can only offer one model and will have to be able to load 3-8gb off disk within 60 seconds or the worker will not function.
-  
+
 # Installing
 
 **Please see the prior section before proceeding.**

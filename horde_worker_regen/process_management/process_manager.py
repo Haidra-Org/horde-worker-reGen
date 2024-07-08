@@ -215,10 +215,7 @@ class HordeProcessInfo:
         """Return true if the process is alive."""
         if not self.mp_process.is_alive():
             return False
-        if self.last_process_state == HordeProcessState.PROCESS_ENDING or HordeProcessState.PROCESS_ENDED:
-            return False
-
-        return True
+        return not (self.last_process_state == HordeProcessState.PROCESS_ENDING or HordeProcessState.PROCESS_ENDED)
 
     def safe_send_message(self, message: HordeControlMessage) -> bool:
         """Send a message to the process.
@@ -462,12 +459,10 @@ class ProcessMap(dict[int, HordeProcessInfo]):
             return False
         if self[process_id].heartbeats_inference_steps == 0:
             return False
-        if (
+        return bool(
             self[process_id].last_heartbeat_type == HordeHeartbeatType.INFERENCE_STEP
-            and (time.time() - self[process_id].last_heartbeat_timestamp) > 45
-        ):
-            return True
-        return False
+            and time.time() - self[process_id].last_heartbeat_timestamp > 45,
+        )
 
     def num_inference_processes(self) -> int:
         """Return the number of inference processes."""
@@ -853,7 +848,7 @@ class LRUCache:
             capacity: The maximum number of elements that the cache can hold.
         """
         self.capacity = capacity
-        self.cache: "collections.OrderedDict[str, ModelInfo | None]" = collections.OrderedDict()
+        self.cache: collections.OrderedDict[str, ModelInfo | None] = collections.OrderedDict()
 
     def append(self, key: str) -> object:
         """Adds an element to the LRU cache, and potentially bumps one from the cache.

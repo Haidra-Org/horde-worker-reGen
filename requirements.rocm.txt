@@ -13,7 +13,7 @@ wheel
 
 python-Levenshtein
 
-pydantic~=2.7.1
+pydantic~=2.8.2
 typing_extensions
 requests
 StrEnum

@@ -3,7 +3,6 @@ from pathlib import Path
 import yaml
 
 PRECOMMIT_FILE_PATH = Path(__file__).parent.parent / ".pre-commit-config.yaml"
-REQUIREMENTS_FILE_PATH = Path(__file__).parent.parent / "requirements.txt"
 
 
 def test_pre_commit_dep_versions(

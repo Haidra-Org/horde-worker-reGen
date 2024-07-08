@@ -19,7 +19,7 @@ repos:
     -   id: mypy
         args: []
         additional_dependencies:
-        - pydantic==2.7.1
+        - pydantic==2.8.2
         - types-requests
         - types-pytz
         - types-setuptools

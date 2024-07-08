@@ -27,7 +27,7 @@ This repo contains the latest implementation for the [AI Horde](https://aihorde.
 
 > Update: **AMD** now has been shown to have better support but for **linux machines only** - linux must be installed on the bare metal machine; windows systems, WSL or linux containers still do not work. You can now follow this guide using  `horde-bridge-rocm.sh` and `update-runtime-rocm.sh` where appropriate.
 
-If you are willing to try with your AMD card, join the [discord discussion](https://discord.com/channels/781145214752129095/1076124012305993768). P
+If you are willing to try with your AMD card, join the [discord discussion](https://discord.com/channels/781145214752129095/1076124012305993768).
 
 # Installing
 

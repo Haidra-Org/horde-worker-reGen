@@ -21,6 +21,7 @@ def start_inference_process(
     aux_model_lock: Lock,
     *,
     high_memory_mode: bool = False,
+    amd_gpu: bool = False,
 ) -> None:
     """Start an inference process.
 
@@ -32,6 +33,8 @@ def start_inference_process(
         disk_lock (Lock): The lock to use for disk access.
         aux_model_lock (Lock): The lock to use for auxiliary model downloading.
         high_memory_mode (bool, optional): If true, the process will attempt to use more memory. Defaults to False.
+        amd_gpu (bool, optional): If true, the process will attempt to use AMD GPU-specific optimisations.
+            Defaults to False.
     """
     with contextlib.nullcontext():  # contextlib.redirect_stdout(None), contextlib.redirect_stderr(None):
         logger.remove()
@@ -46,7 +49,18 @@ def start_inference_process(
                 verbosity_count=5,  # FIXME
             )
 
-            logger.debug(f"Initialising hordelib with process_id={process_id} and high_memory_mode={high_memory_mode}")
+            logger.debug(
+                f"Initialising hordelib with process_id={process_id}, high_memory_mode={high_memory_mode} "
+                f"and amd_gpu={amd_gpu}",
+            )
+
+            extra_comfyui_args = ["--disable-smart-memory"]
+
+            if amd_gpu:
+                extra_comfyui_args.append("--use-pytorch-cross-attention")
+
+            if high_memory_mode:
+                extra_comfyui_args.append("--highvram")
 
             with logger.catch(reraise=True):
                 hordelib.initialise(
@@ -54,14 +68,7 @@ def start_inference_process(
                     process_id=process_id,
                     logging_verbosity=0,
                     force_normal_vram_mode=not high_memory_mode,
-                    extra_comfyui_args=(
-                        ["--disable-smart-memory"]
-                        if not high_memory_mode
-                        else [
-                            "--disable-smart-memory",
-                            "--highvram",
-                        ]
-                    ),
+                    extra_comfyui_args=extra_comfyui_args,
                 )
         except Exception as e:
             logger.critical(f"Failed to initialise hordelib: {type(e).__name__} {e}")
@@ -89,6 +96,7 @@ def start_safety_process(
     cpu_only: bool = True,
     *,
     high_memory_mode: bool = False,
+    amd_gpu: bool = False,
 ) -> None:
     """Start a safety process.
 
@@ -99,6 +107,8 @@ def start_safety_process(
         disk_lock (Lock): The lock to use for disk access.
         cpu_only (bool, optional): If true, the process will not use the GPU. Defaults to True.
         high_memory_mode (bool, optional): If true, the process will attempt to use more memory. Defaults to False.
+        amd_gpu (bool, optional): If true, the process will attempt to use AMD GPU-specific optimisations.
+            Defaults to False.
     """
     with contextlib.nullcontext():  # contextlib.redirect_stdout(), contextlib.redirect_stderr():
         logger.remove()
@@ -115,12 +125,20 @@ def start_safety_process(
 
             logger.debug(f"Initialising hordelib with process_id={process_id} and high_memory_mode={high_memory_mode}")
 
+            extra_comfyui_args = ["--disable-smart-memory"]
+
+            if amd_gpu:
+                extra_comfyui_args.append("--use-pytorch-cross-attention")
+
+            if high_memory_mode:
+                extra_comfyui_args.append("--highvram")
+
             with logger.catch(reraise=True):
                 hordelib.initialise(
                     setup_logging=None,
                     process_id=process_id,
                     logging_verbosity=0,
-                    extra_comfyui_args=["--disable-smart-memory"],
+                    extra_comfyui_args=extra_comfyui_args,
                 )
         except Exception as e:
             logger.critical(f"Failed to initialise hordelib: {type(e).__name__} {e}")

@@ -1,5 +1,5 @@
 numpy==1.26.4
-torch==2.3.1
+torch==2.3.1+rocm6.0
 
 horde_sdk~=0.10.0
 horde_safety~=0.2.3
@@ -9,6 +9,7 @@ horde_model_reference~=0.6.3
 python-dotenv
 ruamel.yaml
 semver
+wheel
 
 python-Levenshtein
 

@@ -12,7 +12,7 @@ from multiprocessing.context import BaseContext
 from loguru import logger
 
 
-def main(ctx: BaseContext, load_from_env_vars: bool = False) -> None:
+def main(ctx: BaseContext, load_from_env_vars: bool = False, *, amd_gpu: bool = False) -> None:
     """Check for a valid config and start the driver ('main') process for the reGen worker."""
     from horde_model_reference.model_reference_manager import ModelReferenceManager
     from pydantic import ValidationError
@@ -91,6 +91,7 @@ def main(ctx: BaseContext, load_from_env_vars: bool = False) -> None:
         ctx=ctx,
         bridge_data=bridge_data,
         horde_model_reference_manager=horde_model_reference_manager,
+        amd_gpu=amd_gpu,
     )
 
 
@@ -135,6 +136,13 @@ def init() -> None:
         action="store_true",
         default=False,
         help="Load the config only from environment variables. This is useful for running the worker in a container.",
+    )
+    parser.add_argument(
+        "--amd",
+        "--amd-gpu",
+        action="store_true",
+        default=False,
+        help="Enable AMD GPU-specific optimisations",
     )
 
     args = parser.parse_args()

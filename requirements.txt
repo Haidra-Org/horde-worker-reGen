@@ -3,7 +3,7 @@ torch
 
 horde_sdk~=0.13.0
 horde_safety~=0.2.3
-horde_engine~=2.13.0
+horde_engine~=2.13.1
 horde_model_reference~=0.7.0
 
 python-dotenv

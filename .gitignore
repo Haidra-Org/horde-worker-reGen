@@ -10,8 +10,12 @@ classes.svg
 
 griffe.json
 
+.venv*
+
 .vscode/
 .codiumai.toml
+
+.venv*
 
 micromamba.exe
 micromamba.tar.bz2

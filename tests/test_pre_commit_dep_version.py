@@ -35,6 +35,8 @@ def test_pre_commit_dep_versions(
                             dep_name, dep_version = dep.split("==")[0], dep.split("==")[1]
                         elif "~=" in dep:
                             dep_name, dep_version = dep.split("~=")[0], dep.split("~=")[1]
+                        elif ">=" in dep:
+                            dep_name, dep_version = dep.split(">=")[0], dep.split(">=")[1]
                         else:
                             raise ValueError(f"Unsupported version pin: {dep}")
                 except Exception as e:

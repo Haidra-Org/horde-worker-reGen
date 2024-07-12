@@ -39,9 +39,9 @@ if defined scribe (
 Reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v "LongPathsEnabled" /t REG_DWORD /d "1" /f 2>nul
 :We do this twice the first time to workaround a conda bug where pip is not installed correctly the first time - Henk
 IF EXIST CONDA GOTO WORKAROUND_END
-micromamba create --no-shortcuts -r conda -n windows -f %CONDA_ENVIRONMENT_FILE% -y
+.\micromamba.exe create --no-shortcuts -r conda -n windows -f %CONDA_ENVIRONMENT_FILE% -y
 :WORKAROUND_END
-micromamba create --no-shortcuts -r conda -n windows -f %CONDA_ENVIRONMENT_FILE% -y
+.\micromamba.exe create --no-shortcuts -r conda -n windows -f %CONDA_ENVIRONMENT_FILE% -y
 
 REM Check if hordelib argument is defined
 
@@ -59,7 +59,7 @@ if defined hordelib (
     python -s -m pip install -r requirements.txt -U --extra-index-url https://download.pytorch.org/whl/cu121
   )
 )
-call micromamba deactivate
+call deactivate
 
 echo If there are no errors above everything should be correctly installed (If not, try deleting the folder /conda/envs/ and try again).
 

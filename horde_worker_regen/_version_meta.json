@@ -20,6 +20,10 @@
         }
     },
     "beta_version_info": {
+        "8.0.3": {
+            "horde_model_reference_branch": "misc2",
+            "beta_expiry_date": "2024-07-25"
+        },
         "7.0.0": {
             "horde_model_reference_branch": "qrt",
             "beta_expiry_date": "2024-06-07"

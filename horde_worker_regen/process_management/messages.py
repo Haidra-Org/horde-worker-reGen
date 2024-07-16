@@ -42,6 +42,10 @@ class ModelLoadState(enum.Enum):
             or self == ModelLoadState.IN_USE
         )
 
+    def is_active(self) -> bool:
+        """Return if the model is loaded in VRAM or in use."""
+        return self != ModelLoadState.ON_DISK
+
 
 class ModelInfo(BaseModel):
     """Information about a model loaded or used by a process."""
@@ -121,7 +125,7 @@ class HordeProcessMessage(BaseModel):
     process_id: int
     """The ID of the process that sent the message."""
     info: str
-    """Information about the process."""
+    """Information about this operation sent the process."""
     time_elapsed: float | None = None
     """The time elapsed since the process started."""
 

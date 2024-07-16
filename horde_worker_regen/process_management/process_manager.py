@@ -6,6 +6,7 @@ import enum
 import json
 import multiprocessing
 import os
+import queue
 import random
 import sys
 import time
@@ -1489,7 +1490,11 @@ class HordeWorkerProcessManager:
         """
         # We want to completely flush the queue, to maximize the chances we get the most up to date information
         while not self._process_message_queue.empty():
-            message: HordeProcessMessage = self._process_message_queue.get()
+            try:
+                message: HordeProcessMessage = self._process_message_queue.get(block=False)
+            except queue.Empty:
+                logger.debug("Queue was empty, breaking")
+                break
 
             self._in_deadlock = False
 
@@ -1500,7 +1505,7 @@ class HordeWorkerProcessManager:
                 )
             else:
                 logger.debug(
-                    f"Received {type(message).__name__} from process {message.process_id}:",
+                    f"Received {type(message).__name__} from process {message.process_id}: {message.info}",
                     # f"{message.model_dump(exclude={'job_result_images_base64', 'replacement_image_base64'})}",
                 )
 
@@ -1836,7 +1841,12 @@ class HordeWorkerProcessManager:
 
             logger.debug(f"Preloading model {job.model} on process {available_process.process_id}")
             logger.debug(f"Available inference processes: {self._process_map}")
-            logger.debug(f"Horde model map: {self._horde_model_map}")
+            only_active_models = {
+                model_name: model_info
+                for model_name, model_info in self._horde_model_map.root.items()
+                if model_info.horde_model_load_state.is_active()
+            }
+            logger.debug(f"Horde model map (active): {only_active_models}")
 
             will_load_loras = job.payload.loras is not None and len(job.payload.loras) > 0
             seamless_tiling_enabled = job.payload.tiling is not None and job.payload.tiling
@@ -2668,6 +2678,7 @@ class HordeWorkerProcessManager:
                                 and hji.sdk_api_job_info.model is not None
                                 and hji.sdk_api_job_info.model in self.stable_diffusion_reference.root
                             ):
+
                                 model_dump = hji.model_dump(
                                     exclude=_excludes_for_job_dump,
                                 )
@@ -3099,7 +3110,10 @@ class HordeWorkerProcessManager:
             if self._triggered_max_pending_megapixelsteps is False:
                 self._triggered_max_pending_megapixelsteps = True
                 self._triggered_max_pending_megapixelsteps_time = time.time()
-                logger.info("Pausing job pops so some long running jobs can make some progress.")
+                logger.info(
+                    f"Pausing job pops for {round(seconds_to_wait, 2)} seconds so some long running jobs can make "
+                    "some progress.",
+                )
                 logger.debug(
                     f"Paused job pops for pending megapixelsteps to decrease below {self._max_pending_megapixelsteps}",
                 )

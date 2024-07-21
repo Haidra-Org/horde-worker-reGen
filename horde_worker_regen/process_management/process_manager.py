@@ -2699,12 +2699,18 @@ class HordeWorkerProcessManager:
                                 else:
                                     model_dump["sdk_api_job_info"]["payload"]["scheduler"] = "simple"
                                 del model_dump["sdk_api_job_info"]["payload"]["karras"]
-                                model_dump["sdk_api_job_info"]["payload"]["lora_count"] = len(
-                                    model_dump["sdk_api_job_info"]["payload"]["loras"],
-                                )
-                                model_dump["sdk_api_job_info"]["payload"]["ti_count"] = len(
-                                    model_dump["sdk_api_job_info"]["payload"]["tis"],
-                                )
+                                if model_dump["sdk_api_job_info"]["payload"]["loras"] is not None:
+                                    model_dump["sdk_api_job_info"]["payload"]["lora_count"] = len(
+                                        model_dump["sdk_api_job_info"]["payload"]["loras"],
+                                    )
+                                else:
+                                    model_dump["sdk_api_job_info"]["payload"]["lora_count"] = 0
+                                if model_dump["sdk_api_job_info"]["payload"]["tis"] is not None:
+                                    model_dump["sdk_api_job_info"]["payload"]["ti_count"] = len(
+                                        model_dump["sdk_api_job_info"]["payload"]["tis"],
+                                    )
+                                else: 
+                                    model_dump["sdk_api_job_info"]["payload"]["ti_count"] = 0
                                 model_dump["sdk_api_job_info"]["extra_source_images_count"] = (
                                     len(hji.sdk_api_job_info.extra_source_images)
                                     if hji.sdk_api_job_info.extra_source_images

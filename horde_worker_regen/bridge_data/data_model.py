@@ -66,6 +66,9 @@ class reGenBridgeData(CombinedHordeBridgeData):
     moderate_performance_mode: bool = Field(default=False)
     """If you have a 3080 or better, set this to true to enable moderate performance mode."""
 
+    post_process_job_overlap: bool = Field(default=False)
+    """High and moderate performance modes will skip post processing if this is set to true."""
+
     capture_kudos_training_data: bool = Field(default=False)
     kudos_training_data_file: str | None = Field(default=None)
 

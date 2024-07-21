@@ -1957,7 +1957,8 @@ class HordeWorkerProcessManager:
 
             if not process_with_model.can_accept_job():
                 if process_with_model.last_process_state == HordeProcessState.DOWNLOADING_AUX_MODEL or (
-                    process_with_model.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING
+                    self.bridge_data.post_process_job_overlap
+                    and process_with_model.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING
                     and (self.bridge_data.high_performance_mode or self.bridge_data.moderate_performance_mode)
                 ):
                     # If any of the next n jobs (other than this one) aren't using the same model, see if that job
@@ -2013,7 +2014,11 @@ class HordeWorkerProcessManager:
             )
 
         processes_post_processing = 0
-        if self.bridge_data.moderate_performance_mode or self.bridge_data.high_performance_mode:
+        if (
+            self.bridge_data.post_process_job_overlap
+            and self.bridge_data.moderate_performance_mode
+            or self.bridge_data.high_performance_mode
+        ):
             processes_post_processing = self._process_map.num_busy_with_post_processing()
 
         if processes_post_processing > 0 and len(self.jobs_in_progress) >= self.max_concurrent_inference_processes:

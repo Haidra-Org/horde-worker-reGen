@@ -74,6 +74,8 @@ def rocm_horde_dependency_versions() -> list[tuple[str, str]]:
                     version = req.split("==")[1].strip()
                 elif "~=" in req:
                     version = req.split("~=")[1].strip()
+                elif ">=" in req:
+                    version = req.split(">=")[1].strip()
                 else:
                     raise ValueError(f"Unsupported version pin: {req}")
 

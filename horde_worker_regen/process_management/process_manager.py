@@ -1639,6 +1639,16 @@ class HordeWorkerProcessManager:
                     logger.error(
                         f"Job {message.sdk_api_job_info.id_} not found in jobs_lookup. (Process {message.process_id})",
                     )
+                    if message.sdk_api_job_info in self.jobs_in_progress:
+                        logger.error(
+                            f"Job {message.sdk_api_job_info.id_} found in jobs_in_progress. (Process {message.process_id})",
+                        )
+                        self.jobs_in_progress.remove(message.sdk_api_job_info)
+                    if message.sdk_api_job_info in self.job_deque:
+                        logger.error(
+                            f"Job {message.sdk_api_job_info.id_} found in job_deque. (Process {message.process_id})",
+                        )
+                        self.job_deque.remove(message.sdk_api_job_info)
                     continue
 
                 job_info = self.jobs_lookup[message.sdk_api_job_info]
@@ -2699,18 +2709,20 @@ class HordeWorkerProcessManager:
                                 else:
                                     model_dump["sdk_api_job_info"]["payload"]["scheduler"] = "simple"
                                 del model_dump["sdk_api_job_info"]["payload"]["karras"]
-                                if model_dump["sdk_api_job_info"]["payload"]["loras"] is not None:
-                                    model_dump["sdk_api_job_info"]["payload"]["lora_count"] = len(
+                                model_dump["sdk_api_job_info"]["payload"]["lora_count"] = (
+                                    len(
                                         model_dump["sdk_api_job_info"]["payload"]["loras"],
                                     )
-                                else:
-                                    model_dump["sdk_api_job_info"]["payload"]["lora_count"] = 0
-                                if model_dump["sdk_api_job_info"]["payload"]["tis"] is not None:
-                                    model_dump["sdk_api_job_info"]["payload"]["ti_count"] = len(
+                                    if model_dump["sdk_api_job_info"]["payload"]["loras"]
+                                    else 0
+                                )
+                                model_dump["sdk_api_job_info"]["payload"]["ti_count"] = (
+                                    len(
                                         model_dump["sdk_api_job_info"]["payload"]["tis"],
                                     )
-                                else: 
-                                    model_dump["sdk_api_job_info"]["payload"]["ti_count"] = 0
+                                    if model_dump["sdk_api_job_info"]["payload"]["tis"]
+                                    else 0
+                                )
                                 model_dump["sdk_api_job_info"]["extra_source_images_count"] = (
                                     len(hji.sdk_api_job_info.extra_source_images)
                                     if hji.sdk_api_job_info.extra_source_images
@@ -3572,9 +3584,14 @@ class HordeWorkerProcessManager:
 
     def detect_deadlock(self) -> None:
         """Detect if there are jobs in the queue but no processes doing anything."""
-        if (not self._in_deadlock) and len(self.job_deque) > 0 and self._process_map.num_busy_processes() == 0:
+        if (
+            (not self._in_deadlock)
+            and (len(self.job_deque) > 0 or len(self.jobs_in_progress) > 0 or len(self.jobs_lookup) > 0)
+            and self._process_map.num_busy_processes() == 0
+        ):
             self._last_deadlock_detected_time = time.time()
             self._in_deadlock = True
+            logger.debug("Deadlock detected")
             logger.debug(f"Jobs in queue: {len(self.job_deque)}")
             logger.debug(f"Jobs in progress: {len(self.jobs_in_progress)}")
             logger.debug(f"Jobs pending safety check: {len(self.jobs_pending_safety_check)}")
@@ -3583,17 +3600,18 @@ class HordeWorkerProcessManager:
             logger.debug(f"Jobs faulted: {self._num_jobs_faulted}")
         elif (
             self._in_deadlock
-            and (self._last_deadlock_detected_time + 5) < time.time()
+            and (self._last_deadlock_detected_time + 10) < time.time()
             and self._process_map.num_busy_processes() == 0
         ):
-            logger.debug("Deadlock still detected after 5 seconds")  # . Attempting to recover.")
-            # self.jobs_in_progress.clear()
+            logger.debug("Deadlock still detected after 10 seconds. Attempting to recover.")
+            self._cleanup_jobs()
             self._in_deadlock = False
         elif (
             self._in_deadlock
             and (self._last_deadlock_detected_time + 5) < time.time()
             and self._process_map.num_busy_processes() > 0
         ):
+            logger.debug("Deadlock was likely false-alarm. Ignoring.")
             self._in_deadlock = False
 
     def print_status_method(self) -> None:

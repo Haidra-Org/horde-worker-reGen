@@ -19,7 +19,7 @@ repos:
     -   id: mypy
         args: []
         additional_dependencies:
-        - pydantic==2.8.2
+        - pydantic==2.7.4
         - types-requests
         - types-pytz
         - types-setuptools
@@ -40,7 +40,7 @@ repos:
         - horde_safety==0.2.3
         - torch==2.3.1
         - ruamel.yaml
-        - horde_engine==2.13.2
-        - horde_sdk==0.13.0
-        - horde_model_reference==0.7.0
+        - horde_engine==2.14.0
+        - horde_sdk==0.14.0
+        - horde_model_reference==0.8.1
         - semver

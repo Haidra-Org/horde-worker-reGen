@@ -2415,8 +2415,12 @@ class HordeWorkerProcessManager:
                 ),
                 timeout=10 + 1,
             )
-        except TimeoutError:
+        except _async_client_exceptions:
             logger.error(f"Job {new_submit.job_id} submission timed out")
+            new_submit.retry()
+            return new_submit
+        except Exception as e:
+            logger.error(f"Failed to submit job {new_submit.job_id}: {e}")
             new_submit.retry()
             return new_submit
 

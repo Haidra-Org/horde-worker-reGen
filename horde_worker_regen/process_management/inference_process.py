@@ -284,7 +284,7 @@ class HordeInferenceProcess(HordeProcess):
 
             performed_a_download = False
 
-            loras = job_info.payload.loras
+            loras = job_info.payload.loras or []
 
             try:
                 lora_manager.load_model_database()

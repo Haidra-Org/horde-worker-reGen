@@ -1,7 +1,7 @@
-pytest==8.2.2
-mypy==1.10.1
+pytest==8.3.1
+mypy==1.11.0
 black==24.4.2
-ruff==0.5.1
+ruff==0.5.4
 tox~=4.16.0
 pre-commit~=3.7.1
 build>=0.10.0

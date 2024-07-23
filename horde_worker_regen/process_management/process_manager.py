@@ -1641,7 +1641,8 @@ class HordeWorkerProcessManager:
                     )
                     if message.sdk_api_job_info in self.jobs_in_progress:
                         logger.error(
-                            f"Job {message.sdk_api_job_info.id_} found in jobs_in_progress. (Process {message.process_id})",
+                            f"Job {message.sdk_api_job_info.id_} found in jobs_in_progress. "
+                            f"(Process {message.process_id})",
                         )
                         self.jobs_in_progress.remove(message.sdk_api_job_info)
                     if message.sdk_api_job_info in self.job_deque:

@@ -112,6 +112,9 @@ class LogConsoleRewriter(io.StringIO):
         for old, new in replacements:
             message = message.replace(old, new)
 
+        if sys.__stdout__ is None:
+            raise ValueError("sys.__stdout__ is None!")
+
         return sys.__stdout__.write(message)
 
     def flush(self) -> None:

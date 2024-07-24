@@ -33,7 +33,7 @@ if defined scribe (
   SET CONDA_ENVIRONMENT_FILE=environment_scribe.yaml
 
 ) else (
-  SET CONDA_ENVIRONMENT_FILE=environment.yaml
+  SET CONDA_ENVIRONMENT_FILE=environment.windows.yaml
 )
 
 Reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v "LongPathsEnabled" /t REG_DWORD /d "1" /f 2>nul

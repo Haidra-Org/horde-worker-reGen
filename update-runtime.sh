@@ -24,7 +24,7 @@ esac
 shift # past argument or value
 done
 
-CONDA_ENVIRONMENT_FILE=environment.yaml
+CONDA_ENVIRONMENT_FILE=environment.linux.yaml
 
 wget -qO- https://github.com/mamba-org/micromamba-releases/releases/latest/download/micromamba-linux-64.tar.bz2 | tar -xvj bin/micromamba
 if [ ! -f "conda/envs/linux/bin/python" ]; then

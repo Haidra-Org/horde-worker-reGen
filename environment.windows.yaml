@@ -1,0 +1,12 @@
+name: ldm
+channels:
+  - nvidia
+  - conda-forge
+  - defaults
+# These should only contain the minimal essentials to get the binaries going, everything else is managed in requirements.txt to keep it universal.
+dependencies:
+  - nvidia::cuda-toolkit
+  - anaconda::vs2015_runtime
+  - git
+  - pip
+  - python==3.10.12

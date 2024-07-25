@@ -38,6 +38,8 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python }}
+      - name: Find and delete '+cu124' from requirements.txt (github runner doesn't support cuda)
+        run: sed -i 's/+cu124//g' requirements.txt
       - name: Install tox and any other packages
         run: |
           python -m pip install --upgrade pip

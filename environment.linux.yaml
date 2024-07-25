@@ -8,4 +8,4 @@ dependencies:
   - nvidia::cuda-toolkit
   - git
   - pip
-  - python==3.10.12
+  - python==3.11.6

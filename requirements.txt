@@ -6,6 +6,7 @@ horde_safety~=0.2.3
 numpy==1.26.4
 torch>=2.3.1
 
+mkl_fft
 
 python-dotenv
 ruamel.yaml

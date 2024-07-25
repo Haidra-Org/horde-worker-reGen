@@ -35,12 +35,12 @@ def tracked_dependencies() -> list[str]:
 
 
 @pytest.fixture(scope="session")
-def horde_dependency_versions() -> list[tuple[str, str]]:
+def horde_dependency_versions() -> dict[str, str]:
     """Get the versions of horde dependencies from the requirements file."""
     with open(REQUIREMENTS_FILE_PATH) as f:
         requirements = f.readlines()
 
-    dependencies = []
+    dependencies = {}
     for req in requirements:
         for dep in TRACKED_DEPENDENCIES:
             if req.startswith(dep):
@@ -55,18 +55,18 @@ def horde_dependency_versions() -> list[tuple[str, str]]:
 
                 # Strip any info starting from the `+` character
                 version = version.split("+")[0]
-                dependencies.append((dep, version))
+                dependencies[dep] = version
 
     return dependencies
 
 
 @pytest.fixture(scope="session")
-def rocm_horde_dependency_versions() -> list[tuple[str, str]]:
+def rocm_horde_dependency_versions() -> dict[str, str]:
     """Get the versions of horde dependencies from the ROCm requirements file."""
     with open(ROCM_REQUIREMENTS_FILE_PATH) as f:
         requirements = f.readlines()
 
-    dependencies = []
+    dependencies = {}
     for req in requirements:
         for dep in TRACKED_DEPENDENCIES:
             if req.startswith(dep):
@@ -81,6 +81,6 @@ def rocm_horde_dependency_versions() -> list[tuple[str, str]]:
 
                 # Strip any info starting from the `+` character
                 version = version.split("+")[0]
-                dependencies.append((dep, version))
+                dependencies[dep] = version
 
     return dependencies

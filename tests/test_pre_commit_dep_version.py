@@ -6,7 +6,7 @@ PRECOMMIT_FILE_PATH = Path(__file__).parent.parent / ".pre-commit-config.yaml"
 
 
 def test_pre_commit_dep_versions(
-    horde_dependency_versions: list[tuple[str, str]],
+    horde_dependency_versions: dict[str, str],
     tracked_dependencies: list[str],
 ) -> None:
     """Check that the versions of horde deps. in .pre-commit-config.yaml match the versions in requirements.txt.
@@ -52,7 +52,7 @@ def test_pre_commit_dep_versions(
     ), f"Some dependencies are missing their versions.\n{versions}"
 
     # Check if the versions match
-    matches = sum(1 for dep, version in horde_dependency_versions if versions.get(dep) == version)
+    matches = sum(1 for dep, version in horde_dependency_versions.items() if versions.get(dep) == version)
 
     assert matches == len(
         horde_dependency_versions,

@@ -1,11 +1,17 @@
 """The main entry point for the reGen worker."""
 
+import sys
+
+if sys.platform == "win32":
+    import asyncio
+
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 import argparse
 import contextlib
 import io
 import multiprocessing
 import os
-import sys
 import time
 from multiprocessing.context import BaseContext
 

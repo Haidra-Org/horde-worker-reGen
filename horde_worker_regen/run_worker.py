@@ -165,7 +165,8 @@ def init() -> None:
 
     os.environ["HORDE_SDK_DISABLE_CUSTOM_SINKS"] = "1"
 
-    os.environ["AIWORKER_DREAMER_WORKER_NAME"] = args.worker_name
+    if args.worker_name:
+        os.environ["AIWORKER_DREAMER_WORKER_NAME"] = args.worker_name
 
     from horde_worker_regen.load_env_vars import load_env_vars_from_config
 

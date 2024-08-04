@@ -3226,7 +3226,7 @@ class HordeWorkerProcessManager:
         try:
             job_pop_request = ImageGenerateJobPopRequest(
                 apikey=self.bridge_data.api_key,
-                name=self.bridge_data.get_worker_name(),
+                name=self.bridge_data.dreamer_worker_name,
                 bridge_agent=f"AI Horde Worker reGen:{horde_worker_regen.__version__}:https://github.com/Haidra-Org/horde-worker-reGen",
                 models=list(models),
                 blacklist=self.bridge_data.blacklist,
@@ -3630,7 +3630,7 @@ class HordeWorkerProcessManager:
             logger.info(
                 " | ".join(
                     [
-                        f"dreamer_name: {self.bridge_data.get_worker_name()}",
+                        f"dreamer_name: {self.bridge_data.dreamer_worker_name}",
                         f"(v{horde_worker_regen.__version__})",
                         f"max_power: {self.bridge_data.max_power}",
                         f"max_threads: {self.max_concurrent_inference_processes}",

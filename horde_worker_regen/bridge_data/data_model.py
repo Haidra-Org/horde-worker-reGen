@@ -204,6 +204,20 @@ class reGenBridgeData(CombinedHordeBridgeData):
         if self.max_lora_cache_size and os.getenv("AIWORKER_LORA_CACHE_SIZE") is None:
             os.environ["AIWORKER_LORA_CACHE_SIZE"] = str(self.max_lora_cache_size * 1024)
 
+        self.dreamer_override_worker_name = os.environ.get("AIWORKER_DREAMER_WORKER_NAME")
+
+    _override_worker_name: str | None = None
+
+    def get_worker_name(self) -> str:
+        """Get the worker name, preferring the override name if set.
+
+        Returns:
+            str: The worker name.
+        """
+        if self._override_worker_name:
+            return self._override_worker_name
+        return self.dreamer_worker_name
+
     def save(self, file_path: str) -> None:
         """Save the config model to a file.
 

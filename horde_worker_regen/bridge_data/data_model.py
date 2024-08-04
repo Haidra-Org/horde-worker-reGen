@@ -206,6 +206,8 @@ class reGenBridgeData(CombinedHordeBridgeData):
 
         self.dreamer_override_worker_name = os.environ.get("AIWORKER_DREAMER_WORKER_NAME")
 
+        logger.debug(f"AIWORKER_DREAMER_WORKER_NAME: {self.dreamer_override_worker_name}")
+
     _override_worker_name: str | None = None
 
     def get_worker_name(self) -> str:

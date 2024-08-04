@@ -153,10 +153,20 @@ def init() -> None:
         default=False,
         help="Enable AMD GPU-specific optimisations",
     )
+    parser.add_argument(
+        "-n",
+        "--worker-name",
+        type=str,
+        default=None,
+        help="Override the worker name from the config file, for running multiple workers on one machine",
+    )
 
     args = parser.parse_args()
 
     os.environ["HORDE_SDK_DISABLE_CUSTOM_SINKS"] = "1"
+
+    if args.worker_name:
+        os.environ["AIWORKER_DREAMER_WORKER_NAME"] = args.worker_name
 
     from horde_worker_regen.load_env_vars import load_env_vars_from_config
 

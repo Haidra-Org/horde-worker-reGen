@@ -7,7 +7,7 @@ import os
 
 from horde_sdk.ai_horde_worker.bridge_data import CombinedHordeBridgeData
 from loguru import logger
-from pydantic import Field, model_validator
+from pydantic import Field, model_validator, field_validator
 from ruamel.yaml import YAML
 
 from horde_worker_regen.consts import TOTAL_LORA_DOWNLOAD_TIMEOUT
@@ -131,6 +131,17 @@ class reGenBridgeData(CombinedHordeBridgeData):
 
         return self
 
+    @field_validator("dreamer_worker_name", mode="after")
+    def validate_dreamer_worker_name(cls, value: str) -> str:
+        if os.getenv("AIWORKER_DREAMER_WORKER_NAME"):
+            logger.warning(
+                "AIWORKER_DREAMER_WORKER_NAME environment variable is set. This will override the value for "
+                "`dreamer_worker_name` in the config file.",
+            )
+            return os.getenv("AIWORKER_DREAMER_WORKER_NAME")
+
+        return value
+
     def prepare_custom_models(self) -> None:
         """Prepare the custom models."""
         if os.getenv("HORDELIB_CUSTOM_MODELS"):
@@ -203,22 +214,6 @@ class reGenBridgeData(CombinedHordeBridgeData):
 
         if self.max_lora_cache_size and os.getenv("AIWORKER_LORA_CACHE_SIZE") is None:
             os.environ["AIWORKER_LORA_CACHE_SIZE"] = str(self.max_lora_cache_size * 1024)
-
-        self.dreamer_override_worker_name = os.environ.get("AIWORKER_DREAMER_WORKER_NAME")
-
-        logger.debug(f"AIWORKER_DREAMER_WORKER_NAME: {self.dreamer_override_worker_name}")
-
-    _override_worker_name: str | None = None
-
-    def get_worker_name(self) -> str:
-        """Get the worker name, preferring the override name if set.
-
-        Returns:
-            str: The worker name.
-        """
-        if self._override_worker_name:
-            return self._override_worker_name
-        return self.dreamer_worker_name
 
     def save(self, file_path: str) -> None:
         """Save the config model to a file.

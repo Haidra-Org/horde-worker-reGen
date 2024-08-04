@@ -7,7 +7,7 @@ import os
 
 from horde_sdk.ai_horde_worker.bridge_data import CombinedHordeBridgeData
 from loguru import logger
-from pydantic import Field, model_validator, field_validator
+from pydantic import Field, field_validator, model_validator
 from ruamel.yaml import YAML
 
 from horde_worker_regen.consts import TOTAL_LORA_DOWNLOAD_TIMEOUT
@@ -133,6 +133,7 @@ class reGenBridgeData(CombinedHordeBridgeData):
 
     @field_validator("dreamer_worker_name", mode="after")
     def validate_dreamer_worker_name(cls, value: str) -> str:
+        """Apply the environment variable override for the `dreamer_worker_name` field."""
         if os.getenv("AIWORKER_DREAMER_WORKER_NAME"):
             logger.warning(
                 "AIWORKER_DREAMER_WORKER_NAME environment variable is set. This will override the value for "

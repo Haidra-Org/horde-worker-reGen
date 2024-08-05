@@ -41,9 +41,9 @@ if [ -z "$LD_PRELOAD" ]; then
 fi
 
 
-if ./runtime-rocm.sh python -s download_models.py; then
+if "$SCRIPT_DIR/runtime-rocm.sh" python -s "$SCRIPT_DIR/download_models.py"; then
     echo "Model Download OK. Starting worker..."
-    ./runtime-rocm.sh python -s run_worker.py --amd $*
+    "$SCRIPT_DIR/runtime-rocm.sh" python -s "$SCRIPT_DIR/run_worker.py" --amd $*
 else
     echo "download_models.py exited with error code. Aborting"
 fi

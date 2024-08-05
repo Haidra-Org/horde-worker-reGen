@@ -133,6 +133,11 @@ def init() -> None:
     with contextlib.suppress(Exception):
         multiprocessing.set_start_method("spawn", force=True)
 
+    if os.path.exists(".abort"):
+        with logger.catch(reraise=True):
+            os.remove(".abort")
+            logger.debug("Removed .abort file")
+
     print(f"Multiprocessing start method: {multiprocessing.get_start_method()}")
 
     # Create args for -v, allowing -vvv
@@ -201,7 +206,7 @@ def init() -> None:
 
     # We only need to download the legacy DBs once, so we do it here instead of in the worker processes
 
-    main(multiprocessing.get_context("spawn"), args.load_config_from_env_vars)
+    main(multiprocessing.get_context("spawn"), args.load_config_from_env_vars, amd_gpu=args.amd)
 
 
 if __name__ == "__main__":

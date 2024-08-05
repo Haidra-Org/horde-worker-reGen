@@ -3084,7 +3084,7 @@ class HordeWorkerProcessManager:
             )
             if self.bridge_data.exit_on_unhandled_faults:
                 logger.error("Exiting due to exit_on_unhandled_faults being enabled")
-                sys.exit(1)
+                self._abort()
             await asyncio.sleep(180)
             self._consecutive_failed_jobs = 0
             logger.info("Resuming job pops")
@@ -3610,7 +3610,7 @@ class HordeWorkerProcessManager:
             and self._process_map.num_busy_processes() == 0
         ):
             logger.debug("Deadlock still detected after 10 seconds. Attempting to recover.")
-            self._cleanup_jobs()
+            self._purge_jobs()
             self._in_deadlock = False
         elif (
             self._in_deadlock
@@ -3792,6 +3792,7 @@ class HordeWorkerProcessManager:
         """Handle SIGINT and SIGTERM."""
         if self._caught_sigints >= 2:
             logger.warning("Caught SIGINT or SIGTERM three times, exiting immediately")
+            self._start_timed_shutdown()
             sys.exit(1)
 
         self._caught_sigints += 1
@@ -3817,7 +3818,14 @@ class HordeWorkerProcessManager:
 
     _recently_recovered = False
 
-    def _cleanup_jobs(self) -> None:
+    def _purge_jobs(self) -> None:
+        """Clear all jobs immediately.
+
+        Note: This is a last resort and should only be used when the worker is in a black hole and can't recover.
+        Jobs will timeout on the server side and be requeued if they are still valid but due to the worker not
+        responding, they will spend much longer in the queue than they should while the server waits for the worker
+        to respond (and ultimately times out).
+        """
         if len(self.job_deque) > 0:
             self.job_deque.clear()
             self._last_job_submitted_time = time.time()
@@ -3849,6 +3857,7 @@ class HordeWorkerProcessManager:
         safety: bool = True,
         all_: bool = True,
     ) -> None:
+        """Kill all processes immediately."""
         for process_info in self._process_map.values():
             if (
                 (inference and process_info.process_type == HordeProcessType.INFERENCE)
@@ -3893,6 +3902,17 @@ class HordeWorkerProcessManager:
             return True
         return False
 
+    def _abort(self) -> None:
+        """Exit as soon as possible, aborting all processes and jobs immediately."""
+        with logger.catch(), open(".abort", "w") as f:
+            f.write("")
+
+        self._purge_jobs()
+
+        self._shutting_down = True
+        self._hard_kill_processes()
+        self._start_timed_shutdown()
+
     def replace_hung_processes(self) -> bool:
         """Replaces processes that haven't checked in since `process_timeout` seconds in bridgeData."""
         now = time.time()
@@ -3913,15 +3933,12 @@ class HordeWorkerProcessManager:
             )
             or ((now - self._last_job_submitted_time) > self.bridge_data.process_timeout)
         ) and not (self._last_pop_no_jobs_available or self._recently_recovered):
-            self._cleanup_jobs()
+            self._purge_jobs()
 
             if self.bridge_data.exit_on_unhandled_faults:
                 logger.error("All processes have been unresponsive for too long, exiting.")
 
-                self._shutting_down = True
-                self._hard_kill_processes()
-                self._start_timed_shutdown()
-
+                self._abort()
                 logger.error("Exiting due to exit_on_unhandled_faults being enabled")
 
                 return True

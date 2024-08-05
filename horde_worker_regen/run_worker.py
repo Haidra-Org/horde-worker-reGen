@@ -201,7 +201,7 @@ def init() -> None:
 
     # We only need to download the legacy DBs once, so we do it here instead of in the worker processes
 
-    main(multiprocessing.get_context("spawn"), args.load_config_from_env_vars)
+    main(multiprocessing.get_context("spawn"), args.load_config_from_env_vars, amd_gpu=args.amd)
 
 
 if __name__ == "__main__":

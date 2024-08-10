@@ -35,9 +35,9 @@ bin/micromamba create --no-shortcuts -r "$SCRIPT_DIR/conda" -n linux -f ${CONDA_
 
 if [ "$hordelib" = true ]; then
  bin/micromamba run -r "$SCRIPT_DIR/conda" -n linux python -s -m pip uninstall -y hordelib horde_engine horde_sdk horde_model_reference
- bin/micromamba run -r "$SCRIPT_DIR/conda" -n linux python -s -m pip install horde_engine horde_model_reference --extra-index-url https://download.pytorch.org/whl/rocm6.1
-else
- bin/micromamba run -r "$SCRIPT_DIR/conda" -n linux python -s -m pip install -r "$SCRIPT_DIR/requirements.rocm.txt" -U --extra-index-url https://download.pytorch.org/whl/rocm6.1
+ bin/micromamba run -r "$SCRIPT_DIR/conda" -n linux python -s -m pip install horde_engine horde_model_reference --extra-index-url https://download.pytorch.org/whl/rocm6.0
+els0
+ bin/micromamba run -r "$SCRIPT_DIR/conda" -n linux python -s -m pip install -r "$SCRIPT_DIR/requirements.rocm.txt" -U --extra-index-url https://download.pytorch.org/whl/rocm6.0
 
 fi
 

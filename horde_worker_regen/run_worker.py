@@ -133,6 +133,11 @@ def init() -> None:
     with contextlib.suppress(Exception):
         multiprocessing.set_start_method("spawn", force=True)
 
+    if os.path.exists(".abort"):
+        with logger.catch(reraise=True):
+            os.remove(".abort")
+            logger.debug("Removed .abort file")
+
     print(f"Multiprocessing start method: {multiprocessing.get_start_method()}")
 
     # Create args for -v, allowing -vvv

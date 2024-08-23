@@ -99,7 +99,7 @@ You can double click the provided script files below from a file explorer or run
 
 ### Configure
 
-1. Make a copy of `bridgeData_template.yaml` to `bridgeData.yaml`
+1. Rename `bridgeData_template.yaml` to `bridgeData.yaml`
 1. Edit `bridgeData.yaml` and follow the instructions within to fill in your details.
 
 

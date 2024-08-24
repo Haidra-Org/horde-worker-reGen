@@ -431,6 +431,8 @@ class HordeInferenceProcess(HordeProcess):
             except Exception as e:
                 logger.error(f"Failed to release inference semaphore: {type(e).__name__} {e}")
 
+            self.unload_models_from_vram()
+
         if progress_report.comfyui_progress is not None and progress_report.comfyui_progress.current_step > 0:
             self.send_heartbeat_message(heartbeat_type=HordeHeartbeatType.INFERENCE_STEP)
         else:

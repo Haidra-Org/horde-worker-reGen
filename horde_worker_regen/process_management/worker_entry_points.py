@@ -61,13 +61,15 @@ def start_inference_process(
 
             if high_memory_mode:
                 extra_comfyui_args.append("--highvram")
+            else:
+                extra_comfyui_args.append("--novram")
 
             with logger.catch(reraise=True):
                 hordelib.initialise(
                     setup_logging=None,
                     process_id=process_id,
                     logging_verbosity=0,
-                    force_normal_vram_mode=not high_memory_mode,
+                    force_normal_vram_mode=False,
                     extra_comfyui_args=extra_comfyui_args,
                 )
         except Exception as e:

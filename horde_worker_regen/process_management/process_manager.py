@@ -2241,8 +2241,7 @@ class HordeWorkerProcessManager:
             if process_info.loaded_horde_model_name in next_n_models:
                 continue
 
-            if self.get_process_total_ram_usage() > self.target_ram_bytes_used:
-                self.unload_from_ram(process_info.process_id)
+            self.unload_from_ram(process_info.process_id)
 
     def start_evaluate_safety(self) -> None:
         """Start evaluating the safety of the next job pending a safety check, if any."""
@@ -3650,6 +3649,7 @@ class HordeWorkerProcessManager:
                     [
                         f"dreamer_name: {self.bridge_data.dreamer_worker_name}",
                         f"(v{horde_worker_regen.__version__})",
+                        f"num_models: {len(self.bridge_data.image_models_to_load)}",
                         f"max_power: {self.bridge_data.max_power}",
                         f"max_threads: {self.max_concurrent_inference_processes}",
                         f"queue_size: {self.bridge_data.queue_size}",

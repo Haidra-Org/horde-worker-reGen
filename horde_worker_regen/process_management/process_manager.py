@@ -1671,7 +1671,6 @@ class HordeWorkerProcessManager:
                 self.total_num_completed_jobs += 1
                 if self.bridge_data.unload_models_from_vram:
                     self.unload_models_from_vram(process_with_model=self._process_map[message.process_id])
-                    self.unload_models()
 
                 if message.time_elapsed is not None:
                     logger.info(
@@ -2035,7 +2034,6 @@ class HordeWorkerProcessManager:
         # Unload all models from vram from any other process that isn't running a job if configured to do so
         if self.bridge_data.unload_models_from_vram:
             self.unload_models_from_vram(process_with_model)
-            self.unload_models()
 
         logger.info(f"Starting inference for job {next_job.id_} on process {process_with_model.process_id}")
         # region Log job info
@@ -2116,33 +2114,41 @@ class HordeWorkerProcessManager:
             if process_info.process_id == process_with_model.process_id:
                 continue
 
+            if process_info.process_type != HordeProcessType.INFERENCE:
+                continue
+
             if process_info.is_process_busy():
                 continue
 
-            if process_info.loaded_horde_model_name is None:
-                continue
+            if process_info.loaded_horde_model_name is not None:
 
                 # if len(self.job_deque) == len(self.jobs_in_progress) + len(self.jobs_pending_safety_check):
                 #     logger.debug("Not unloading models from VRAM because there are no jobs to make room for.")
                 #     continue
 
-            if len(self.bridge_data.image_models_to_load) == 1:
-                logger.debug("Not unloading models from VRAM because there is only one model to load.")
-                continue
+                if len(self.bridge_data.image_models_to_load) == 1:
+                    logger.debug("Not unloading models from VRAM because there is only one model to load.")
+                    continue
 
                 # If the model would be used by another process soon, don't unload it
-            if process_info.loaded_horde_model_name in next_n_models:
-                continue
+                if process_info.loaded_horde_model_name in next_n_models:
+                    continue
 
-            if process_info.last_control_flag != HordeControlFlag.UNLOAD_MODELS_FROM_VRAM:
+                if process_info.last_control_flag != HordeControlFlag.UNLOAD_MODELS_FROM_VRAM:
+                    process_info.safe_send_message(
+                        HordeControlModelMessage(
+                            control_flag=HordeControlFlag.UNLOAD_MODELS_FROM_VRAM,
+                            horde_model_name=process_info.loaded_horde_model_name,
+                        ),
+                    )
+                    process_info.last_job_referenced = None
+                    process_info.last_control_flag = HordeControlFlag.UNLOAD_MODELS_FROM_VRAM
+            else:
                 process_info.safe_send_message(
-                    HordeControlModelMessage(
+                    HordeControlMessage(
                         control_flag=HordeControlFlag.UNLOAD_MODELS_FROM_VRAM,
-                        horde_model_name=process_info.loaded_horde_model_name,
                     ),
                 )
-                process_info.last_job_referenced = None
-                process_info.last_control_flag = HordeControlFlag.UNLOAD_MODELS_FROM_VRAM
 
     def unload_from_ram(self, process_id: int) -> None:
         """Unload models from a process.
@@ -2155,28 +2161,35 @@ class HordeWorkerProcessManager:
 
         process_info = self._process_map[process_id]
 
-        if process_info.loaded_horde_model_name is None:
-            logger.debug(f"Process {process_id} has no model loaded, so nothing to unload")
+        if process_info.process_type != HordeProcessType.INFERENCE:
+            logger.warning(f"Process {process_id} is not an inference process, not unloading models")
             return
 
-        if not self._horde_model_map.is_model_loaded(process_info.loaded_horde_model_name):
-            raise ValueError(f"process_id {process_id} is references an invalid model`")
+        if process_info.loaded_horde_model_name is not None:
+            if not self._horde_model_map.is_model_loaded(process_info.loaded_horde_model_name):
+                raise ValueError(f"process_id {process_id} is references an invalid model`")
 
-        if process_info.last_control_flag != HordeControlFlag.UNLOAD_MODELS_FROM_RAM:
-            process_info.safe_send_message(
-                HordeControlModelMessage(
-                    control_flag=HordeControlFlag.UNLOAD_MODELS_FROM_RAM,
+            if process_info.last_control_flag != HordeControlFlag.UNLOAD_MODELS_FROM_RAM:
+                process_info.safe_send_message(
+                    HordeControlModelMessage(
+                        control_flag=HordeControlFlag.UNLOAD_MODELS_FROM_RAM,
+                        horde_model_name=process_info.loaded_horde_model_name,
+                    ),
+                )
+
+                process_info.last_job_referenced = None
+                process_info.last_control_flag = HordeControlFlag.UNLOAD_MODELS_FROM_RAM
+
+                self._horde_model_map.update_entry(
                     horde_model_name=process_info.loaded_horde_model_name,
+                    load_state=ModelLoadState.ON_DISK,
+                    process_id=process_id,
+                )
+        else:
+            process_info.safe_send_message(
+                HordeControlMessage(
+                    control_flag=HordeControlFlag.UNLOAD_MODELS_FROM_RAM,
                 ),
-            )
-
-            process_info.last_job_referenced = None
-            process_info.last_control_flag = HordeControlFlag.UNLOAD_MODELS_FROM_RAM
-
-            self._horde_model_map.update_entry(
-                horde_model_name=process_info.loaded_horde_model_name,
-                load_state=ModelLoadState.ON_DISK,
-                process_id=process_id,
             )
 
             self._process_map.on_model_load_state_change(
@@ -2230,26 +2243,27 @@ class HordeWorkerProcessManager:
         next_n_models: set[str] = self.get_next_n_models(self.max_inference_processes)
 
         for process_info in self._process_map.values():
+            if process_info.process_type != HordeProcessType.INFERENCE:
+                continue
+
             if process_info.is_process_busy():
                 continue
 
-            if process_info.loaded_horde_model_name is None:
-                continue
+            if process_info.loaded_horde_model_name is not None:
+                if self._horde_model_map.is_model_loading(process_info.loaded_horde_model_name):
+                    continue
 
-            if self._horde_model_map.is_model_loading(process_info.loaded_horde_model_name):
-                continue
+                if (
+                    self._horde_model_map.root[process_info.loaded_horde_model_name].horde_model_load_state
+                    == ModelLoadState.IN_USE
+                ):
+                    continue
 
-            if (
-                self._horde_model_map.root[process_info.loaded_horde_model_name].horde_model_load_state
-                == ModelLoadState.IN_USE
-            ):
-                continue
-
-            if process_info.loaded_horde_model_name in next_n_models:
-                logger.debug(
-                    f"Model {process_info.loaded_horde_model_name} is in use by another process, not unloading",
-                )
-                continue
+                if process_info.loaded_horde_model_name in next_n_models:
+                    logger.debug(
+                        f"Model {process_info.loaded_horde_model_name} is in use by another process, not unloading",
+                    )
+                    continue
 
             self.unload_from_ram(process_info.process_id)
 
@@ -3574,7 +3588,7 @@ class HordeWorkerProcessManager:
                             await asyncio.sleep(self._loop_interval / 2)
                             self._replace_all_safety_process()
 
-                    self.unload_models()
+                    #  self.unload_models()
 
                     if self._shutting_down:
                         self.end_inference_processes()

@@ -431,8 +431,6 @@ class HordeInferenceProcess(HordeProcess):
             except Exception as e:
                 logger.error(f"Failed to release inference semaphore: {type(e).__name__} {e}")
 
-            self.unload_models_from_vram()
-
         if progress_report.comfyui_progress is not None and progress_report.comfyui_progress.current_step > 0:
             self.send_heartbeat_message(heartbeat_type=HordeHeartbeatType.INFERENCE_STEP)
         else:
@@ -634,6 +632,18 @@ class HordeInferenceProcess(HordeProcess):
             )
         elif isinstance(message, HordeInferenceControlMessage):
             if message.control_flag == HordeControlFlag.START_INFERENCE:
+                if self._active_model_name is None:
+                    self.preload_model(
+                        horde_model_name=message.horde_model_name,
+                        will_load_loras=message.sdk_api_job_info.payload.loras is not None
+                        and len(
+                            message.sdk_api_job_info.payload.loras,
+                        )
+                        > 0,
+                        seamless_tiling_enabled=message.sdk_api_job_info.payload.tiling,
+                        job_info=message.sdk_api_job_info,
+                    )
+
                 if message.horde_model_name != self._active_model_name:
                     error_message = f"Received START_INFERENCE control message for model {message.horde_model_name} "
                     error_message += f"but currently active model is {self._active_model_name}"
@@ -698,17 +708,6 @@ class HordeInferenceProcess(HordeProcess):
             else:
                 logger.critical(f"Received unexpected message: {message}")
                 return
-        elif isinstance(message, HordeControlModelMessage):
-            if message.control_flag == HordeControlFlag.DOWNLOAD_MODEL:
-                self.download_model(message.horde_model_name)
-            elif message.control_flag == HordeControlFlag.UNLOAD_MODELS_FROM_VRAM:
-                self.unload_models_from_vram()
-            elif message.control_flag == HordeControlFlag.UNLOAD_MODELS_FROM_RAM:
-                self.unload_models_from_ram()
-            else:
-                logger.critical(f"Received unexpected message: {message}")
-                return
-
         elif message.control_flag == HordeControlFlag.END_PROCESS:
             self.send_process_state_change_message(
                 process_state=HordeProcessState.PROCESS_ENDING,
@@ -716,3 +715,13 @@ class HordeInferenceProcess(HordeProcess):
             )
 
             self._end_process = True
+            return
+
+        if isinstance(message, HordeControlModelMessage) and message.control_flag == HordeControlFlag.DOWNLOAD_MODEL:
+            self.download_model(horde_model_name=message.horde_model_name)
+
+        if isinstance(message, HordeControlMessage):
+            if message.control_flag == HordeControlFlag.UNLOAD_MODELS_FROM_VRAM:
+                self.unload_models_from_vram()
+            elif message.control_flag == HordeControlFlag.UNLOAD_MODELS_FROM_RAM:
+                self.unload_models_from_ram()

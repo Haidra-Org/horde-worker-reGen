@@ -20,7 +20,9 @@ def start_inference_process(
     disk_lock: Lock,
     aux_model_lock: Lock,
     *,
+    low_memory_mode: bool = True,
     high_memory_mode: bool = False,
+    very_high_memory_mode: bool = False,
     amd_gpu: bool = False,
 ) -> None:
     """Start an inference process.
@@ -59,10 +61,14 @@ def start_inference_process(
             if amd_gpu:
                 extra_comfyui_args.append("--use-pytorch-cross-attention")
 
-            if high_memory_mode:
+            if very_high_memory_mode:
+                extra_comfyui_args.append("--gpu-only")
+            elif high_memory_mode:
                 extra_comfyui_args.append("--highvram")
-            else:
+            elif low_memory_mode:
                 extra_comfyui_args.append("--novram")
+            else:
+                extra_comfyui_args.append("--normalvram")
 
             with logger.catch(reraise=True):
                 hordelib.initialise(

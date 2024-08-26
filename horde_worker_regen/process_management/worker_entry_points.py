@@ -34,7 +34,10 @@ def start_inference_process(
         inference_semaphore (Semaphore): The semaphore to use to limit concurrent inference.
         disk_lock (Lock): The lock to use for disk access.
         aux_model_lock (Lock): The lock to use for auxiliary model downloading.
+        low_memory_mode (bool, optional): If true, the process will attempt to use less memory. Defaults to True.
         high_memory_mode (bool, optional): If true, the process will attempt to use more memory. Defaults to False.
+        very_high_memory_mode (bool, optional): If true, the process will attempt to use even more memory.
+            Defaults to False.
         amd_gpu (bool, optional): If true, the process will attempt to use AMD GPU-specific optimisations.
             Defaults to False.
     """

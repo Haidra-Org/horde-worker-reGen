@@ -149,9 +149,6 @@ def start_safety_process(
             if amd_gpu:
                 extra_comfyui_args.append("--use-pytorch-cross-attention")
 
-            if high_memory_mode:
-                extra_comfyui_args.append("--highvram")
-
             with logger.catch(reraise=True):
                 hordelib.initialise(
                     setup_logging=None,

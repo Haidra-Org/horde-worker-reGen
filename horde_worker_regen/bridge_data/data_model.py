@@ -40,7 +40,7 @@ class reGenBridgeData(CombinedHordeBridgeData):
         default=None,
         alias="civitai_api_token",
     )
-    unload_models_from_vram: bool = Field(default=True)
+    unload_models_from_vram_often: bool = Field(default=True)
 
     process_timeout: int = Field(default=900)
     """The maximum amount of time to allow a job to run before it is killed"""
@@ -107,20 +107,14 @@ class reGenBridgeData(CombinedHordeBridgeData):
 
         if self.high_memory_mode and not self.very_high_memory_mode:
             if self.max_threads != 1:
-                self.max_threads = 1
                 logger.warning(
-                    "High memory mode is enabled, so the max_threads value has been set to 1.",
+                    "High memory mode is enabled. You may experience performance issues with more than one thread.",
                 )
 
-            if self.queue_size == 0:
+            if self.unload_models_from_vram_often:
                 logger.warning(
-                    "High memory mode is enabled and works best with a queue_size of 1.",
-                )
-
-            if self.queue_size > 1:
-                self.queue_size = 1
-                logger.warning(
-                    "High memory mode is enabled, so the queue_size value has been set to 1.",
+                    "Please let us know if `unload_models_from_vram_often` improves or degrades performance with"
+                    " `high_memory_mode` enabled.",
                 )
 
             if self.cycle_process_on_model_change:

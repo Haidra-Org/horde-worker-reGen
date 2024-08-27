@@ -64,14 +64,21 @@ def start_inference_process(
             if amd_gpu:
                 extra_comfyui_args.append("--use-pytorch-cross-attention")
 
+            models_not_to_force_load = []
+
             if very_high_memory_mode:
                 extra_comfyui_args.append("--gpu-only")
             elif high_memory_mode:
-                extra_comfyui_args.append("--highvram")
+                extra_comfyui_args.append("--normalvram")
+                models_not_to_force_load = [
+                    "cascade",
+                ]
             elif low_memory_mode:
                 extra_comfyui_args.append("--novram")
-            else:
-                extra_comfyui_args.append("--normalvram")
+                models_not_to_force_load = [
+                    "sdxl",
+                    "cascade",
+                ]
 
             with logger.catch(reraise=True):
                 hordelib.initialise(
@@ -79,6 +86,7 @@ def start_inference_process(
                     process_id=process_id,
                     logging_verbosity=0,
                     force_normal_vram_mode=False,
+                    models_not_to_force_load=models_not_to_force_load,
                     extra_comfyui_args=extra_comfyui_args,
                 )
         except Exception as e:

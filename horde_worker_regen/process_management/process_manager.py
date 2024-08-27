@@ -1669,7 +1669,7 @@ class HordeWorkerProcessManager:
                         break
 
                 self.total_num_completed_jobs += 1
-                if self.bridge_data.unload_models_from_vram:
+                if self.bridge_data.unload_models_from_vram_often:
                     self.unload_models_from_vram(process_with_model=self._process_map[message.process_id])
 
                 if message.time_elapsed is not None:
@@ -2032,7 +2032,7 @@ class HordeWorkerProcessManager:
             )
 
         # Unload all models from vram from any other process that isn't running a job if configured to do so
-        if self.bridge_data.unload_models_from_vram:
+        if self.bridge_data.unload_models_from_vram_often:
             self.unload_models_from_vram(process_with_model)
 
         logger.info(f"Starting inference for job {next_job.id_} on process {process_with_model.process_id}")

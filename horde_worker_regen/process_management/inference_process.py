@@ -87,6 +87,8 @@ class HordeInferenceProcess(HordeProcess):
         inference_semaphore: Semaphore,
         aux_model_lock: Lock,
         disk_lock: Lock,
+        *,
+        high_memory_mode: bool = False,
     ) -> None:
         """Initialise the HordeInferenceProcess.
 
@@ -98,6 +100,9 @@ class HordeInferenceProcess(HordeProcess):
             inference_semaphore (Semaphore): A semaphore used to limit the number of concurrent inference jobs.
             aux_model_lock (Lock): A lock used to prevent multiple processes from downloading auxiliary models at the \
             disk_lock (Lock): A lock used to prevent multiple processes from accessing disk at the same time.
+            high_memory_mode (bool, optional): Whether or not to use high memory mode. This mode uses more memory, but\
+                may be faster if the system has enough memory and VRAM. \
+                Defaults to False.
         """
         super().__init__(
             process_id=process_id,
@@ -123,8 +128,12 @@ class HordeInferenceProcess(HordeProcess):
         from hordelib.nodes.node_model_loader import HordeCheckpointLoader
 
         try:
+            logger.info(f"Initialising HordeLib with high_memory_mode={high_memory_mode}")
             with logger.catch(reraise=True):
-                self._horde = HordeLib(comfyui_callback=self._comfyui_callback)
+                self._horde = HordeLib(
+                    comfyui_callback=self._comfyui_callback,
+                    aggressive_unloading=not high_memory_mode,
+                )
                 self._shared_model_manager = SharedModelManager(do_not_load_model_mangers=True)
         except Exception as e:
             logger.critical(f"Failed to initialise HordeLib: {type(e).__name__} {e}")
@@ -393,6 +402,8 @@ class HordeInferenceProcess(HordeProcess):
                 time_elapsed=download_time,
                 job_info=job_info,
             )
+
+        self.send_memory_report_message(include_vram=True)
 
         self.send_process_state_change_message(
             process_state=HordeProcessState.WAITING_FOR_JOB,

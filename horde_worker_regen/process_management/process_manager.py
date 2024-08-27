@@ -949,6 +949,8 @@ class HordeWorkerProcessManager:
     _completed_jobs_lock: Lock_Asyncio
 
     kudos_generated_this_session: float = 0
+    kudos_events: list[tuple[float, float]]
+    """A deque of kudos events, each is a tuple of the time the event occurred and the amount of kudos generated."""
     session_start_time: float = 0
 
     _aiohttp_client_session: aiohttp.ClientSession
@@ -1134,6 +1136,8 @@ class HordeWorkerProcessManager:
         self._job_pop_timestamps_lock = Lock_Asyncio()
 
         self._process_message_queue = multiprocessing.Queue()
+
+        self.kudos_events = []
 
         self.stable_diffusion_reference = None
 
@@ -2578,6 +2582,7 @@ class HordeWorkerProcessManager:
             self._num_jobs_faulted += 1
 
         self.kudos_generated_this_session += job_submit_response.reward
+        self.kudos_events.append((time.time(), job_submit_response.reward))
         new_submit.succeed(new_submit.kudos_reward, new_submit.kudos_per_second)
         return new_submit
 
@@ -3388,6 +3393,107 @@ class HordeWorkerProcessManager:
 
     _current_worker_id: str | None = None
 
+    def calculate_kudos_info(self) -> None:
+        """Calculate and log information about the kudos generated in the current session."""
+        time_since_session_start = time.time() - self.session_start_time
+        kudos_per_hour_session = self.kudos_generated_this_session / time_since_session_start * 3600
+
+        kudos_total_past_hour = self.calculate_kudos_totals()
+
+        kudos_info_string = self.generate_kudos_info_string(
+            time_since_session_start,
+            kudos_per_hour_session,
+            kudos_total_past_hour,
+        )
+
+        self.log_kudos_info(kudos_info_string)
+
+    def calculate_kudos_totals(self) -> float:
+        """Calculate the total kudos generated in the past hour.
+
+        Returns:
+            float: The total kudos generated in the past hour.
+        """
+        kudos_total_past_hour = 0.0
+        num_events_found = 0
+        current_time = time.time()
+
+        for event_time, kudos in reversed(self.kudos_events):
+            if current_time - event_time > 3600:
+                break
+
+            num_events_found += 1
+            kudos_total_past_hour += kudos
+
+        elements_to_remove = len(self.kudos_events) - num_events_found
+        if elements_to_remove > 0:
+            self.kudos_events = self.kudos_events[:-elements_to_remove]
+
+        return kudos_total_past_hour
+
+    def generate_kudos_info_string(
+        self,
+        time_since_session_start: float,
+        kudos_per_hour_session: float,
+        kudos_total_past_hour: float,
+    ) -> str:
+        """Generate a string with information about the kudos generated in the current session.
+
+        Args:
+            time_since_session_start (float): The time since the session started.
+            kudos_per_hour_session (float): The kudos per hour generated in the current session.
+            kudos_total_past_hour (float): The total kudos generated in the past hour.
+
+        Returns:
+            str: A string with information about the kudos generated in the current session.
+        """
+        kudos_info_string_elements = []
+        if time_since_session_start < 3600:
+            kudos_info_string_elements = [
+                f"Total Session Kudos: {self.kudos_generated_this_session:.2f} over "
+                f"{time_since_session_start / 60:.2f} minutes",
+            ]
+        else:
+            kudos_info_string_elements = [
+                f"Total Session Kudos: {self.kudos_generated_this_session:.2f} over "
+                f"{time_since_session_start / 3600:.2f} hours",
+            ]
+
+        if time_since_session_start > 3600:
+            kudos_info_string_elements.append(
+                f"Session: {kudos_per_hour_session:.2f} (actual) kudos/hr",
+            )
+            kudos_info_string_elements.append(
+                f"Last Hour: {kudos_total_past_hour:.2f} kudos/hr",
+            )
+        else:
+            kudos_info_string_elements.append(
+                f"Session: {kudos_per_hour_session:.2f} (extrapolated) kudos/hr",
+            )
+            kudos_info_string_elements.append(
+                "Last Hour: (pending) kudos/hr",
+            )
+
+        return " | ".join(kudos_info_string_elements)
+
+    def log_kudos_info(self, kudos_info_string: str) -> None:
+        """Log the kudos information string.
+
+        Args:
+            kudos_info_string (str): The kudos information string to log.
+        """
+        if self.kudos_generated_this_session > 0:
+            logger.success(kudos_info_string)
+
+        logger.debug(f"len(kudos_events): {len(self.kudos_events)}")
+        if self.user_info is not None and self.user_info.kudos_details is not None:
+            logger.info(
+                f"Total Kudos Accumulated: {self.user_info.kudos_details.accumulated:.2f} "
+                f"(all workers for {self.user_info.username})",
+            )
+            if self.user_info.kudos_details.accumulated is not None and self.user_info.kudos_details.accumulated < 0:
+                logger.info("Negative kudos means you've requested more than you've earned. This can be normal.")
+
     async def api_get_user_info(self) -> None:
         """Get the information associated with this API key from the API."""
         if self._shutting_down:
@@ -3408,21 +3514,7 @@ class HordeWorkerProcessManager:
             self._user_info_failed_reason = None
 
             if self.user_info.kudos_details is not None:
-                # print kudos this session and kudos per hour based on self.session_start_time
-                kudos_per_hour = self.kudos_generated_this_session / (time.time() - self.session_start_time) * 3600
-
-                if self.kudos_generated_this_session > 0:
-                    logger.success(
-                        f"Kudos this session: {self.kudos_generated_this_session:.2f} "
-                        f"(~{kudos_per_hour:.2f} kudos/hour)",
-                    )
-
-                logger.info(f"Worker Kudos Accumulated: {self.user_info.kudos_details.accumulated:.2f}")
-                if (
-                    self.user_info.kudos_details.accumulated is not None
-                    and self.user_info.kudos_details.accumulated < 0
-                ):
-                    logger.info("Negative kudos means you've requested more than you've earned. This can be normal.")
+                self.calculate_kudos_info()
 
         except _async_client_exceptions as e:
             self._user_info_failed = True

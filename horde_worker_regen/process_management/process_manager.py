@@ -369,6 +369,11 @@ class ProcessMap(dict[int, HordeProcessInfo]):
 
         self[process_id].last_received_timestamp = time.time()
 
+        logger.debug(
+            f"Process {process_id} memory report: "
+            f"ram: {ram_usage_bytes} vram: {vram_usage_bytes} total vram: {total_vram_bytes}",
+        )
+
     def on_process_state_change(self, process_id: int, new_state: HordeProcessState) -> None:
         """Update the process state for the given process ID.
 
@@ -3673,6 +3678,7 @@ class HordeWorkerProcessManager:
                     [
                         f"dreamer_name: {self.bridge_data.dreamer_worker_name}",
                         f"(v{horde_worker_regen.__version__})",
+                        f"horde user: {self.user_info.username if self.user_info is not None else 'Unknown'}",
                         f"num_models: {len(self.bridge_data.image_models_to_load)}",
                         f"max_power: {self.bridge_data.max_power}",
                         f"max_threads: {self.max_concurrent_inference_processes}",
@@ -3689,12 +3695,38 @@ class HordeWorkerProcessManager:
                         f"allow_controlnet: {self.bridge_data.allow_controlnet}",
                         f"allow_sdxl_controlnet: {self.bridge_data.allow_sdxl_controlnet}",
                         f"allow_post_processing: {self.bridge_data.allow_post_processing}",
+                        f"custom_models: {bool(self.bridge_data.custom_models)}",
                         f"jobs_pending_safety_check: {len(self.jobs_pending_safety_check)}",
                         f"jobs_being_safety_checked: {len(self.jobs_being_safety_checked)}",
                         f"jobs_in_progress: {len(self.jobs_in_progress)}",
                     ],
                 ),
             )
+            logger.debug(
+                " | ".join(
+                    [
+                        f"high_performance_mode: {self.bridge_data.high_performance_mode}",
+                        f"moderate_performance_mode: {self.bridge_data.moderate_performance_mode}",
+                        f"high_memory_mode: {self.bridge_data.high_memory_mode}",
+                        f"very_high_memory_mode: {self.bridge_data.very_high_memory_mode}",
+                        f"unload_models_from_vram_often: {self.bridge_data.unload_models_from_vram_often}",
+                    ],
+                ),
+            )
+
+            logger.debug(
+                " | ".join(
+                    [
+                        f"post_process_job_overlap: {self.bridge_data.post_process_job_overlap}",
+                        f"preload_timeout: {self.bridge_data.preload_timeout}",
+                        f"download_timeout: {self.bridge_data.download_timeout}",
+                        f"post_process_timeout: {self.bridge_data.post_process_timeout}",
+                        f"cycle_process_on_model_change: {self.bridge_data.cycle_process_on_model_change}",
+                        f"exit_on_unhandled_faults: {self.bridge_data.exit_on_unhandled_faults}",
+                    ],
+                ),
+            )
+
             jobs = [f"<{x.id_}: {x.model}>" for x in self.job_deque]
             logger.info(f'Jobs: {", ".join(jobs)}')
 
@@ -3731,6 +3763,19 @@ class HordeWorkerProcessManager:
                     "There is a recommended update available for the AI Worker. "
                     "`git pull` and `update-runtime` to update.",
                 )
+
+            for device in self._device_map.root.values():
+                total_memory_mb = device.total_memory / 1024 / 1024
+                if total_memory_mb < 10_000 and self.bridge_data.high_memory_mode:
+                    logger.warning(
+                        f"Device {device.device_name} ({device.device_index}) has less than 10GB of memory. "
+                        "This may cause issues with `high_memory_mode` enabled.",
+                    )
+                elif total_memory_mb > 20_000 and not self.bridge_data.high_memory_mode:
+                    logger.warning(
+                        f"Device {device.device_name} ({device.device_index}) has more than 20GB of memory. "
+                        "You should enable `high_memory_mode` in your config to take advantage of this.",
+                    )
 
             self._last_status_message_time = time.time()
 

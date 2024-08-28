@@ -2558,7 +2558,7 @@ class HordeWorkerProcessManager:
         if new_submit.completed_job_info.state != GENERATION_STATE.faulted:
             logger.success(
                 f"Submitted job {new_submit.job_id} (model: "
-                f"{new_submit.completed_job_info.sdk_api_job_info.model}) for {job_submit_response.reward:.2f} "
+                f"{new_submit.completed_job_info.sdk_api_job_info.model}) for {job_submit_response.reward:,.2f} "
                 f"kudos. Job popped {time_taken} seconds ago "
                 f"and took {new_submit.completed_job_info.time_to_generate:.2f} "
                 f"to generate. ({kudos_per_second * new_submit.batch_count:.2f} "
@@ -3450,28 +3450,28 @@ class HordeWorkerProcessManager:
         kudos_info_string_elements = []
         if time_since_session_start < 3600:
             kudos_info_string_elements = [
-                f"Total Session Kudos: {self.kudos_generated_this_session:.2f} over "
+                f"Total Session Kudos: {self.kudos_generated_this_session:,.2f} over "
                 f"{time_since_session_start / 60:.2f} minutes",
             ]
         else:
             kudos_info_string_elements = [
-                f"Total Session Kudos: {self.kudos_generated_this_session:.2f} over "
+                f"Total Session Kudos: {self.kudos_generated_this_session:,.2f} over "
                 f"{time_since_session_start / 3600:.2f} hours",
             ]
 
         if time_since_session_start > 3600:
             kudos_info_string_elements.append(
-                f"Session: {kudos_per_hour_session:.2f} (actual) kudos/hr",
+                f"Session: {kudos_per_hour_session:,.2f} (actual) kudos/hr",
             )
             kudos_info_string_elements.append(
-                f"Last Hour: {kudos_total_past_hour:.2f} kudos/hr",
+                f"Last Hour: {kudos_total_past_hour:,.2f} kudos",
             )
         else:
             kudos_info_string_elements.append(
-                f"Session: {kudos_per_hour_session:.2f} (extrapolated) kudos/hr",
+                f"Session: {kudos_per_hour_session:,.2f} (extrapolated) kudos/hr",
             )
             kudos_info_string_elements.append(
-                "Last Hour: (pending) kudos/hr",
+                "Last Hour: (pending) kudos",
             )
 
         return " | ".join(kudos_info_string_elements)
@@ -3488,7 +3488,7 @@ class HordeWorkerProcessManager:
         logger.debug(f"len(kudos_events): {len(self.kudos_events)}")
         if self.user_info is not None and self.user_info.kudos_details is not None:
             logger.info(
-                f"Total Kudos Accumulated: {self.user_info.kudos_details.accumulated:.2f} "
+                f"Total Kudos Accumulated: {self.user_info.kudos_details.accumulated:,.2f} "
                 f"(all workers for {self.user_info.username})",
             )
             if self.user_info.kudos_details.accumulated is not None and self.user_info.kudos_details.accumulated < 0:

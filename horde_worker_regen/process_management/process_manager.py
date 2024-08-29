@@ -1545,7 +1545,11 @@ class HordeWorkerProcessManager:
                     new_state=message.process_state,
                 )
 
-                logger.debug(f"Process {message.process_id} changed state to {message.process_state}")
+                if message.process_state == HordeProcessState.PROCESS_ENDED:
+                    logger.info(f"Process {message.process_id} has ended with message: {message.info}")
+                else:
+                    logger.debug(f"Process {message.process_id} changed state to {message.process_state}")
+
                 if message.process_state == HordeProcessState.INFERENCE_STARTING:
                     # logger.info(f"Process {message.process_id} is starting inference on model {message.info}")
 

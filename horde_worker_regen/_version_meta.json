@@ -20,6 +20,10 @@
         }
     },
     "beta_version_info": {
+        "9.0.0": {
+            "horde_model_reference_branch": "flux",
+            "beta_expiry_date": "2024-09-30"
+        },
         "8.1.0": {
             "horde_model_reference_branch": "misc2",
             "beta_expiry_date": "2024-07-30"

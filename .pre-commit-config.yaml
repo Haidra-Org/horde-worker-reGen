@@ -42,5 +42,5 @@ repos:
         - ruamel.yaml
         - horde_engine==2.14.5
         - horde_sdk==0.14.1
-        - horde_model_reference==0.8.1
+        - horde_model_reference==0.9.0
         - semver

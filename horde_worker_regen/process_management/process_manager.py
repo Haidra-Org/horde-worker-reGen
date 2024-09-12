@@ -3840,7 +3840,7 @@ class HordeWorkerProcessManager:
 
             job_info_message = "Session job info: " + " | ".join(
                 [
-                    f"popped: {len(self.job_deque)} (eMPS: {self.get_pending_megapixelsteps()})",
+                    f"currently popped: {len(self.job_deque)} (eMPS: {self.get_pending_megapixelsteps()})",
                     f"submitted: {self.total_num_completed_jobs}",
                     f"faulted: {self._num_jobs_faulted}",
                     f"slow_jobs: {self._num_job_slowdowns}",

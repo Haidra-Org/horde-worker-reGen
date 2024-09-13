@@ -75,10 +75,15 @@ class reGenBridgeData(CombinedHordeBridgeData):
     exit_on_unhandled_faults: bool = Field(default=False)
 
     purge_loras_on_download: bool = Field(default=False)
+    
+    extra_slow_worker: bool = Field(default=False)
+    
+    limit_max_steps: bool = Field(default=False)
 
     custom_models: list[dict] = Field(
         default_factory=list,
     )
+    
 
     @model_validator(mode="after")
     def validate_performance_modes(self) -> reGenBridgeData:

@@ -166,6 +166,32 @@ To update:
    - **Advanced users**: If you do not want to use mamba or you are comfortable with python/venvs, see [README_advanced.md](README_advanced.md).
 1. Continue with [Starting/stopping](#startingstopping) instructions above
 
+# Custom Models
+
+You can host your own image models on the horde which are not available in our model reference, but this process is a bit more complex. 
+
+To start with, you need to manually request the `customizer` role from then horde team. You can ask for it in the discord channel. This is a manually assigned role to prevent abuse of this feature.
+
+Once you have the customizer role, you need to download the model files you want to host. Place them in any location on your system.
+
+Finally, you need to point your worker to their location and provide some information about them. On your bridgeData.yaml simply add lines like the following
+
+```
+custom_models:
+  - name: Movable figure model XL
+    baseline: stable_diffusion_xl
+    filepath: /home/db0/projects/CUSTOM_MODELS/PVCStyleModelMovable_beta25Realistic.safetensors
+```
+
+And then add the same "name" to your models_to_load.
+
+If everything was setup correctly, you should now see a `custom_models.json` in your worker directory after the worker starts, and the model should be offered by your worker.
+
+Note that:
+
+* You cannot serve custom models with the same name as any of our regular models
+* The horde doesn't know your model, so it will treat it as a SD 1.5 model for kudos rewards and cannot warn people using the wrong parameters such as clip_skip
+
 # Docker
 
 See [README_advanced.md](README_advanced.md).
@@ -173,3 +199,4 @@ See [README_advanced.md](README_advanced.md).
 
 # Model Usage
 Many models in this project use the CreativeML OpenRAIL License.  [Please read the full license here.](https://huggingface.co/spaces/CompVis/stable-diffusion-license)
+

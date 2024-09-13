@@ -168,7 +168,7 @@ To update:
 
 # Custom Models
 
-You can host your own image models on the horde which are not available in our model reference, but this process is a bit more complex. 
+You can host your own image models on the horde which are not available in our model reference, but this process is a bit more complex.
 
 To start with, you need to manually request the `customizer` role from then horde team. You can ask for it in the discord channel. This is a manually assigned role to prevent abuse of this feature.
 
@@ -199,4 +199,3 @@ See [README_advanced.md](README_advanced.md).
 
 # Model Usage
 Many models in this project use the CreativeML OpenRAIL License.  [Please read the full license here.](https://huggingface.co/spaces/CompVis/stable-diffusion-license)
-

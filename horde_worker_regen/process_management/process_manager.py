@@ -3296,6 +3296,8 @@ class HordeWorkerProcessManager:
                 allow_post_processing=self.bridge_data.allow_post_processing,
                 allow_controlnet=self.bridge_data.allow_controlnet,
                 allow_sdxl_controlnet=self.bridge_data.allow_sdxl_controlnet,
+                extra_slow_worker=self.bridge_data.extra_slow_worker,
+                limit_max_steps=self.bridge_data.limit_max_steps,
                 allow_lora=self.bridge_data.allow_lora,
                 amount=self.bridge_data.max_batch,
             )

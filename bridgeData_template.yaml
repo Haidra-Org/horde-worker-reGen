@@ -113,6 +113,19 @@ allow_lora: false
 # The number of gigabytes of LoRas too keep cached. This is in addition to the preselected LoRas.
 max_lora_cache_size: 10 # In gigabytes. Min is 10.
 
+# Set this to true, if your worker is extraordinarily slow, such below 0.1 mps/s
+# When your worker is set as extra slow, users can freely choose to skip it when requesting generations
+# However you get an the job timeout for generations you pick up is tripled
+# And the whole request itself receives triple the expiry timeout (60 mins, instead of 20 mins) when a slow worker picks it up.
+# We hope this can help people onboard older GPU generations to serve people who do not need immediate generations
+# IMPORTANT: This option is NOT meant to allow CPU workers. It's just for slow GPUs. There's still A timeout.
+extra_slow_worker: false
+
+# Set this to true to make your worker only pick up jobs requesting steps lower than the model's average steps.
+# This is meant to be used for slower workers who can handle a few steps within the limits but might time out if someone asks for 100 or more
+# You can also use this if you don't want to serve request with an extraordinary amount of steps whatsoever.
+limit_max_steps: false
+
 # Automatically determine the models which have the highest queue and offer those.
 dynamic_models: false # Currently unused in reGen
 

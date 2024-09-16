@@ -56,7 +56,7 @@ require_upfront_kudos: false
 #
 # If you set "models_to_load" to something like "top 5", it is necessary to provide this token,
 # as many of the most popular models require it for the download. Downloading many models in bulk
-# could also lead to issues if no token is supplied.
+# could also lead to issues if no token is required.
 #
 # You can get your civitai API Key from https://civitai.com/user/account (look for 'Add API Key')
 #

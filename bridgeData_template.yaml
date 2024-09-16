@@ -50,10 +50,17 @@ safety_on_gpu: false
 # Excludes all anonymous accounts and registered accounts who haven't contributed.
 require_upfront_kudos: false
 
-# Use this Civitai API token when downloading resources from Civitai.
-# Required for providing LoRas/TIs or other resources marked as requiring a Civitai token.
-# Get your Civitai API Key from https://civitai.com/user/account (look for 'Add API Key').
-# Remove the # from the line below and add your Civitai API token to enable this feature.
+# If set, this worker will use this civitai API token when downloading any resources from civitai.
+# This is required in order to provide LoRas/TIs (or other resources)
+# which are marked as requiring a civitai token to download.
+#
+# If you set "models_to_load" to something like "top 5", it is necessary to provide this token,
+# as many of the most popular models require it for the download. Downloading many models in bulk
+# could also lead to issues if no token is supplied.
+#
+# You can get your civitai API Key from https://civitai.com/user/account (look for 'Add API Key')
+#
+# Remove the # from the line below and add your civitai API token to enable this feature.
 # civitai_api_token:
 
 #######################################

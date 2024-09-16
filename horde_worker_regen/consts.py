@@ -7,8 +7,8 @@ VERSION_META_REMOTE_URL = (
 )
 
 
-KNOWN_SLOW_MODELS_DIFFICULTIES = {"Stable Cascade 1.0": 6.0}
-VRAM_HEAVY_MODELS = ["Stable Cascade 1.0"]
+KNOWN_SLOW_MODELS_DIFFICULTIES = {"Stable Cascade 1.0": 6.0, "Flux.1-Schnell fp8 (Compact)": 6.0}
+VRAM_HEAVY_MODELS = ["Stable Cascade 1.0", "Flux.1-Schnell fp16 (Compact)", "Flux.1-Schnell fp8 (Compact)"]
 KNOWN_SLOW_WORKFLOWS = {"qr_code": 2.0}
 KNOWN_CONTROLNET_WORKFLOWS = ["qr_code"]
 

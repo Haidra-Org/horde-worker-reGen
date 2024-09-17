@@ -99,6 +99,52 @@ class reGenBridgeData(CombinedHordeBridgeData):
                 "The queue_size value has been set to 2 because the max_threads value is greater than 2.",
             )
 
+        if self.extra_slow_worker:
+            if self.high_performance_mode:
+                self.high_performance_mode = False
+                logger.warning(
+                    "Extra slow worker is enabled, so the high_performance_mode value has been set to False.",
+                )
+            if self.moderate_performance_mode:
+                self.moderate_performance_mode = False
+                logger.warning(
+                    "Extra slow worker is enabled, so the moderate_performance_mode value has been set to False.",
+                )
+            if self.high_memory_mode:
+                self.high_memory_mode = False
+                logger.warning(
+                    "Extra slow worker is enabled, so the high_memory_mode value has been set to False.",
+                )
+            if self.very_high_memory_mode:
+                self.very_high_memory_mode = False
+                logger.warning(
+                    "Extra slow worker is enabled, so the very_high_memory_mode value has been set to False.",
+                )
+            if self.queue_size > 0:
+                self.queue_size = 0
+                logger.warning(
+                    "Extra slow worker is enabled, so the queue_size value has been set to 0. "
+                    "This behavior may change in the future.",
+                )
+            if self.max_threads > 1:
+                self.max_threads = 1
+                logger.warning(
+                    "Extra slow worker is enabled, so the max_threads value has been set to 1. "
+                    "This behavior may change in the future.",
+                )
+            if self.preload_timeout < 120:
+                self.preload_timeout = 120
+                logger.warning(
+                    "Extra slow worker is enabled, so the preload_timeout value has been set to 120. "
+                    "This behavior may change in the future.",
+                )
+            if not self.post_process_job_overlap:
+                self.post_process_job_overlap = True
+                logger.warning(
+                    "Extra slow worker is enabled, so the post_process_job_overlap value has been set to True. "
+                    "This behavior may change in the future.",
+                )
+
         if self.very_high_memory_mode and not self.high_memory_mode:
             self.high_memory_mode = True
             logger.warning(

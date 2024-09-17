@@ -3470,16 +3470,16 @@ class HordeWorkerProcessManager:
             kudos_info_string_elements.append(
                 f"Session: {kudos_per_hour_session:,.2f} (actual) kudos/hr",
             )
-            kudos_info_string_elements.append(
-                f"Last Hour: {kudos_total_past_hour:,.2f} kudos",
-            )
+            # kudos_info_string_elements.append(
+            #     f"Last Hour: {kudos_total_past_hour:,.2f} kudos",
+            # )
         else:
             kudos_info_string_elements.append(
                 f"Session: {kudos_per_hour_session:,.2f} (extrapolated) kudos/hr",
             )
-            kudos_info_string_elements.append(
-                "Last Hour: (pending) kudos",
-            )
+            # kudos_info_string_elements.append(
+            #     "Last Hour: (pending) kudos",
+            # )
 
         return " | ".join(kudos_info_string_elements)
 
@@ -3863,6 +3863,23 @@ class HordeWorkerProcessManager:
                     "`git pull` and `update-runtime` to update.",
                 )
 
+            if self.bridge_data.extra_slow_worker:
+                if not self.bridge_data.limit_max_steps:
+                    logger.warning(
+                        "Extra slow worker mode is enabled, but limit_max_steps is not enabled. "
+                        "Consider enabling limit_max_steps to prevent long running jobs.",
+                    )
+                if self.bridge_data.max_batch > 1:
+                    logger.warning(
+                        "Extra slow worker mode is enabled, but max_batch is greater than 1. "
+                        "Consider setting max_batch to 1 to prevent long running batch jobs.",
+                    )
+                if self.bridge_data.allow_sdxl_controlnet:
+                    logger.warning(
+                        "Extra slow worker mode is enabled, but allow_sdxl_controlnet is enabled. "
+                        "Consider disabling allow_sdxl_controlnet to prevent long running jobs.",
+                    )
+
             for device in self._device_map.root.values():
                 total_memory_mb = device.total_memory / 1024 / 1024
                 if total_memory_mb < 10_000 and self.bridge_data.high_memory_mode:
@@ -3874,6 +3891,12 @@ class HordeWorkerProcessManager:
                     logger.warning(
                         f"Device {device.device_name} ({device.device_index}) has more than 20GB of memory. "
                         "You should enable `high_memory_mode` in your config to take advantage of this.",
+                    )
+                elif total_memory_mb > 20_000 and self.bridge_data.extra_slow_worker:
+                    logger.warning(
+                        f"Device {device.device_name} ({device.device_index}) has more than 20GB of memory. "
+                        "There are very few GPUs with this much memory that should be running in extra slow worker "
+                        "mode. Consider disabling `extra_slow_worker` in your config.",
                     )
 
             self._last_status_message_time = time.time()

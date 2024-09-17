@@ -3754,8 +3754,13 @@ class HordeWorkerProcessManager:
             and (self._last_deadlock_detected_time + 10) < time.time()
             and self._process_map.num_busy_processes() == 0
         ):
-            logger.debug("Deadlock still detected after 10 seconds. Attempting to recover.")
-            self._purge_jobs()
+            if self.bridge_data.exit_on_unhandled_faults:
+                logger.error("Exiting due to exit_on_unhandled_faults being enabled")
+                self._abort()
+            else:
+                logger.debug("Deadlock still detected after 10 seconds. Attempting to recover.")
+                self._purge_jobs()
+
             self._in_deadlock = False
         elif (
             self._in_deadlock

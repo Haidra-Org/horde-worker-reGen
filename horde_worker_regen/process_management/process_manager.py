@@ -27,18 +27,21 @@ import PIL.Image
 import psutil
 import yarl
 from aiohttp import ClientSession
-from horde_model_reference.meta_consts import MODEL_REFERENCE_CATEGORY, STABLE_DIFFUSION_BASELINE_CATEGORY
-from horde_model_reference.model_reference_manager import ModelReferenceManager
-from horde_model_reference.model_reference_records import StableDiffusion_ModelReference
 from horde_sdk import RequestErrorResponse
 from horde_sdk.ai_horde_api import GENERATION_STATE
-from horde_sdk.ai_horde_api.ai_horde_clients import AIHordeAPIAsyncClientSession, AIHordeAPIAsyncSimpleClient
+from horde_sdk.ai_horde_api.ai_horde_clients import (
+    AIHordeAPIAsyncClientSession,
+    AIHordeAPIAsyncSimpleClient,
+    AIHordeAPISimpleClient,
+)
 from horde_sdk.ai_horde_api.apimodels import (
     FindUserRequest,
     GenMetadataEntry,
     ImageGenerateJobPopRequest,
     ImageGenerateJobPopResponse,
     JobSubmitResponse,
+    ModifyWorkerRequest,
+    SingleWorkerDetailsResponse,
     UserDetailsResponse,
 )
 from horde_sdk.ai_horde_api.consts import KNOWN_UPSCALERS, METADATA_TYPE, METADATA_VALUE
@@ -48,6 +51,9 @@ from pydantic import BaseModel, ConfigDict, RootModel, ValidationError
 from typing_extensions import override
 
 import horde_worker_regen
+from horde_model_reference.meta_consts import MODEL_REFERENCE_CATEGORY, STABLE_DIFFUSION_BASELINE_CATEGORY
+from horde_model_reference.model_reference_manager import ModelReferenceManager
+from horde_model_reference.model_reference_records import StableDiffusion_ModelReference
 from horde_worker_regen.bridge_data.data_model import reGenBridgeData
 from horde_worker_regen.bridge_data.load_config import BridgeDataLoader
 from horde_worker_regen.consts import (
@@ -1114,6 +1120,8 @@ class HordeWorkerProcessManager:
         logger.debug(f"Target RAM overhead: {self.target_ram_overhead_bytes / 1024 / 1024 / 1024} GB")
 
         self.enable_performance_mode()
+        if self.bridge_data.remove_maintenance_on_init:
+            self.remove_maintenance()
 
         # Get the total memory of each GPU
         import torch
@@ -1157,6 +1165,31 @@ class HordeWorkerProcessManager:
             except Exception as e:
                 logger.error(e)
                 time.sleep(5)
+
+    def remove_maintenance(self) -> None:
+        """Removes the maintenance from the named worker."""
+        simple_client = AIHordeAPISimpleClient()
+        worker_details: SingleWorkerDetailsResponse = simple_client.worker_details_by_name(
+            worker_name=self.bridge_data.dreamer_worker_name,
+        )
+        if worker_details is None:
+            logger.debug(
+                f"Worker with name {self.bridge_data.dreamer_worker_name} "
+                "does not appear to exist already to remove maintenance.",
+            )
+            return
+        modify_worker_request = ModifyWorkerRequest(
+            apikey=self.bridge_data.api_key,
+            worker_id=worker_details.id_,
+            maintenance=False,
+        )
+
+        simple_client.worker_modify(modify_worker_request)
+
+        logger.debug(
+            f"Ensured worker with name {self.bridge_data.dreamer_worker_name} "
+            "({worker_details.id_}) is removed from maintenance.",
+        )
 
     def enable_performance_mode(self) -> None:
         """Enable performance mode."""

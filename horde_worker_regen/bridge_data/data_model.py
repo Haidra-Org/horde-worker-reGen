@@ -76,6 +76,8 @@ class reGenBridgeData(CombinedHordeBridgeData):
 
     purge_loras_on_download: bool = Field(default=False)
 
+    remove_maintenance_on_init: bool = Field(default=False)
+
     custom_models: list[dict] = Field(
         default_factory=list,
     )

@@ -1,9 +1,9 @@
 numpy==1.26.4
 torch==2.3.1+rocm6.0
 
-horde_sdk~=0.14.3
+horde_sdk~=0.14.7
 horde_safety~=0.2.3
-horde_engine~=2.15.0
+horde_engine~=2.15.1
 horde_model_reference~=0.9.0
 
 python-dotenv
@@ -13,7 +13,7 @@ wheel
 
 python-Levenshtein
 
-pydantic>=2.7.4
+pydantic>=2.9.2
 typing_extensions
 requests
 StrEnum

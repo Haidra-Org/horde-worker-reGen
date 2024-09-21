@@ -51,7 +51,8 @@ from horde_sdk.ai_horde_api.consts import KNOWN_UPSCALERS, METADATA_TYPE, METADA
 from horde_sdk.ai_horde_api.fields import JobID
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, RootModel, ValidationError
-from typing_extensions import override
+from typing import Literal, Union
+from typing_extensions import override, TypeAlias
 
 import horde_worker_regen
 from horde_worker_regen.bridge_data.data_model import reGenBridgeData
@@ -103,18 +104,15 @@ if sys.version_info[:2] == (3, 10):
     _async_client_exceptions = (asyncio.exceptions.TimeoutError, aiohttp.client_exceptions.ClientError, OSError)
 
 _excludes_for_job_dump = {
-    "job_image_results": ...,
+    "job_image_results": True,
     "sdk_api_job_info": {
-        "payload": {
-            "prompt",
-            "special",
-        },
-        "skipped": ...,
-        "source_image": ...,
-        "source_mask": ...,
-        "extra_source_images": ...,
-        "r2_upload": ...,
-        "r2_uploads": ...,
+        "payload": {"prompt": True, "special": True},
+        "skipped": True,
+        "source_image": True,
+        "source_mask": True,
+        "extra_source_images": True,
+        "r2_upload": True,
+        "r2_uploads": True,
     },
 }
 
@@ -1740,7 +1738,7 @@ class HordeWorkerProcessManager:
                     )
 
                     logger.debug(
-                        f"Job data: {message.sdk_api_job_info.model_dump(exclude=_excludes_for_job_dump)}",
+                        f"Job data: {message.sdk_api_job_info.model_dump(exclude=_excludes_for_job_dump)}",  # type: ignore
                     )
 
                     self.completed_jobs.append(job_info)
@@ -2789,7 +2787,7 @@ class HordeWorkerProcessManager:
                             ):
 
                                 model_dump = hji.model_dump(
-                                    exclude=_excludes_for_job_dump,
+                                    exclude=_excludes_for_job_dump,  # type: ignore
                                 )
                                 if (
                                     self.stable_diffusion_reference is not None
@@ -3158,11 +3156,26 @@ class HordeWorkerProcessManager:
         return job_pop_response
 
     _last_pop_no_jobs_available: bool = False
+    _too_many_consecutive_failed_jobs: bool = False
+    _too_many_consecutive_failed_jobs_time: float = 0.0
+    _too_many_consecutive_failed_jobs_wait_time = 180
 
     @logger.catch(reraise=True)
     async def api_job_pop(self) -> None:
         """If the job deque is not full, add any jobs that are available to the job deque."""
         if self._shutting_down:
+            return
+
+        cur_time = time.time()
+
+        if self._too_many_consecutive_failed_jobs:
+            if (
+                cur_time - self._too_many_consecutive_failed_jobs_time
+                > self._too_many_consecutive_failed_jobs_wait_time
+            ):
+                self._too_many_consecutive_failed_jobs = False
+                self._too_many_consecutive_failed_jobs_time = 0
+                logger.debug("Resuming job pops after too many consecutive failed jobs")
             return
 
         if self._consecutive_failed_jobs >= 3:
@@ -3174,9 +3187,8 @@ class HordeWorkerProcessManager:
             if self.bridge_data.exit_on_unhandled_faults:
                 logger.error("Exiting due to exit_on_unhandled_faults being enabled")
                 self._abort()
-            await asyncio.sleep(180)
-            self._consecutive_failed_jobs = 0
-            logger.info("Resuming job pops")
+            self._too_many_consecutive_failed_jobs = True
+            self._too_many_consecutive_failed_jobs_time = cur_time
             return
 
         max_jobs_in_queue = self.bridge_data.queue_size + 1
@@ -3936,6 +3948,17 @@ class HordeWorkerProcessManager:
                         "There are very few GPUs with this much memory that should be running in extra slow worker "
                         "mode. Consider disabling `extra_slow_worker` in your config.",
                     )
+
+            if self._too_many_consecutive_failed_jobs:
+                time_since_failure = time.time() - self._too_many_consecutive_failed_jobs_time
+                logger.error(
+                    "Too many consecutive failed jobs. This may be due to a misconfiguration or other issue. "
+                    "Please check your logs and configuration.",
+                )
+                logger.error(
+                    f"Time since last job failure: {time_since_failure:.2f}s). "
+                    f"{self._too_many_consecutive_failed_jobs_wait_time} seconds must pass before resuming.",
+                )
 
             self._last_status_message_time = time.time()
 

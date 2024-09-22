@@ -51,8 +51,7 @@ from horde_sdk.ai_horde_api.consts import KNOWN_UPSCALERS, METADATA_TYPE, METADA
 from horde_sdk.ai_horde_api.fields import JobID
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, RootModel, ValidationError
-from typing import Literal, Union
-from typing_extensions import override, TypeAlias
+from typing_extensions import override
 
 import horde_worker_regen
 from horde_worker_regen.bridge_data.data_model import reGenBridgeData

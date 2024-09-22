@@ -1754,9 +1754,11 @@ class HordeWorkerProcessManager:
                         break
 
                 if completed_job_info is None or completed_job_info.job_image_results is None:
-                    raise ValueError(
-                        f"Expected to find a completed job with ID {message.job_id} but none was found",
+                    logger.error(
+                        f"Expected to find a completed job with ID {message.job_id} but none was found"
+                        "This should only happen when certain process crashes occur.",
                     )
+                    continue
 
                 num_images_censored = 0
                 num_images_csam = 0
@@ -1909,7 +1911,7 @@ class HordeWorkerProcessManager:
             will_load_loras = job.payload.loras is not None and len(job.payload.loras) > 0
             seamless_tiling_enabled = job.payload.tiling is not None and job.payload.tiling
 
-            available_process.safe_send_message(
+            if available_process.safe_send_message(
                 HordePreloadInferenceModelMessage(
                     control_flag=HordeControlFlag.PRELOAD_MODEL,
                     horde_model_name=job.model,
@@ -1917,21 +1919,23 @@ class HordeWorkerProcessManager:
                     seamless_tiling_enabled=seamless_tiling_enabled,
                     sdk_api_job_info=job,
                 ),
-            )
-            available_process.last_control_flag = HordeControlFlag.PRELOAD_MODEL
+            ):
+                available_process.last_control_flag = HordeControlFlag.PRELOAD_MODEL
 
-            self._horde_model_map.update_entry(
-                horde_model_name=job.model,
-                load_state=ModelLoadState.LOADING,
-                process_id=available_process.process_id,
-            )
+                self._horde_model_map.update_entry(
+                    horde_model_name=job.model,
+                    load_state=ModelLoadState.LOADING,
+                    process_id=available_process.process_id,
+                )
 
-            self._process_map.on_model_load_state_change(
-                process_id=available_process.process_id,
-                horde_model_name=job.model,
-                last_job_referenced=job,
-            )
+                self._process_map.on_model_load_state_change(
+                    process_id=available_process.process_id,
+                    horde_model_name=job.model,
+                    last_job_referenced=job,
+                )
 
+            # Even if the message fails to send, we still want to return True so that we can let the main loop
+            # catch up and potentially replace the process.
             return True
 
         return False
@@ -2188,11 +2192,12 @@ class HordeWorkerProcessManager:
                     process_info.last_job_referenced = None
                     process_info.last_control_flag = HordeControlFlag.UNLOAD_MODELS_FROM_VRAM
             else:
-                process_info.safe_send_message(
+                if not process_info.safe_send_message(
                     HordeControlMessage(
                         control_flag=HordeControlFlag.UNLOAD_MODELS_FROM_VRAM,
                     ),
-                )
+                ):
+                    self._replace_inference_process(process_info)
 
     def unload_from_ram(self, process_id: int) -> None:
         """Unload models from a process.
@@ -3181,7 +3186,7 @@ class HordeWorkerProcessManager:
             logger.error(
                 "Too many consecutive failed jobs, pausing job pops. "
                 "Please look into what happened and let the devs know. ",
-                "Waiting 180 seconds...",
+                f"Waiting {self._too_many_consecutive_failed_jobs_wait_time} seconds...",
             )
             if self.bridge_data.exit_on_unhandled_faults:
                 logger.error("Exiting due to exit_on_unhandled_faults being enabled")
@@ -3959,6 +3964,9 @@ class HordeWorkerProcessManager:
                     f"{self._too_many_consecutive_failed_jobs_wait_time} seconds must pass before resuming.",
                 )
 
+            if self._shutting_down:
+                logger.warning("Shutting down after current jobs are finished...")
+
             self._last_status_message_time = time.time()
 
     _bridge_data_loop_interval = 1.0
@@ -4268,7 +4276,6 @@ class HordeWorkerProcessManager:
                     if self._check_and_replace_process(process_info, timeout, state, error_message):
                         any_replaced = True
                         self._recently_recovered = True
-                        break
 
         if any_replaced:
             threading.Thread(target=timed_unset_recently_recovered).start()

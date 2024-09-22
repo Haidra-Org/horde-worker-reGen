@@ -1210,13 +1210,13 @@ class HordeWorkerProcessManager:
 
     def is_time_for_shutdown(self) -> bool:
         """Return true if it is time to shut down."""
-        if (
-            all(
-                inference_process.last_process_state == HordeProcessState.PROCESS_ENDING
-                or inference_process.last_process_state == HordeProcessState.PROCESS_ENDED
-                for inference_process in self._process_map.values()
-            )
-            and not self._recently_recovered
+        if self._recently_recovered:
+            return False
+
+        if all(
+            inference_process.last_process_state == HordeProcessState.PROCESS_ENDING
+            or inference_process.last_process_state == HordeProcessState.PROCESS_ENDED
+            for inference_process in self._process_map.values()
         ):
             return True
 
@@ -2900,6 +2900,9 @@ class HordeWorkerProcessManager:
     _last_job_pop_time = 0.0
     """The time at which the last job was popped from the API."""
 
+    def _last_pop_recently(self) -> bool:
+        return (time.time() - self._last_job_pop_time) < 10
+
     _last_job_submitted_time = time.time()
     """The time at which the last job was submitted to the API."""
 
@@ -3781,9 +3784,59 @@ class HordeWorkerProcessManager:
 
     _last_deadlock_detected_time = 0.0
     _in_deadlock = False
+    _in_queue_deadlock = False
+    _last_queue_deadlock_detected_time = 0.0
+    _queue_deadlock_model: str | None = None
+    _queue_deadlock_process_id: int | None = None
 
     def detect_deadlock(self) -> None:
         """Detect if there are jobs in the queue but no processes doing anything."""
+
+        def _print_deadlock_info() -> None:
+            logger.debug(f"Jobs in queue: {len(self.job_deque)}")
+            logger.debug(f"Jobs in progress: {len(self.jobs_in_progress)}")
+            logger.debug(f"Jobs pending safety check: {len(self.jobs_pending_safety_check)}")
+            logger.debug(f"Jobs being safety checked: {len(self.jobs_being_safety_checked)}")
+            logger.debug(f"Jobs completed: {len(self.completed_jobs)}")
+            logger.debug(f"Jobs faulted: {self._num_jobs_faulted}")
+            logger.debug(f"horde_model_map: {self._horde_model_map}")
+            logger.debug(f"process_map: {self._process_map}")
+
+        if self._last_pop_recently():
+            # We just popped a job, lets allow some time for gears to start turning
+            # before we assume we're in a deadlock
+            return
+
+        if (
+            not self._in_queue_deadlock
+            and (self._process_map.num_busy_processes() == 0 and len(self.job_deque) > 0)
+            and len(self.jobs_in_progress) == 0
+        ):
+
+            currently_loaded_models = set()
+            model_process_map: dict[str, int] = {}
+            for process in self._process_map.values():
+                if process.loaded_horde_model_name is not None:
+                    currently_loaded_models.add(process.loaded_horde_model_name)
+                    model_process_map[process.loaded_horde_model_name] = process.process_id
+
+            for job in self.job_deque:
+                if job.model in currently_loaded_models:
+                    self._in_queue_deadlock = True
+                    self._last_queue_deadlock_detected_time = time.time()
+                    self._queue_deadlock_model = job.model
+                    self._queue_deadlock_process_id = model_process_map[job.model]
+
+        elif self._in_queue_deadlock and (self._last_queue_deadlock_detected_time + 10) < time.time():
+            logger.debug("Queue deadlock detected")
+            _print_deadlock_info()
+            logger.debug(f"Model causing deadlock: {self._queue_deadlock_model}")
+            if self._queue_deadlock_process_id is not None:
+                self._replace_inference_process(self._process_map[self._queue_deadlock_process_id])
+            self._in_queue_deadlock = False
+            self._queue_deadlock_model = None
+            self._queue_deadlock_process_id = None
+
         if (
             (not self._in_deadlock)
             and (len(self.job_deque) > 0 or len(self.jobs_in_progress) > 0 or len(self.jobs_lookup) > 0)
@@ -3792,12 +3845,7 @@ class HordeWorkerProcessManager:
             self._last_deadlock_detected_time = time.time()
             self._in_deadlock = True
             logger.debug("Deadlock detected")
-            logger.debug(f"Jobs in queue: {len(self.job_deque)}")
-            logger.debug(f"Jobs in progress: {len(self.jobs_in_progress)}")
-            logger.debug(f"Jobs pending safety check: {len(self.jobs_pending_safety_check)}")
-            logger.debug(f"Jobs being safety checked: {len(self.jobs_being_safety_checked)}")
-            logger.debug(f"Jobs completed: {len(self.completed_jobs)}")
-            logger.debug(f"Jobs faulted: {self._num_jobs_faulted}")
+            _print_deadlock_info()
         elif (
             self._in_deadlock
             and (self._last_deadlock_detected_time + 10) < time.time()
@@ -4192,50 +4240,13 @@ class HordeWorkerProcessManager:
 
     def replace_hung_processes(self) -> bool:
         """Replaces processes that haven't checked in since `process_timeout` seconds in bridgeData."""
-        now = time.time()
-
-        import threading
-
-        def timed_unset_recently_recovered() -> None:
-            time.sleep(60)
-            self._recently_recovered = False
-
-        # If every process hasn't done anything for a while or if we haven't submitted a job for a while,
-        # AND the last job pop returned a job, we're in a black hole and we need to exit because none of the ways to
-        # recover worked
-        if (
-            all(
-                ((now - process_info.last_received_timestamp) > self.bridge_data.process_timeout)
-                for process_info in self._process_map.values()
-            )
-            or ((now - self._last_job_submitted_time) > self.bridge_data.process_timeout)
-        ) and not (self._last_pop_no_jobs_available or self._recently_recovered):
-            self._purge_jobs()
-
-            if self.bridge_data.exit_on_unhandled_faults:
-                logger.error("All processes have been unresponsive for too long, exiting.")
-
-                self._abort()
-                logger.error("Exiting due to exit_on_unhandled_faults being enabled")
-
-                return True
-
-            logger.error("All processes have been unresponsive for too long, attempting to recover.")
-            self._recently_recovered = True
-
-            for process_info in self._process_map.values():
-                if process_info.process_type == HordeProcessType.INFERENCE:
-                    self._replace_inference_process(process_info)
-
-            threading.Thread(target=timed_unset_recently_recovered).start()
-
-            return True
-
         if self._shutting_down:
             return False
 
         if self._last_pop_no_jobs_available or self._recently_recovered:
             return False
+
+        now = time.time()
 
         any_replaced = False
         for process_info in self._process_map.values():
@@ -4276,6 +4287,41 @@ class HordeWorkerProcessManager:
                     if self._check_and_replace_process(process_info, timeout, state, error_message):
                         any_replaced = True
                         self._recently_recovered = True
+
+        import threading
+
+        def timed_unset_recently_recovered() -> None:
+            time.sleep(self.bridge_data.preload_timeout)
+            self._recently_recovered = False
+
+        # If every process hasn't done anything for a while or if we haven't submitted a job for a while,
+        # AND the last job pop returned a job, we're in a black hole and we need to exit because none of the ways to
+        # recover worked
+        if (
+            all(
+                ((now - process_info.last_received_timestamp) > self.bridge_data.process_timeout)
+                for process_info in self._process_map.values()
+            )
+            or ((now - self._last_job_submitted_time) > self.bridge_data.process_timeout)
+        ) and not (self._last_pop_no_jobs_available or self._recently_recovered):
+            self._purge_jobs()
+
+            if self.bridge_data.exit_on_unhandled_faults:
+                logger.error("All processes have been unresponsive for too long, exiting.")
+
+                self._abort()
+                logger.error("Exiting due to exit_on_unhandled_faults being enabled")
+
+                return True
+
+            logger.error("All processes have been unresponsive for too long, attempting to recover.")
+            self._recently_recovered = True
+
+            for process_info in self._process_map.values():
+                if process_info.process_type == HordeProcessType.INFERENCE:
+                    self._replace_inference_process(process_info)
+
+            threading.Thread(target=timed_unset_recently_recovered).start()
 
         if any_replaced:
             threading.Thread(target=timed_unset_recently_recovered).start()

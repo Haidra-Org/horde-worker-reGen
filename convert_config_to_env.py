@@ -12,6 +12,7 @@ load_env_vars_from_config()
 import argparse
 
 from horde_model_reference.model_reference_manager import ModelReferenceManager
+
 from horde_worker_regen.bridge_data.load_config import BridgeDataLoader, ConfigFormat
 
 

@@ -2,10 +2,10 @@
 import pathlib
 
 import pytest
+from horde_model_reference.model_reference_manager import ModelReferenceManager
 from horde_sdk.generic_api.consts import ANON_API_KEY
 from ruamel.yaml import YAML
 
-from horde_model_reference.model_reference_manager import ModelReferenceManager
 from horde_worker_regen.bridge_data.data_model import reGenBridgeData
 from horde_worker_regen.bridge_data.load_config import BridgeDataLoader, ConfigFormat
 

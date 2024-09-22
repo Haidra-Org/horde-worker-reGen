@@ -3180,8 +3180,8 @@ class HordeWorkerProcessManager:
                 cur_time - self._too_many_consecutive_failed_jobs_time
                 > self._too_many_consecutive_failed_jobs_wait_time
             ):
+                self._consecutive_failed_jobs = 0
                 self._too_many_consecutive_failed_jobs = False
-                self._too_many_consecutive_failed_jobs_time = 0
                 logger.debug("Resuming job pops after too many consecutive failed jobs")
             return
 

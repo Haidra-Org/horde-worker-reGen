@@ -20,7 +20,7 @@ def start_inference_process(
     disk_lock: Lock,
     aux_model_lock: Lock,
     *,
-    low_memory_mode: bool = True,
+    low_memory_mode: bool = False,
     high_memory_mode: bool = False,
     very_high_memory_mode: bool = False,
     amd_gpu: bool = False,

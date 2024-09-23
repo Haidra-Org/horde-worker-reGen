@@ -102,6 +102,52 @@ You can double click the provided script files below from a file explorer or run
 1. Make a copy of `bridgeData_template.yaml` to `bridgeData.yaml`
 1. Edit `bridgeData.yaml` and follow the instructions within to fill in your details.
 
+#### Suggested settings
+
+Models are loaded as needed and just-in-time. You can offer as many models as you want **provided you have an SSD, at least 32gb of ram, and at least 8gb of VRAM (see [Important Info](#important-info)**. Workers with HDDs are not recommended at this time but those with HDDs should run exactly 1 model. A typical SD1.5 model is around 2gb each, while a typical SDXL model is around 7gb each. Offering `all` models is currently around 700gb total and we commit to keeping that number below 1TB with any future changes.
+
+> Note: We suggest you disable any 'sleep' or reduced power modes for your system while the worker is running.
+
+- If you have a **24gb+ vram card**:
+  ```yaml
+  - safety_on_gpu: true
+  - high_memory_mode: true
+  - high_performance_mode: true
+  - post_process_job_overlap: true
+  - unload_models_from_vram_often: false
+  - max_threads: 1 # If you have Flux/Cascade loaded, otherwise 2 max
+  - queue_size: 2 # You can set to 3 if you have 64GB or more of RAM
+  - max_batch: 8 # or higher
+
+- If you have a **12gb - 16gb card**:
+  ```yaml
+  - safety_on_gpu: true # Consider setting to `false` if offering Cascade or Flux
+  - high_memory_mode: true
+  - moderate_performance_mode: true
+  - unload_models_from_vram_often: false
+  - max_threads: 1
+  - max_batch: 4 # or higher
+
+- If you have an **8gb-10gb vram card**:
+  - ```yaml
+    - queue_size: 1 # max **or** only offer flux
+    - safety_on_gpu: false
+    - max_threads: 1
+    - max_power: 32 # no higher than 32
+    - max_batch: 4 # no higher than 4
+    - allow_post_processing: false # If offering SDXL or Flux, otherwise you may set to true
+    - allow_sdxl_controlnet: false 
+
+  - Be sure to shut every single VRAM consuming application you can and do not use the computer with the worker running for any purpose.
+
+- Workers which have **low end cards or have low performance for other reasons**:
+  ```yaml
+  - extra_slow_worker: true
+    # gives you considerably more time to finish job, but requests will not go to your worker unless the requester opts-in (even anon users do not use extra_slow_workers by default). You should only consider using this if you have historically had less than 0.3 MPS/S or less than 3000 kudos/hr consistently **and** you are sure the worker is otherwise configured correctly.
+  - limit_max_steps: true
+    # reduces the maximum total number of steps in a single job you will receive based on the model baseline.
+  - preload_timeout: 120
+    # gives you more time to load models off disk. **Note**: Abusing this value can lead to a major loss of kudos and may also lead to maintainance mode, even with `extra_slow_worker: true`.
 
 ### Starting/stopping
 

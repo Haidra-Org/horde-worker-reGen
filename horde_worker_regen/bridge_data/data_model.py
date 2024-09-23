@@ -78,6 +78,8 @@ class reGenBridgeData(CombinedHordeBridgeData):
 
     remove_maintenance_on_init: bool = Field(default=False)
 
+    load_large_models: bool = Field(default=False)
+
     custom_models: list[dict] = Field(
         default_factory=list,
     )
@@ -258,6 +260,9 @@ class reGenBridgeData(CombinedHordeBridgeData):
 
         if self.max_lora_cache_size and os.getenv("AIWORKER_LORA_CACHE_SIZE") is None:
             os.environ["AIWORKER_LORA_CACHE_SIZE"] = str(self.max_lora_cache_size * 1024)
+
+        if self.load_large_models:
+            os.environ["AI_HORDE_MODEL_META_LARGE_MODELS"] = "true"
 
     def save(self, file_path: str) -> None:
         """Save the config model to a file.

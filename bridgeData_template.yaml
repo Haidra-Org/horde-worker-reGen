@@ -284,5 +284,3 @@ forms:
   # Heavier than the others, but rewards more kudos
   - "interrogation"
   - "post-process"
-
-# Be sure to shut every single VRAM consuming application you can and do not use the computer with the worker running for any purpose.

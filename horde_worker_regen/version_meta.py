@@ -80,7 +80,7 @@ def do_version_check() -> None:
             logger.warning(
                 f"Current worker version {horde_worker_regen.__version__} has a required update to "
                 f"{version_meta.required_min_version}. "
-                f"Please update to the required version by {version_meta.required_min_version_update_date}.",
+                f"Please update to the required version by 00:00 {version_meta.required_min_version_update_date} UTC.",
             )
             logger.warning(reason_for_update_str)
 

@@ -141,13 +141,12 @@ Models are loaded as needed and just-in-time. You can offer as many models as yo
   - Be sure to shut every single VRAM consuming application you can and do not use the computer with the worker running for any purpose.
 
 - Workers which have **low end cards or have low performance for other reasons**:
-  ```yaml
-  - extra_slow_worker: true
-    # gives you considerably more time to finish job, but requests will not go to your worker unless the requester opts-in (even anon users do not use extra_slow_workers by default). You should only consider using this if you have historically had less than 0.3 MPS/S or less than 3000 kudos/hr consistently **and** you are sure the worker is otherwise configured correctly.
-  - limit_max_steps: true
-    # reduces the maximum total number of steps in a single job you will receive based on the model baseline.
-  - preload_timeout: 120
-    # gives you more time to load models off disk. **Note**: Abusing this value can lead to a major loss of kudos and may also lead to maintainance mode, even with `extra_slow_worker: true`.
+  - `- extra_slow_worker: true`
+    - gives you considerably more time to finish job, but requests will not go to your worker unless the requester opts-in (even anon users do not use extra_slow_workers by default). You should only consider using this if you have historically had less than 0.3 MPS/S or less than 3000 kudos/hr consistently **and** you are sure the worker is otherwise configured correctly.
+  - `- limit_max_steps: true`
+    - reduces the maximum total number of steps in a single job you will receive based on the model baseline.
+  - `- preload_timeout: 120`
+    - gives you more time to load models off disk. **Note**: Abusing this value can lead to a major loss of kudos and may also lead to maintainance mode, even with `extra_slow_worker: true`.
 
 ### Starting/stopping
 

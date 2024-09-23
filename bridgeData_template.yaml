@@ -250,7 +250,7 @@ models_to_skip:
 suppress_speed_warnings: false # Currently unused in reGen
 
 # Exit if an unhandled fault occurs. Useful for setting up the worker as a system service.
-exit_on_unhandled_faults: false 
+exit_on_unhandled_faults: false
 
 #########################
 ## Scribe (LLM Worker) ##

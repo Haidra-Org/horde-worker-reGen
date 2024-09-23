@@ -1,8 +1,11 @@
 {
-    "recommended_version": "9.0.0",
-    "required_min_version": "4.2.7",
-    "required_min_version_update_date": "2024-03-09",
+    "recommended_version": "9.0.2",
+    "required_min_version": "9.0.2",
+    "required_min_version_update_date": "2024-09-26",
     "required_min_version_info": {
+        "9.0.2": {
+            "reason_for_update": "Flux Baseline support is incompatible with older workers."
+        },
         "4.1.9": {
             "reason_for_update": "Model reference handling is changing. Older workers will not be able to handle the new model reference format."
         },

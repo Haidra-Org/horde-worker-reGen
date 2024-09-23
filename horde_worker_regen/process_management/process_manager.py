@@ -3163,6 +3163,8 @@ class HordeWorkerProcessManager:
         return job_pop_response
 
     _last_pop_no_jobs_available: bool = False
+    _last_pop_no_jobs_available_time: float = 0.0
+    _time_spent_no_jobs_available: float = 0.0
     _too_many_consecutive_failed_jobs: bool = False
     _too_many_consecutive_failed_jobs_time: float = 0.0
     _too_many_consecutive_failed_jobs_wait_time = 180
@@ -3397,12 +3399,20 @@ class HordeWorkerProcessManager:
 
         if job_pop_response.id_ is None:
             logger.info(info_string)
+            cur_time = time.time()
+            if self._last_pop_no_jobs_available_time == 0.0:
+                self._last_pop_no_jobs_available_time = cur_time
+
+            self._time_spent_no_jobs_available += cur_time - self._last_pop_no_jobs_available_time
+            self._last_pop_no_jobs_available_time = cur_time
+
             self._last_pop_no_jobs_available = True
             return
 
         self.job_faults[job_pop_response.id_] = []
 
         self._last_pop_no_jobs_available = False
+        self._last_pop_no_jobs_available_time = 0.0
 
         logger.info(
             f"Popped job {job_pop_response.id_} "
@@ -3949,6 +3959,7 @@ class HordeWorkerProcessManager:
                     f"faulted: {self._num_jobs_faulted}",
                     f"slow_jobs: {self._num_job_slowdowns}",
                     f"process_recoveries: {self._num_process_recoveries}",
+                    f"{self._time_spent_no_jobs_available:.2f} seconds without jobs",
                 ],
             )
 
@@ -4008,8 +4019,15 @@ class HordeWorkerProcessManager:
                     "Please check your logs and configuration.",
                 )
                 logger.error(
-                    f"Time since last job failure: {time_since_failure:.2f}s). "
+                    f"Time since last job failure: {time_since_failure:.2f}s. "
                     f"{self._too_many_consecutive_failed_jobs_wait_time} seconds must pass before resuming.",
+                )
+
+            if self._time_spent_no_jobs_available > 60 * 5:
+                logger.warning(
+                    "Your worker spent more than 5 minutes without jobs. This may be due to low demand. "
+                    "However, offering more models or increasing your max_power may help increase the number of jobs "
+                    "you receive.",
                 )
 
             if self._shutting_down:

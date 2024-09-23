@@ -136,7 +136,7 @@ Models are loaded as needed and just-in-time. You can offer as many models as yo
     - max_power: 32 # no higher than 32
     - max_batch: 4 # no higher than 4
     - allow_post_processing: false # If offering SDXL or Flux, otherwise you may set to true
-    - allow_sdxl_controlnet: false 
+    - allow_sdxl_controlnet: false
 
   - Be sure to shut every single VRAM consuming application you can and do not use the computer with the worker running for any purpose.
 

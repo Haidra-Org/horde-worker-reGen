@@ -226,6 +226,12 @@ models_to_load:
   #- "Anything Diffusion"
   #- "stable_diffusion_inpainting"
 
+# If you use a meta command, such as ALL or TOP n, you can allow very large models, such as cascade or flux to be included.
+# By default, these models are excluded due to their large size.
+# Set to true if have a 24GB card and want to include these models.
+# Otherwise, I suggest including the models you know you can handle manually.
+load_large_models: false
+
 # Models to skip when `dynamic_models` is true or TOP n models are selected in models_to_load.
 # Avoid loading models due to VRAM constraints, NSFW content, or other reasons.
 models_to_skip:

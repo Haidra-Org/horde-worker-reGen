@@ -1806,23 +1806,25 @@ class HordeWorkerProcessManager:
                     completed_job_info.state = GENERATION_STATE.faulted
                 elif num_images_censored > 0:
                     completed_job_info.censored = True
-                    if num_images_csam > 0:
-                        new_meta_entry = GenMetadataEntry(
-                            type=METADATA_TYPE.censorship,
-                            value=METADATA_VALUE.csam,
-                        )
-                        completed_job_info.job_image_results[i].generation_faults.append(new_meta_entry)
-                        completed_job_info.state = GENERATION_STATE.csam
-                    else:
-                        new_meta_entry = GenMetadataEntry(
-                            type=METADATA_TYPE.censorship,
-                            value=METADATA_VALUE.nsfw,
-                        )
-                        completed_job_info.job_image_results[i].generation_faults.append(new_meta_entry)
-                        completed_job_info.state = GENERATION_STATE.censored
+                    for i in range(len(completed_job_info.job_image_results)):
+                        if message.safety_evaluations[i].is_csam:
+                            new_meta_entry = GenMetadataEntry(
+                                type=METADATA_TYPE.censorship,
+                                value=METADATA_VALUE.csam,
+                            )
+                            completed_job_info.job_image_results[i].generation_faults.append(new_meta_entry)
+                            completed_job_info.state = GENERATION_STATE.csam
+                        elif message.safety_evaluations[i].is_nsfw:
+                            new_meta_entry = GenMetadataEntry(
+                                type=METADATA_TYPE.censorship,
+                                value=METADATA_VALUE.nsfw,
+                            )
+                            completed_job_info.job_image_results[i].generation_faults.append(new_meta_entry)
+                            if completed_job_info.state != GENERATION_STATE.csam:
+                                completed_job_info.state = GENERATION_STATE.censored
                 else:
                     completed_job_info.censored = False
-
+                # logger.debug([c.generation_faults for c in completed_job_info.job_image_results])
                 self.completed_jobs.append(completed_job_info)
 
     def preload_models(self) -> bool:

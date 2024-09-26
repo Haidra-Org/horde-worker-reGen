@@ -223,6 +223,7 @@ disable_disk_cache: false # Currently unused in reGen
 #   "ALL NSFW MODELS" - All models marked as NSFW.
 # The official model reference (in JSON format) is at https://github.com/Haidra-Org/AI-Horde-image-model-reference/blob/main/stable_diffusion.json.
 # The model name must match the name in the model reference or be a magic constant.
+# If you use `TOP` or `ALL` load commands, you should set a `civitai_api_token`. See that configuration entry for more information.
 models_to_load:
   - "top 2"
   #- "ALL MODELS"

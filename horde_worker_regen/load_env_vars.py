@@ -57,6 +57,21 @@ def load_env_vars_from_config() -> None:  # FIXME: there is a dynamic way to do 
                 "This will override the value for `civitai_api_token` in the config file.",
             )
 
+    if "horde_url" in config:
+        known_ai_horde_urls = [
+            "stablehorde.net",
+            "aihorde.net",
+        ]
+
+        custom_horde_url = config["horde_url"]
+        if custom_horde_url and any(url in custom_horde_url for url in known_ai_horde_urls):
+            logger.debug("Using default AI Horde URL.")
+        else:
+            logger.warning(
+                f"Using custom AI Horde URL `{custom_horde_url}`. Make sure this is correct and ends in `/api/`.",
+            )
+            os.environ["AI_HORDE_URL"] = custom_horde_url
+
 
 if __name__ == "__main__":
     load_env_vars_from_config()

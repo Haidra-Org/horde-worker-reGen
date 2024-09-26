@@ -5,7 +5,7 @@
 # !!!  !!!  !!!  !!!  !!!  !!!  !!!  !!!  !!!  !!!  !!!  !!!  !!!  !!!  !!!  !!!  !!!
 
 # The Horde URL. Do not change this unless you are using a custom Horde.
-horde_url: "https://aihorde.net"
+horde_url: "https://aihorde.net/api/"
 
 # The API key identifies a unique user in the Horde
 # Visit https://aihorde.net/register to create one before you can join

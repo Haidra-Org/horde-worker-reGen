@@ -1819,6 +1819,7 @@ class HordeWorkerProcessManager:
                                 type=METADATA_TYPE.information,
                                 value=METADATA_VALUE.nsfw,
                             )
+                            completed_job_info.job_image_results[i].generation_faults.append(new_meta_entry)
                             if message.safety_evaluations[i].replacement_image_base64 is not None:
                                 new_meta_entry = GenMetadataEntry(
                                     type=METADATA_TYPE.censorship,

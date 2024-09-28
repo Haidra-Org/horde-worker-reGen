@@ -1814,14 +1814,19 @@ class HordeWorkerProcessManager:
                             )
                             completed_job_info.job_image_results[i].generation_faults.append(new_meta_entry)
                             completed_job_info.state = GENERATION_STATE.csam
-                        elif message.safety_evaluations[i].is_nsfw and message.safety_evaluations[i].replacement_image_base64 is not None:
+                        elif message.safety_evaluations[i].is_nsfw:
                             new_meta_entry = GenMetadataEntry(
-                                type=METADATA_TYPE.censorship,
+                                type=METADATA_TYPE.information,
                                 value=METADATA_VALUE.nsfw,
                             )
-                            completed_job_info.job_image_results[i].generation_faults.append(new_meta_entry)
-                            if completed_job_info.state != GENERATION_STATE.csam:
-                                completed_job_info.state = GENERATION_STATE.censored
+                            if message.safety_evaluations[i].replacement_image_base64 is not None:
+                                new_meta_entry = GenMetadataEntry(
+                                    type=METADATA_TYPE.censorship,
+                                    value=METADATA_VALUE.nsfw,
+                                )
+                                completed_job_info.job_image_results[i].generation_faults.append(new_meta_entry)
+                                if completed_job_info.state != GENERATION_STATE.csam:
+                                    completed_job_info.state = GENERATION_STATE.censored
                 else:
                     completed_job_info.censored = False
                 # logger.debug([c.generation_faults for c in completed_job_info.job_image_results])

@@ -1814,7 +1814,7 @@ class HordeWorkerProcessManager:
                             )
                             completed_job_info.job_image_results[i].generation_faults.append(new_meta_entry)
                             completed_job_info.state = GENERATION_STATE.csam
-                        elif message.safety_evaluations[i].is_nsfw:
+                        elif message.safety_evaluations[i].is_nsfw and message.safety_evaluations[i].replacement_image_base64 is not None:
                             new_meta_entry = GenMetadataEntry(
                                 type=METADATA_TYPE.censorship,
                                 value=METADATA_VALUE.nsfw,

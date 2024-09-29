@@ -3408,15 +3408,14 @@ class HordeWorkerProcessManager:
         info_string += f"(Skipped reasons: {job_pop_response.skipped.model_dump(exclude_defaults=True)})"
 
         if job_pop_response.id_ is None:
-            logger.info(info_string)
-            cur_time = time.time()
-            if self._last_pop_no_jobs_available_time == 0.0:
-                self._last_pop_no_jobs_available_time = cur_time
-
-            self._time_spent_no_jobs_available += cur_time - self._last_pop_no_jobs_available_time
-            self._last_pop_no_jobs_available_time = cur_time
-
             self._last_pop_no_jobs_available = True
+            logger.info(info_string)
+            if len(self.job_deque) == 0:
+                if self._last_pop_no_jobs_available_time == 0.0:
+                    self._last_pop_no_jobs_available_time = cur_time
+
+                self._time_spent_no_jobs_available += cur_time - self._last_pop_no_jobs_available_time
+                self._last_pop_no_jobs_available_time = cur_time
             return
 
         self.job_faults[job_pop_response.id_] = []

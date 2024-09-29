@@ -2491,6 +2491,7 @@ class HordeWorkerProcessManager:
                 logger.debug(f"{type(e).__name__}: {e}")
                 new_submit.retry()
                 return new_submit
+
         metadata = []
         if new_submit.image_result is not None:
             metadata = new_submit.image_result.generation_faults
@@ -2510,13 +2511,15 @@ class HordeWorkerProcessManager:
             logger.error(f"Job {new_submit.job_id} has no state, assuming faulted")
             new_submit.completed_job_info.state = GENERATION_STATE.faulted
             return new_submit
+            
+        censored = any(meta["type"] == "censorship" for meta in metadata)
         submit_job_request = submit_job_request_type(
             apikey=self.bridge_data.api_key,
             id=new_submit.job_id,
             seed=seed,
             generation="R2",  # TODO # FIXME
             state=new_submit.completed_job_info.state,
-            censored=bool(new_submit.completed_job_info.censored),  # TODO: is this cast problematic?
+            censored=censored,
             gen_metadata=metadata,
         )
         logger.debug(f"Submitting job {new_submit.job_id}")

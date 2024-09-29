@@ -1804,32 +1804,34 @@ class HordeWorkerProcessManager:
 
                 if any_safety_failed:
                     completed_job_info.state = GENERATION_STATE.faulted
-                elif num_images_censored > 0:
-                    completed_job_info.censored = True
-                    for i in range(len(completed_job_info.job_image_results)):
-                        if message.safety_evaluations[i].is_csam:
-                            new_meta_entry = GenMetadataEntry(
-                                type=METADATA_TYPE.censorship,
-                                value=METADATA_VALUE.csam,
-                            )
-                            completed_job_info.job_image_results[i].generation_faults.append(new_meta_entry)
-                            completed_job_info.state = GENERATION_STATE.csam
-                        elif message.safety_evaluations[i].is_nsfw:
+                completed_job_info.censored = False
+                for i in range(len(completed_job_info.job_image_results)):
+                    if message.safety_evaluations[i].is_csam:
+                        new_meta_entry = GenMetadataEntry(
+                            type=METADATA_TYPE.censorship,
+                            value=METADATA_VALUE.csam,
+                        )
+                        completed_job_info.job_image_results[i].generation_faults.append(new_meta_entry)
+                        completed_job_info.state = GENERATION_STATE.csam
+                        completed_job_info.censored = True
+                    elif message.safety_evaluations[i].is_nsfw:
+                        # This just marks images as nsfw, if not censored already
+                        if message.safety_evaluations[i].replacement_image_base64 is None:
                             new_meta_entry = GenMetadataEntry(
                                 type=METADATA_TYPE.information,
                                 value=METADATA_VALUE.nsfw,
                             )
                             completed_job_info.job_image_results[i].generation_faults.append(new_meta_entry)
-                            if message.safety_evaluations[i].replacement_image_base64 is not None:
-                                new_meta_entry = GenMetadataEntry(
-                                    type=METADATA_TYPE.censorship,
-                                    value=METADATA_VALUE.nsfw,
-                                )
-                                completed_job_info.job_image_results[i].generation_faults.append(new_meta_entry)
-                                if completed_job_info.state != GENERATION_STATE.csam:
-                                    completed_job_info.state = GENERATION_STATE.censored
-                else:
-                    completed_job_info.censored = False
+                        else:
+                            new_meta_entry = GenMetadataEntry(
+                                type=METADATA_TYPE.censorship,
+                                value=METADATA_VALUE.nsfw,
+                            )
+                            completed_job_info.job_image_results[i].generation_faults.append(new_meta_entry)
+                            completed_job_info.censored = True
+                            if completed_job_info.state != GENERATION_STATE.csam:
+                                completed_job_info.state = GENERATION_STATE.censored
+
                 # logger.debug([c.generation_faults for c in completed_job_info.job_image_results])
                 self.completed_jobs.append(completed_job_info)
 

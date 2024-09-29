@@ -261,7 +261,7 @@ models_to_skip:
 # Suppress speed warnings if jobs are taking too long.
 # Note: If you are getting these messages, you are serving jobs much slower than ideal.
 # Lower your max_power for more kudos/hr.
-suppress_speed_warnings: false # Currently unused in reGen
+suppress_speed_warnings: false
 
 # Exit if an unhandled fault occurs. Useful for setting up the worker as a system service.
 exit_on_unhandled_faults: false

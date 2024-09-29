@@ -50,6 +50,8 @@ class reGenBridgeData(CombinedHordeBridgeData):
     download_timeout: int = Field(default=TOTAL_LORA_DOWNLOAD_TIMEOUT + 1)
     preload_timeout: int = Field(default=60, ge=15)
 
+    minutes_allowed_without_jobs: int = Field(default=30, ge=0, lt=60 * 60)
+
     horde_model_stickiness: float = Field(default=0.0, le=1.0, ge=0.0, alias="model_stickiness")
     """
     A percent chance (expressed as a decimal between 0 and 1) that the currently loaded models will

@@ -3408,15 +3408,14 @@ class HordeWorkerProcessManager:
         info_string += f"(Skipped reasons: {job_pop_response.skipped.model_dump(exclude_defaults=True)})"
 
         if job_pop_response.id_ is None:
-            logger.info(info_string)
-            cur_time = time.time()
-            if self._last_pop_no_jobs_available_time == 0.0:
-                self._last_pop_no_jobs_available_time = cur_time
-
-            self._time_spent_no_jobs_available += cur_time - self._last_pop_no_jobs_available_time
-            self._last_pop_no_jobs_available_time = cur_time
-
             self._last_pop_no_jobs_available = True
+            logger.info(info_string)
+            if len(self.job_deque) == 0:
+                if self._last_pop_no_jobs_available_time == 0.0:
+                    self._last_pop_no_jobs_available_time = cur_time
+
+                self._time_spent_no_jobs_available += cur_time - self._last_pop_no_jobs_available_time
+                self._last_pop_no_jobs_available_time = cur_time
             return
 
         self.job_faults[job_pop_response.id_] = []
@@ -3889,7 +3888,8 @@ class HordeWorkerProcessManager:
 
     def print_status_method(self) -> None:
         """Print the status of the worker if it's time to do so."""
-        if time.time() - self._last_status_message_time > self._status_message_frequency:
+        cur_time = time.time()
+        if cur_time - self._last_status_message_time > self._status_message_frequency:
             process_info_strings = self._process_map.get_process_info_strings()
             logger.info("Process info:")
             for process_info_string in process_info_strings:
@@ -4023,7 +4023,7 @@ class HordeWorkerProcessManager:
                     )
 
             if self._too_many_consecutive_failed_jobs:
-                time_since_failure = time.time() - self._too_many_consecutive_failed_jobs_time
+                time_since_failure = cur_time - self._too_many_consecutive_failed_jobs_time
                 logger.error(
                     "Too many consecutive failed jobs. This may be due to a misconfiguration or other issue. "
                     "Please check your logs and configuration.",
@@ -4033,17 +4033,27 @@ class HordeWorkerProcessManager:
                     f"{self._too_many_consecutive_failed_jobs_wait_time} seconds must pass before resuming.",
                 )
 
-            if self._time_spent_no_jobs_available > 60 * 5:
-                logger.warning(
-                    "Your worker spent more than 5 minutes without jobs. This may be due to low demand. "
-                    "However, offering more models or increasing your max_power may help increase the number of jobs "
-                    "you receive.",
-                )
+            minutes_allowed_without_jobs = self.bridge_data.minutes_allowed_without_jobs
+            seconds_allowed_without_jobs = minutes_allowed_without_jobs * 60
+            cur_session_minutes = (cur_time - self.session_start_time) / 60
+            if self._time_spent_no_jobs_available > seconds_allowed_without_jobs:
+                if not self.bridge_data.suppress_speed_warnings:
+                    logger.warning(
+                        f"Your worker spent more than {minutes_allowed_without_jobs} minutes combined throughout this "
+                        f"session ({cur_session_minutes:.2f} minutes) "
+                        "without jobs. This may be due to low demand. However, offering more models or increasing "
+                        "your max_power may help increase the number of jobs you receive and reduce downtime.",
+                    )
+                else:
+                    logger.debug(
+                        "Suppressed warning about time spent without jobs "
+                        f"for {minutes_allowed_without_jobs} minutes",
+                    )
 
             if self._shutting_down:
                 logger.warning("Shutting down after current jobs are finished...")
 
-            self._last_status_message_time = time.time()
+            self._last_status_message_time = cur_time
 
     _bridge_data_loop_interval = 1.0
     _last_bridge_data_reload_time = 0.0

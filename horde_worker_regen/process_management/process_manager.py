@@ -3888,7 +3888,8 @@ class HordeWorkerProcessManager:
 
     def print_status_method(self) -> None:
         """Print the status of the worker if it's time to do so."""
-        if time.time() - self._last_status_message_time > self._status_message_frequency:
+        cur_time = time.time()
+        if cur_time - self._last_status_message_time > self._status_message_frequency:
             process_info_strings = self._process_map.get_process_info_strings()
             logger.info("Process info:")
             for process_info_string in process_info_strings:
@@ -4022,7 +4023,7 @@ class HordeWorkerProcessManager:
                     )
 
             if self._too_many_consecutive_failed_jobs:
-                time_since_failure = time.time() - self._too_many_consecutive_failed_jobs_time
+                time_since_failure = cur_time - self._too_many_consecutive_failed_jobs_time
                 logger.error(
                     "Too many consecutive failed jobs. This may be due to a misconfiguration or other issue. "
                     "Please check your logs and configuration.",
@@ -4034,12 +4035,14 @@ class HordeWorkerProcessManager:
 
             minutes_allowed_without_jobs = self.bridge_data.minutes_allowed_without_jobs
             seconds_allowed_without_jobs = minutes_allowed_without_jobs * 60
+            cur_session_minutes = (cur_time - self.session_start_time) / 60
             if self._time_spent_no_jobs_available > seconds_allowed_without_jobs:
                 if not self.bridge_data.suppress_speed_warnings:
                     logger.warning(
-                        f"Your worker spent more than {minutes_allowed_without_jobs} minutes without jobs. "
-                        "This may be due to low demand. However, offering more models or increasing your max_power "
-                        "may help increase the number of jobs you receive and reduce downtime.",
+                        f"Your worker spent more than {minutes_allowed_without_jobs} minutes combined throughout this "
+                        f"session ({cur_session_minutes:.2f} minutes) "
+                        "without jobs. This may be due to low demand. However, offering more models or increasing "
+                        "your max_power may help increase the number of jobs you receive and reduce downtime.",
                     )
                 else:
                     logger.debug(
@@ -4050,7 +4053,7 @@ class HordeWorkerProcessManager:
             if self._shutting_down:
                 logger.warning("Shutting down after current jobs are finished...")
 
-            self._last_status_message_time = time.time()
+            self._last_status_message_time = cur_time
 
     _bridge_data_loop_interval = 1.0
     _last_bridge_data_reload_time = 0.0

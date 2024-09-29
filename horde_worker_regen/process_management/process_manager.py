@@ -2512,7 +2512,7 @@ class HordeWorkerProcessManager:
             new_submit.completed_job_info.state = GENERATION_STATE.faulted
             return new_submit
             
-        censored = any(meta["type"] == "censorship" for meta in metadata)
+        censored = any(meta.get("type") == "censorship" for meta in metadata)
         submit_job_request = submit_job_request_type(
             apikey=self.bridge_data.api_key,
             id=new_submit.job_id,

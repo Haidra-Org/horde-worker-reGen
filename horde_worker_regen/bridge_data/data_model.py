@@ -50,7 +50,7 @@ class reGenBridgeData(CombinedHordeBridgeData):
     download_timeout: int = Field(default=TOTAL_LORA_DOWNLOAD_TIMEOUT + 1)
     preload_timeout: int = Field(default=60, ge=15)
 
-    minutes_allowed_without_jobs = Field(default=30, ge=0, lt=60 * 60)
+    minutes_allowed_without_jobs: int = Field(default=30, ge=0, lt=60 * 60)
 
     horde_model_stickiness: float = Field(default=0.0, le=1.0, ge=0.0, alias="model_stickiness")
     """

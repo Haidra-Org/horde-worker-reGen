@@ -8,6 +8,7 @@ import multiprocessing
 import os
 import queue
 import random
+import ssl
 import sys
 import time
 from asyncio import CancelledError, Task
@@ -22,6 +23,7 @@ from multiprocessing.synchronize import Semaphore
 
 import aiohttp
 import aiohttp.client_exceptions
+import certifi
 import PIL
 import PIL.Image
 import psutil
@@ -88,6 +90,8 @@ from horde_worker_regen.process_management.messages import (
     ModelLoadState,
 )
 from horde_worker_regen.process_management.worker_entry_points import start_inference_process, start_safety_process
+
+sslcontext = ssl.create_default_context(cafile=certifi.where())
 
 # This is due to Linux/Windows differences in the multiprocessing module
 try:
@@ -2469,6 +2473,7 @@ class HordeWorkerProcessManager:
                     data=image_in_buffer_bytes,
                     skip_auto_headers=["content-type"],
                     timeout=aiohttp.ClientTimeout(total=10),
+                    ssl=sslcontext,
                 ) as response:
                     if response.status != 200:
                         logger.error(f"Failed to upload image to R2: {response}")

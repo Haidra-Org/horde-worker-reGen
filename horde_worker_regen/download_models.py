@@ -171,5 +171,6 @@ def download_all_models(
 
     if any_compvis_model_failed_to_download:
         logger.error("Failed to download all models.")
+        exit(1)
     else:
         logger.success("Downloaded all compvis (Stable Diffusion) models.")

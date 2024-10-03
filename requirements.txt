@@ -2,10 +2,10 @@ numpy==1.26.4
 torch==2.4.1
 qrcode==7.4.2
 
-horde_sdk~=0.14.11
+horde_sdk~=0.15.0
 horde_safety~=0.2.3
-horde_engine~=2.15.3
-horde_model_reference>=0.9.0
+horde_engine~=2.16.0
+horde_model_reference>=0.9.1
 
 python-dotenv
 ruamel.yaml

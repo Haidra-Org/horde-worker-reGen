@@ -585,13 +585,11 @@ class HordeInferenceProcess(HordeProcess):
 
         if results is not None:
             for result in results:
-                buffered_image = io.BytesIO()
-                if result.image is None:
+                if result.rawpng is None:
                     logger.critical("Result or result image is None")
                     continue
 
-                result.image.save(buffered_image, format="PNG")
-                image_base64 = base64.b64encode(buffered_image.getvalue()).decode("utf-8")
+                image_base64 = base64.b64encode(result.rawpng.getvalue()).decode("utf-8")
                 all_image_results.append(
                     HordeImageResult(
                         image_base64=image_base64,

@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.3.2-runtime-ubuntu22.04
+FROM nvidia/cuda:12.4.0-runtime-ubuntu22.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -25,6 +25,6 @@ RUN git clone https://github.com/Haidra-Org/horde-worker-reGen.git && \
 CMD cd /horde-worker-reGen && \
     git pull && \
     . venv/bin/activate && \
-    python -m pip install -r requirements.txt opencv-python-headless -U && \
+    python -m pip install -r requirements.txt -U && \
     python download_models.py -e && \
     python run_worker.py -e

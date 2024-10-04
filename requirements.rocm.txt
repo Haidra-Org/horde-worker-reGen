@@ -4,7 +4,7 @@ torch==2.4.1+rocm6.0
 horde_sdk~=0.15.1
 horde_safety~=0.2.3
 horde_engine~=2.16.0
-horde_model_reference~=0.9.0
+horde_model_reference~=0.9.1
 
 python-dotenv
 ruamel.yaml

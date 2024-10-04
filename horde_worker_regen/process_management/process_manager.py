@@ -3331,11 +3331,11 @@ class HordeWorkerProcessManager:
                 seconds_to_wait = self.get_pending_megapixelsteps() * 0.9
 
             if self.bridge_data.max_threads > 1:
-                seconds_to_wait *= 0.25
+                seconds_to_wait *= 0.75
 
             if self.bridge_data.high_performance_mode:
-                seconds_to_wait *= 0.25
-                if seconds_to_wait < 20:
+                seconds_to_wait *= 0.35
+                if seconds_to_wait < 25:
                     seconds_to_wait = 1
             elif self.bridge_data.moderate_performance_mode:
                 seconds_to_wait *= 0.5

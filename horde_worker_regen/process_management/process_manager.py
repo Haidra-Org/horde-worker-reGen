@@ -486,6 +486,18 @@ class ProcessMap(dict[int, HordeProcessInfo]):
                 count += 1
         return count
 
+    def num_loaded_inference_processes(self) -> int:
+        """Return the number of inference processes that haven't been ended."""
+        count = 0
+        for p in self.values():
+            if (
+                p.process_type == HordeProcessType.INFERENCE
+                and p.last_process_state != HordeProcessState.PROCESS_ENDING
+                and p.last_process_state != HordeProcessState.PROCESS_ENDED
+            ):
+                count += 1
+        return count
+
     def num_available_inference_processes(self) -> int:
         """Return the number of inference processes that are available to accept jobs."""
         count = 0
@@ -3878,7 +3890,14 @@ class HordeWorkerProcessManager:
 
                     #  self.unload_models()
 
-                    if self._shutting_down:
+                    is_job_and_one_inference_process = (
+                        len(self.job_deque) >= 1 and self._process_map.num_loaded_inference_processes() == 1
+                    )
+
+                    if self._shutting_down and not self._last_pop_recently() and not is_job_and_one_inference_process:
+                        # We want to avoid too aggressively killing inference processes
+                        # while we still have jobs to process, so we'll make sure at least 1 process stays up
+                        # while we have jobs to process
                         self.end_inference_processes()
 
                     if self.is_time_for_shutdown():

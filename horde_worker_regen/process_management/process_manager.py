@@ -2068,6 +2068,8 @@ class HordeWorkerProcessManager:
 
         if self._horde_model_map.is_model_loaded(next_job.model):
             if process_with_model is None:
+                if self._preload_delay_notified:
+                    return None
                 handle_process_missing(next_job)
                 return None
 

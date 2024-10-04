@@ -1875,6 +1875,8 @@ class HordeWorkerProcessManager:
                 # logger.debug([c.generation_faults for c in completed_job_info.job_image_results])
                 self.completed_jobs.append(completed_job_info)
 
+    _preload_delay_notified = False
+
     def preload_models(self) -> bool:
         """Preload models that are likely to be used soon.
 
@@ -1964,8 +1966,10 @@ class HordeWorkerProcessManager:
                     f"Already preloading {num_preloading_processes} models, waiting for one to finish before "
                     f"preloading {job.model}",
                 )
+                self._preload_delay_notified = True
                 return False
 
+            self._preload_delay_notified = False
             logger.debug(f"Preloading model {job.model} on process {available_process.process_id}")
             logger.debug(f"Available inference processes: {self._process_map}")
             only_active_models = {

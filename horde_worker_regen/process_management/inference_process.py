@@ -351,13 +351,14 @@ class HordeInferenceProcess(HordeProcess):
             seamless_tiling_enabled (bool): Whether or not seamless tiling is enabled.
             job_info (ImageGenerateJobPopResponse): The job to preload the model for.
         """
+        logger.debug(f"Currently active model is {self._active_model_name}. Requested model is {horde_model_name}")
+
         if self._active_model_name == horde_model_name:
             return
 
         if self._is_busy:
             logger.warning("Cannot preload model while busy")
 
-        logger.debug(f"Currently active model is {self._active_model_name}")
         logger.debug(f"Preloading model {horde_model_name}")
 
         if self._active_model_name is not None:

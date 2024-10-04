@@ -1,10 +1,10 @@
 numpy==1.26.4
 torch==2.4.1
-qrcode==7.4.2 # >8 breaks horde-engine 2.15.3 via the qr code generation nodes
+qrcode==7.4.2 # >8 breaks horde-engine 2.16.0 via the qr code generation nodes
 
 certifi # Required for SSL cert resolution
 
-horde_sdk~=0.15.0
+horde_sdk~=0.15.1
 horde_safety~=0.2.3
 horde_engine~=2.16.0
 horde_model_reference>=0.9.1

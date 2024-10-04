@@ -923,6 +923,17 @@ class HordeWorkerProcessManager:
 
     total_ram_bytes: int
     """The total amount of RAM on the system."""
+
+    @property
+    def total_ram_megabytes(self) -> int:
+        """The total amount of RAM on the system in megabytes."""
+        return self.total_ram_bytes // 1024 // 1024
+
+    @property
+    def total_ram_gigabytes(self) -> int:
+        """The total amount of RAM on the system in gigabytes."""
+        return self.total_ram_bytes // 1024 // 1024 // 1024
+
     target_ram_overhead_bytes: int
     """The target amount of RAM to keep free."""
 
@@ -4145,6 +4156,7 @@ class HordeWorkerProcessManager:
                     total_memory_mb > 20_000
                     and not self.bridge_data.high_memory_mode
                     and self.bridge_data.max_threads == 1
+                    and self.total_ram_gigabytes > 32
                 ):
                     logger.warning(
                         f"Device {device.device_name} ({device.device_index}) has more than 20GB of memory. "

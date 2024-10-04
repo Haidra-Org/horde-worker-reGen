@@ -4,6 +4,7 @@ import base64
 import collections
 import enum
 import json
+import math
 import multiprocessing
 import os
 import queue
@@ -3957,7 +3958,7 @@ class HordeWorkerProcessManager:
             for process_info_string in process_info_strings:
                 logger.info(process_info_string)
 
-            max_power_dimension = int((self.bridge_data.max_power * 8 * 64 * 64) // 2)
+            max_power_dimension = int(math.sqrt(self.bridge_data.max_power * 8 * 64 * 64))
             logger.info(
                 " | ".join(
                     [

@@ -1962,10 +1962,11 @@ class HordeWorkerProcessManager:
             if (not very_fast_disk_mode_enabled and at_least_one_preloading_process) or (
                 very_fast_disk_mode_enabled and max_concurrent_inference_processes_reached
             ):
-                logger.info(
-                    f"Already preloading {num_preloading_processes} models, waiting for one to finish before "
-                    f"preloading {job.model}",
-                )
+                if not self._preload_delay_notified:
+                    logger.info(
+                        f"Already preloading {num_preloading_processes} models, waiting for one to finish before "
+                        f"preloading {job.model}",
+                    )
                 self._preload_delay_notified = True
                 return False
 

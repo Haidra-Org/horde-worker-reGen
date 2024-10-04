@@ -662,6 +662,14 @@ class ProcessMap(dict[int, HordeProcessInfo]):
                 count += 1
         return count
 
+    def num_preloading_processes(self) -> int:
+        """Return the number of processes that are preloading models."""
+        count = 0
+        for p in self.values():
+            if p.last_process_state == HordeProcessState.PRELOADING_MODEL:
+                count += 1
+        return count
+
     def __repr__(self) -> str:
         """Return a string representation of the process map."""
         base_string = "Processes: "
@@ -1939,6 +1947,23 @@ class HordeWorkerProcessManager:
                 # available, so we'll wait for it to become ready before scheduling a model
                 # to be loaded on it.
                 self._replace_inference_process(available_process)
+                return False
+
+            num_preloading_processes = self._process_map.num_preloading_processes()
+
+            at_least_one_preloading_process = num_preloading_processes >= 1
+            very_fast_disk_mode_enabled = self.bridge_data.very_fast_disk_mode
+            max_concurrent_inference_processes_reached = (
+                num_preloading_processes >= self._max_concurrent_inference_processes
+            )
+
+            if (not very_fast_disk_mode_enabled and at_least_one_preloading_process) or (
+                very_fast_disk_mode_enabled and max_concurrent_inference_processes_reached
+            ):
+                logger.info(
+                    f"Already preloading {num_preloading_processes} models, waiting for one to finish before "
+                    f"preloading {job.model}",
+                )
                 return False
 
             logger.debug(f"Preloading model {job.model} on process {available_process.process_id}")

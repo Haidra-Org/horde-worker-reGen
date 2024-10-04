@@ -3249,7 +3249,7 @@ class HordeWorkerProcessManager:
                 seconds_to_wait = self.get_pending_megapixelsteps() * 0.9
 
             if self.bridge_data.high_performance_mode:
-                seconds_to_wait *= 0.35
+                seconds_to_wait *= 0.25
                 # logger.debug("High performance mode is enabled, reducing the wait time by 70%")
             elif self.bridge_data.moderate_performance_mode:
                 seconds_to_wait *= 0.5

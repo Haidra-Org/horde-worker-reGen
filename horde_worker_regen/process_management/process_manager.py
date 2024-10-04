@@ -4141,7 +4141,11 @@ class HordeWorkerProcessManager:
                         f"Device {device.device_name} ({device.device_index}) has less than 10GB of memory. "
                         "This may cause issues with `high_memory_mode` enabled.",
                     )
-                elif total_memory_mb > 20_000 and not self.bridge_data.high_memory_mode:
+                elif (
+                    total_memory_mb > 20_000
+                    and not self.bridge_data.high_memory_mode
+                    and self.bridge_data.max_threads == 1
+                ):
                     logger.warning(
                         f"Device {device.device_name} ({device.device_index}) has more than 20GB of memory. "
                         "You should enable `high_memory_mode` in your config to take advantage of this.",

@@ -341,7 +341,7 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         else:
             self[process_id].heartbeats_inference_steps = 0
 
-    def on_process_ended(self, process_id: int) -> None:
+    def on_process_ending(self, process_id: int) -> None:
         """Update the process map when a process has ended.
 
         Args:
@@ -1467,7 +1467,7 @@ class HordeWorkerProcessManager:
         :param process_info: HordeProcessInfo for the process to end
         :return: None
         """
-        self._process_map.on_process_ended(process_id=process_info.process_id)
+        self._process_map.on_process_ending(process_id=process_info.process_id)
         if process_info.loaded_horde_model_name is not None:
             self._horde_model_map.expire_entry(process_info.loaded_horde_model_name)
 
@@ -1578,7 +1578,7 @@ class HordeWorkerProcessManager:
         process_info.safe_send_message(HordeControlMessage(control_flag=HordeControlFlag.END_PROCESS))
 
         # Update the process map
-        self._process_map.on_process_ended(process_id=process_info.process_id)
+        self._process_map.on_process_ending(process_id=process_info.process_id)
 
         logger.info(f"Ended safety process {process_info.process_id}")
 
@@ -1642,6 +1642,10 @@ class HordeWorkerProcessManager:
                     process_id=message.process_id,
                     new_state=message.process_state,
                 )
+
+                if message.process_state == HordeProcessState.PROCESS_ENDING:
+                    logger.info(f"Process {message.process_id} is ending")
+                    self._process_map.on_process_ending(process_id=message.process_id)
 
                 if message.process_state == HordeProcessState.PROCESS_ENDED:
                     logger.info(f"Process {message.process_id} has ended with message: {message.info}")

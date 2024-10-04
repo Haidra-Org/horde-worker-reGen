@@ -3255,6 +3255,9 @@ class HordeWorkerProcessManager:
                 seconds_to_wait *= 0.5
                 # logger.debug("Moderate performance mode is enabled, reducing the wait time by 50%")
 
+            if self.bridge_data.max_threads > 1:
+                seconds_to_wait = seconds_to_wait * 0.5
+
             if self._triggered_max_pending_megapixelsteps is False:
                 self._triggered_max_pending_megapixelsteps = True
                 self._triggered_max_pending_megapixelsteps_time = time.time()

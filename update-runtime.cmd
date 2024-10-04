@@ -45,9 +45,9 @@ IF EXIST CONDA GOTO WORKAROUND_END
 
 REM Check if hordelib argument is defined
 
-micromamba.exe shell hook -s cmd.exe -p %MAMBA_ROOT_PREFIX% -v
+micromamba.exe shell hook -s cmd.exe %MAMBA_ROOT_PREFIX% -v
 call "%MAMBA_ROOT_PREFIX%\condabin\mamba_hook.bat"
-call "%MAMBA_ROOT_PREFIX%\condabin\micromamba.bat" activate windows
+call "%MAMBA_ROOT_PREFIX%\condabin\mamba.bat" activate windows
 
 python -s -m pip install torch==2.3.1 torchvision==0.18.1 --index-url https://download.pytorch.org/whl/cu121 -U
 

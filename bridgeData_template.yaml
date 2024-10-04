@@ -114,6 +114,10 @@ unload_models_from_vram_often: true
 #   12GB-16GB VRAM: false
 #   8GB-10GB VRAM: true
 
+# Normally only one model will load off disk at a time. Set to true to load multiple models at once.
+# This requires a very fast disk. You will see a sharp increase in disk usage, especially with SDXL/Cascade/Flux/other large models.
+very_fast_disk_mode: false
+
 # List of words to reject if they appear in the prompt.
 blacklist: []
 

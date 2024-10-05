@@ -72,6 +72,11 @@ def load_env_vars_from_config() -> None:  # FIXME: there is a dynamic way to do 
             )
             os.environ["AI_HORDE_URL"] = custom_horde_url
 
+    if "load_large_models" in config and os.getenv("AI_HORDE_MODEL_META_LARGE_MODELS") is None:
+        config_value = config["load_large_models"]
+        if config_value is True:
+            os.environ["AI_HORDE_MODEL_META_LARGE_MODELS"] = "1"
+
 
 if __name__ == "__main__":
     load_env_vars_from_config()

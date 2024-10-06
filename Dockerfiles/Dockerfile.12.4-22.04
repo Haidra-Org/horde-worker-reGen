@@ -26,5 +26,5 @@ CMD cd /horde-worker-reGen && \
     git pull && \
     . venv/bin/activate && \
     python -m pip install -r requirements.txt -U && \
-    python download_models.py -e && \
-    python run_worker.py -e
+    python download_models.py $(if [ ! -e bridgeData.yaml ]; then echo -e; fi) && \
+    python run_worker.py $(if [ ! -e bridgeData.yaml ]; then echo -e; fi)

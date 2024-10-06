@@ -8,14 +8,15 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     python3.11 \
     python3-pip \
-    python3-venv \
+    python3.11-dev \
+    python3.11-venv \
+    python3.11-distutils \
     libgl1 \
     git
 
 RUN git clone https://github.com/Haidra-Org/horde-worker-reGen.git && \
     cd /horde-worker-reGen && \
-    python3.11 -m pip install --upgrade pip && \
-    python3 -m venv venv && \
+    python3.11 -m venv venv && \
     . venv/bin/activate && \
     python -m pip install --upgrade pip && \
     python -m pip install -r /horde-worker-reGen/requirements.txt -U --extra-index-url https://download.pytorch.org/whl/cu124 && \

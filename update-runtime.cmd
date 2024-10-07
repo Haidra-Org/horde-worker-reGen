@@ -1,15 +1,33 @@
 @echo off
+cd /d "%~dp0"
+
+SET MAMBA_ROOT_PREFIX=%~dp0conda
+echo %MAMBA_ROOT_PREFIX%
+
+if exist "%MAMBA_ROOT_PREFIX%\condabin\micromamba.bat" (
+    echo Deleting micromamba.exe as its out of date
+    del micromamba.exe
+    if errorlevel 1 (
+        echo Error: Failed to delete micromamba.exe. Please delete it manually.
+        exit /b 1
+    )
+    echo Deleting the conda directory as its out of date
+    rmdir /s /q conda
+    if errorlevel 1 (
+        echo Error: Failed to delete the conda directory. Please delete it manually.
+        exit /b 1
+    )
+)
+
 :Check if micromamba is already installed
 if exist micromamba.exe goto Isolation
   curl.exe -L -o micromamba.exe https://github.com/mamba-org/micromamba-releases/releases/latest/download/micromamba-win-64
 
-cd /d "%~dp0"
 
 :Isolation
 SET CONDA_SHLVL=
 SET PYTHONNOUSERSITE=1
 SET PYTHONPATH=
-SET MAMBA_ROOT_PREFIX=%~dp0conda
 echo %MAMBA_ROOT_PREFIX%
 
 

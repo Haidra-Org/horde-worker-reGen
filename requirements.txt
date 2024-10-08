@@ -12,6 +12,7 @@ horde_model_reference>=0.9.1
 python-dotenv
 ruamel.yaml
 semver
+wheel
 
 python-Levenshtein
 

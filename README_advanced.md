@@ -39,7 +39,7 @@
 ### Get worker files and install dependencies
 - `git clone https://github.com/Haidra-Org/horde-worker-reGen.git`
 - `cd .\horde-worker-reGen\`
-- `pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu121`
+- `pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu124`
 
 ### Run worker
 - Set your config now, copying `bridgeData_template.yaml` to `bridgeData.yaml`, being sure to set an API key and worker name at a minimum

@@ -59,7 +59,17 @@ You can find the docker images at https://hub.docker.com/r/tazlin/horde-worker-r
 
 > **Important**: Be sure to select the correct Cuda version for your machine. **The physical host must have at least the version of Cuda installed as the image**.
 
-You should set all of the settings for the docker worker via environment variables.
+You can set all of the settings for the docker worker via environment variables.
+Alternatively it is possible to mount your existing `bridgeData.yaml` file inside the containers working directory:
+  - either append `-v ./bridgeData.yaml:/horde-worker-reGen/bridgeData.yaml:ro` to your `docker run` command
+  - or include the following in your docker compose config:
+```
+    volumes:
+      - ./bridgeData.yaml:/horde-worker-reGen/bridgeData.yaml:ro
+```
+
+It is also possible to bind mount the model directory outside the container so it isn't cleared out after every update.
+To do this just mount `./models/:/horde-worker-reGen/models/`. This has to be done with write permissions so the container can actually download the models.
 
 A typical config might include (be sure to change any settings as appropriate as these settings will not work for every machine):
 

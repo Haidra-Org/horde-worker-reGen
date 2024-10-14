@@ -22,7 +22,7 @@ RUN git clone https://github.com/Haidra-Org/horde-worker-reGen.git && \
     python3.11 -m venv venv && \
     . venv/bin/activate && \
     python -m pip install --upgrade pip && \
-    python -m pip install -r /horde-worker-reGen/requirements.rocm.txt -U --extra-index-url https://download.pytorch.org/whl/rocm6.0 && \
+    python -m pip install -r /horde-worker-reGen/requirements.txt -U --extra-index-url https://download.pytorch.org/whl/rocm6.0 && \
     python -m pip install opencv-python-headless -U && \
     python -m pip uninstall -y pynvml nvidia-ml-py && \
     python -m pip cache purge
@@ -30,7 +30,7 @@ RUN git clone https://github.com/Haidra-Org/horde-worker-reGen.git && \
 CMD cd /horde-worker-reGen && \
     git pull && \
     . venv/bin/activate && \
-    python -m pip install -r requirements.rocm.txt -U && \
+    python -m pip install -r requirements.txt -U && \
     python -m pip uninstall -y pynvml nvidia-ml-py && \
     ./horde_worker_regen/amd_go_fast/install_amd_go_fast.sh && \
     python download_models.py -e && \

@@ -53,10 +53,6 @@ RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=locked,id=pip-cache \
     pip install --cache-dir=${PIP_CACHE_DIR} opencv-python-headless -r ${APP_HOME}/requirements.txt -U --extra-index-url https://download.pytorch.org/whl/rocm${ROCM_VERSION_SHORT}; \
     pip uninstall -y pynvml nvidia-ml-py
 
-# Install AMD-specific components
-RUN cd ${APP_HOME} && \
-    ./horde_worker_regen/amd_go_fast/install_amd_go_fast.sh
-
 # Stage 3: Final stage
 FROM builder AS final
 

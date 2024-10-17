@@ -47,7 +47,7 @@ ARG PIP_CACHE_DIR=/pip-cache
 
 RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=locked,id=pip-cache \
     . /env_vars && \
-    python -m pip install --cache-dir=${PIP_CACHE_DIR} opencv-python-headless -r ${APP_HOME}/requirements.txt --extra-index-url https://download.pytorch.org/whl/cu${CUDA_VERSION_SHORT}; 
+    python -m pip install --cache-dir=${PIP_CACHE_DIR} opencv-python-headless -r ${APP_HOME}/requirements.txt --extra-index-url https://download.pytorch.org/whl/cu${CUDA_VERSION_SHORT};
 
 # Stage 3: Final stage
 FROM builder AS final

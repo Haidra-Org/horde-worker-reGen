@@ -2,6 +2,9 @@
 ARG ROCM_VERSION=6.0.2
 FROM rocm/rocm-terminal:${ROCM_VERSION} AS base
 
+USER root
+WORKDIR /
+
 ARG DEBIAN_FRONTEND=noninteractive
 ARG PYTHON_VERSION=3.11
 ENV PYTHON_VERSION=${PYTHON_VERSION}
@@ -16,9 +19,9 @@ RUN apt-get update && \
     python${PYTHON_VERSION}-venv \
     python${PYTHON_VERSION}-dev \
     python${PYTHON_VERSION}-distutils \
-    libgl1 \
-    git \
-    rocm && \
+    ninja-build \
+    rocm \
+    git && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -26,10 +29,6 @@ RUN apt-get update && \
 ARG ROCM_VERSION
 RUN ROCM_VERSION_SHORT=$(echo ${ROCM_VERSION} | cut -d. -f1-2) && \
     echo "export ROCM_VERSION_SHORT=${ROCM_VERSION_SHORT}" >> /env_vars
-
-# Create virtual environment
-RUN python${PYTHON_VERSION} -m venv ${APP_HOME}/venv
-ENV PATH="${APP_HOME}/venv/bin:$PATH"
 
 # Stage 2: Clone repository and install dependencies
 FROM base AS builder
@@ -45,6 +44,10 @@ RUN git clone https://github.com/${GIT_OWNER}/horde-worker-reGen.git ${APP_HOME}
     cd ${APP_HOME} && \
     git switch ${GIT_BRANCH}
 
+# Create virtual environment
+RUN python${PYTHON_VERSION} -m venv ${APP_HOME}/venv
+ENV PATH="${APP_HOME}/venv/bin:$PATH"
+
 # Install dependencies
 ARG PIP_CACHE_DIR=/pip-cache
 
@@ -58,6 +61,7 @@ FROM builder AS final
 
 WORKDIR ${APP_HOME}
 COPY entrypoint.sh /entrypoint.sh
+COPY setup_*.sh ${APP_HOME}
 RUN chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]

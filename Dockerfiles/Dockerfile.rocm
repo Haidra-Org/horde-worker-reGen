@@ -1,0 +1,67 @@
+# Stage 1: Base environment setup
+ARG ROCM_VERSION=6.0.2
+FROM rocm/rocm-terminal:${ROCM_VERSION} AS base
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG PYTHON_VERSION=3.11
+ENV PYTHON_VERSION=${PYTHON_VERSION}
+ENV APP_HOME=/horde-worker-reGen
+
+RUN apt-get update && \
+    apt-get install -y software-properties-common && \
+    add-apt-repository ppa:deadsnakes/ppa && \
+    apt-get install -y --no-install-recommends \
+    python${PYTHON_VERSION} \
+    python3-pip \
+    python${PYTHON_VERSION}-venv \
+    python${PYTHON_VERSION}-dev \
+    python${PYTHON_VERSION}-distutils \
+    libgl1 \
+    git \
+    rocm && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Extract ROCm version for PyTorch
+ARG ROCM_VERSION
+RUN ROCM_VERSION_SHORT=$(echo ${ROCM_VERSION} | cut -d. -f1-2) && \
+    echo "export ROCM_VERSION_SHORT=${ROCM_VERSION_SHORT}" >> /env_vars
+
+# Create virtual environment
+RUN python${PYTHON_VERSION} -m venv ${APP_HOME}/venv
+ENV PATH="${APP_HOME}/venv/bin:$PATH"
+
+# Stage 2: Clone repository and install dependencies
+FROM base AS builder
+
+ARG GIT_BRANCH=main
+ARG GIT_OWNER=Haidra-Org
+
+RUN echo "export GIT_BRANCH=${GIT_BRANCH}" >> /env_vars && \
+    echo "export GIT_OWNER=${GIT_OWNER}" >> /env_vars
+
+# Clone the repository
+RUN git clone https://github.com/${GIT_OWNER}/horde-worker-reGen.git ${APP_HOME} && \
+    cd ${APP_HOME} && \
+    git switch ${GIT_BRANCH}
+
+# Install dependencies
+ARG PIP_CACHE_DIR=/pip-cache
+
+RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=locked,id=pip-cache \
+    . /env_vars && \
+    pip install --cache-dir=${PIP_CACHE_DIR} opencv-python-headless -r ${APP_HOME}/requirements.txt -U --extra-index-url https://download.pytorch.org/whl/rocm${ROCM_VERSION_SHORT}; \
+    pip uninstall -y pynvml nvidia-ml-py
+
+# Install AMD-specific components
+RUN cd ${APP_HOME} && \
+    ./horde_worker_regen/amd_go_fast/install_amd_go_fast.sh
+
+# Stage 3: Final stage
+FROM builder AS final
+
+WORKDIR ${APP_HOME}
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]

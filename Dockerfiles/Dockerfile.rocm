@@ -20,8 +20,8 @@ RUN apt-get update && \
     python${PYTHON_VERSION}-dev \
     python${PYTHON_VERSION}-distutils \
     ninja-build \
-    git \
-    rocm && \
+    rocm \
+    git && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 

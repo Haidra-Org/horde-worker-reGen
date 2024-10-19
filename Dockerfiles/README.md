@@ -79,7 +79,7 @@ Common build arguments for both Dockerfiles:
 
 Specific build arguments:
 - For CUDA: `CUDA_VERSION` (default: 12.4.1)
-- For ROCm: `ROCM_VERSION` (default: 6.0.2)
+- For ROCm: `ROCM_VERSION` (default: 6.1.2)
 
 ## Building Docker Images
 
@@ -99,7 +99,7 @@ docker build -f Dockerfile.cuda \
 
 ```bash
 docker build -f Dockerfile.rocm \
-  --build-arg ROCM_VERSION=6.0.2 \
+  --build-arg ROCM_VERSION=6.1.2 \
   --build-arg PYTHON_VERSION=3.11 \
   --build-arg GIT_BRANCH=main \
   --build-arg GIT_OWNER=Haidra-Org \

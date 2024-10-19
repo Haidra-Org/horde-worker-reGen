@@ -18,29 +18,33 @@ git sparse-checkout set --no-cone Dockerfiles /bridgeData_template.yaml
 ```
 
 # Basic setup
-## Using docker-compose
+## Using docker compose
 
-If your system is set up properly (see [Prerequisites](https://github.com/HPPinata/horde-worker-reGen/edit/raw-png/Dockerfiles/README.md#prerequisites))
-you can just [setup](https://github.com/HPPinata/horde-worker-reGen?tab=readme-ov-file#configure) your bridgeData.yaml file and then run
+If your system is set up properly (see [Prerequisites](#prerequisites))
+you can just [setup](https://github.com/Haidra-Org/horde-worker-reGen?tab=readme-ov-file#configure) your bridgeData.yaml file and then run
 ```bash
-docker-compose -f Dockerfiles/compse.[cuda|rocm].yaml build --pull
-docker-compose up -dV
+docker compose -f Dockerfiles/compse.[cuda|rocm].yaml build --pull
+docker compose up -dV
 ```
-Remember to replace placeholders (e.g., `[cuda|rocm]`) with appropriate values for your setup.
-The compose file creates a `models` directory in your `horde-worker-reGen` to avoid having to download selected models again.
+Remember to replace placeholders (e.g. `[cuda|rocm]`) with appropriate values for your setup.  
+If you want to monitor the containers progress downloading models and working through jobs: [start-or-monitor-running-container](#start-or-monitor-running-container).  
+The compose file creates a `models` directory in your `horde-worker-reGen` to avoid having to download selected models again.  
 
-## Starting, stopping and monitoring the container
-To start a container or look at a running containers output:
+### Start or monitor running container
+To start a container or look at a running containers output.  
+CTRL+C detaches the container, but leaves it running in the background:
 ```bash
 docker start -ai reGen
 ```
-CTRL+C detaches the container, but leaves it running in the background
 
+### Stop
 To stop a running container (set it to maintenance mode first using a mangement site like [Artbot](https://tinybots.net/artbot/settings?panel=workers)):
 ```bash
 docker stop reGen
 ```
-To start a conatiner detached:
+
+### Start detached
+To start a container detached (running in the background):
 ```bash
 docker start reGen
 ```
@@ -50,8 +54,8 @@ You just need to go to the `horde-worker-reGen` directory, update the git repo, 
 ```
 cd horde-worker-reGen
 git pull
-docker-compose -f Dockerfiles/compse.[cuda|rocm].yaml build --pull
-docker-compose up -dV
+docker compose -f Dockerfiles/compse.[cuda|rocm].yaml build --pull
+docker compose up -dV
 ```
 
 # Advanced options
@@ -65,7 +69,7 @@ Both use multi-stage builds and support customization through build arguments.
 
 ## Build Arguments
 
-These can be set either in the `compose.[cuda|rocm].yaml` file, in the `Dockerfile.[cuda|rocm]` or as [CLI arguments](https://github.com/HPPinata/horde-worker-reGen/edit/raw-png/Dockerfiles/README.md#building-docker-images) for a manual build without compose.
+These can be set either in the `compose.[cuda|rocm].yaml` file, in the `Dockerfile.[cuda|rocm]` or as [CLI arguments](#building-docker-images) for a manual build without compose.  
 Common build arguments for both Dockerfiles:
 
 - `PYTHON_VERSION`: Python version to install (default: 3.11)
@@ -171,4 +175,4 @@ To update the worker:
    ```
 2. Stop the existing container and start a new one with the updated image.
 
-Remember to replace placeholders (e.g., `[cuda|amd]`) with appropriate values for your setup.
+Remember to replace placeholders (e.g. `[cuda|amd]`) with appropriate values for your setup.

@@ -24,7 +24,7 @@ If your system is set up properly (see [Prerequisites](#prerequisites))
 you can just [setup](https://github.com/Haidra-Org/horde-worker-reGen?tab=readme-ov-file#configure) your bridgeData.yaml file and then run
 ```bash
 docker compose -f Dockerfiles/compse.[cuda|rocm].yaml build --pull
-docker compose up -dV
+docker compose -f Dockerfiles/compse.[cuda|rocm].yaml up -dV
 ```
 Remember to replace placeholders (e.g. `[cuda|rocm]`) with appropriate values for your setup.  
 If you want to monitor the containers progress downloading models and working through jobs: [start-or-monitor-running-container](#start-or-monitor-running-container).  
@@ -55,7 +55,7 @@ You just need to go to the `horde-worker-reGen` directory, update the git repo, 
 cd horde-worker-reGen
 git pull
 docker compose -f Dockerfiles/compse.[cuda|rocm].yaml build --pull
-docker compose up -dV
+docker compose -f Dockerfiles/compse.[cuda|rocm].yaml up -dV
 ```
 
 # Advanced options

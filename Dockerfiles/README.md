@@ -10,22 +10,62 @@ This guide explains how to use the Dockerfiles for building the horde-worker-reG
 - AMD GPU with appropriate drivers (for ROCm version)
 
 ## Checkout only this directory
+
 ```bash
 git clone --sparse https://github.com/Haidra-Org/horde-worker-reGen.git
 cd horde-worker-reGen
-git sparse-checkout set --no-cone Dockerfiles
+git sparse-checkout set --no-cone Dockerfiles /bridgeData_template.yaml
 ```
 
+# Basic setup
+## Using docker-compose
+
+If your system is set up properly (see [Prerequisites](https://github.com/HPPinata/horde-worker-reGen/edit/raw-png/Dockerfiles/README.md#prerequisites))
+you can just [setup](https://github.com/HPPinata/horde-worker-reGen?tab=readme-ov-file#configure) your bridgeData.yaml file and then run
+```bash
+docker-compose -f Dockerfiles/compse.[cuda|rocm].yaml build --pull
+docker-compose up -dV
+```
+Remember to replace placeholders (e.g., `[cuda|rocm]`) with appropriate values for your setup.
+The compose file creates a `models` directory in your `horde-worker-reGen` to avoid having to download selected models again.
+
+## Starting, stopping and monitoring the container
+To start a container or look at a running containers output:
+```bash
+docker start -ai reGen
+```
+CTRL+C detaches the container, but leaves it running in the background
+
+To stop a running container (set it to maintenance mode first using a mangement site like [Artbot](https://tinybots.net/artbot/settings?panel=workers)):
+```bash
+docker stop reGen
+```
+To start a conatiner detached:
+```bash
+docker start reGen
+```
+
+## Updating your worker
+You just need to go to the `horde-worker-reGen` directory, update the git repo, build the new image and let compose recreate the container:
+```
+cd horde-worker-reGen
+git pull
+docker-compose -f Dockerfiles/compse.[cuda|rocm].yaml build --pull
+docker-compose up -dV
+```
+
+# Advanced options
 ## Dockerfile Overview
 
 Two Dockerfiles are provided:
 - `Dockerfile.cuda` for NVIDIA GPUs
-- `Dockerfile.amd` for AMD GPUs
+- `Dockerfile.rocm` for AMD GPUs
 
 Both use multi-stage builds and support customization through build arguments.
 
 ## Build Arguments
 
+These can be set either in the `compose.[cuda|rocm].yaml` file, in the `Dockerfile.[cuda|rocm]` or as [CLI arguments](https://github.com/HPPinata/horde-worker-reGen/edit/raw-png/Dockerfiles/README.md#building-docker-images) for a manual build without compose.
 Common build arguments for both Dockerfiles:
 
 - `PYTHON_VERSION`: Python version to install (default: 3.11)
@@ -54,7 +94,7 @@ docker build -f Dockerfile.cuda \
 ### AMD (ROCm) Version
 
 ```bash
-docker build -f Dockerfile.amd \
+docker build -f Dockerfile.rocm \
   --build-arg ROCM_VERSION=6.0.2 \
   --build-arg PYTHON_VERSION=3.11 \
   --build-arg GIT_BRANCH=main \

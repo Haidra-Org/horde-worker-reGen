@@ -9,6 +9,13 @@ This guide explains how to use the Dockerfiles for building the horde-worker-reG
 - NVIDIA GPU with appropriate drivers (for CUDA version)
 - AMD GPU with appropriate drivers (for ROCm version)
 
+## Checkout only this directory
+```bash
+git clone --sparse https://github.com/Haidra-Org/horde-worker-reGen.git
+cd horde-worker-reGen
+git sparse-checkout set --no-cone Dockerfiles
+```
+
 ## Dockerfile Overview
 
 Two Dockerfiles are provided:

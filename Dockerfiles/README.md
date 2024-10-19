@@ -26,6 +26,9 @@ you can just [setup](https://github.com/Haidra-Org/horde-worker-reGen?tab=readme
 docker compose -f Dockerfiles/compse.[cuda|rocm].yaml build --pull
 docker compose -f Dockerfiles/compse.[cuda|rocm].yaml up -dV
 ```
+
+> **Warning**: The compose files will automatically pull in your bridgeData.yaml as a mount inside the container. If you have any configuration options set to absolute or windows-style directories (**especially `cache_home`**), this will cause the worker inside the container to not work as expected. You can set `AIWORKER_BRIDGE_DATA_LOCATION` environment variable to set the location of the config file you would like to use if you need an alternative file and you can set `AIWORKER_CACHE_HOME` to set the location of your models folder on the host.
+
 Remember to replace placeholders (e.g. `[cuda|rocm]`) with appropriate values for your setup.  
 If you want to monitor the containers progress downloading models and working through jobs: [start-or-monitor-running-container](#start-or-monitor-running-container).  
 The compose file creates a `models` directory in your `horde-worker-reGen` to avoid having to download selected models again.  

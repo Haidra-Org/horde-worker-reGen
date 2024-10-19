@@ -14,8 +14,8 @@ services:
     group_add:
       - video
     volumes:
-      - ../models/:/horde-worker-reGen/models/
-      - ../bridgeData.yaml:/horde-worker-reGen/bridgeData.yaml:ro
+      - ${AIWORKER_CACHE_HOME:-../models/}:/horde-worker-reGen/models/
+      - ${AIWORKER_BRIDGE_DATA_LOCATION:-../bridgeData.yaml}:/horde-worker-reGen/bridgeData.yaml:ro
     deploy:
       resources:
         reservations:

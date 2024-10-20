@@ -1,5 +1,5 @@
 # Stage 1: Base environment setup
-ARG ROCM_VERSION=6.0.2
+ARG ROCM_VERSION=6.1.2
 FROM rocm/rocm-terminal:${ROCM_VERSION} AS base
 
 USER root

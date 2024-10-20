@@ -1,0 +1,24 @@
+services:
+  regen:
+    build:
+      context: ./
+      dockerfile: ./Dockerfile.cuda
+      args:
+        - CUDA_VERSION=12.4.1
+        - PYTHON_VERSION=3.11
+        - USE_PIP_CACHE=true
+        - GIT_BRANCH=main
+        - GIT_OWNER=Haidra-Org
+    container_name: reGen
+    tty: true
+    group_add:
+      - video
+    volumes:
+      - ${AIWORKER_CACHE_HOME:-../models/}:/horde-worker-reGen/models/
+      - ${AIWORKER_BRIDGE_DATA_LOCATION:-../bridgeData.yaml}:/horde-worker-reGen/bridgeData.yaml:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - driver: nvidia
+            capabilities: [gpu]

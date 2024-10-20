@@ -129,6 +129,52 @@ docker run -it --device=/dev/kfd --device=/dev/dri --group-add video horde-worke
 - The entrypoint script (`entrypoint.sh`) automatically detects the GPU environment (CUDA or ROCm) and sets up accordingly.
 - If `bridgeData.yaml` exists in the container, it will be used for configuration. Otherwise, environment variables will be used.
 
+### Setting config by environment variables
+
+You can set all of the settings for the docker worker via environment variables. Any configuration option in the `bridgeData_template.yaml` can be set this way be prepending `AIWORKER_` to it; see below for some examples.
+
+A typical config might include (be sure to change any settings as appropriate as these settings will not work for every machine):
+
+```
+AIWORKER_API_KEY=your_api_key_here          # Important
+AIWORKER_CACHE_HOME=/workspace/models       # Important
+AIWORKER_DREAMER_NAME=your_worker_name_here # Important
+AIWORKER_ALLOW_CONTROLNET=True
+AIWORKER_ALLOW_LORA=True
+AIWORKER_MAX_LORA_CACHE_SIZE=50
+AIWORKER_ALLOW_PAINTING=True
+AIWORKER_MAX_POWER=38
+AIWORKER_MAX_THREADS=1 # Only set to 2 on high end or xx90 machines
+AIWORKER_MODELS_TO_LOAD=['TOP 3', 'AlbedoBase XL (SDXL)'] # Be mindful of download times; each model average 2-8 gb
+AIWORKER_MODELS_TO_SKIP=['pix2pix', 'SDXL_beta::stability.ai#6901']
+AIWORKER_QUEUE_SIZE=2
+AIWORKER_MAX_BATCH=4
+AIWORKER_SAFETY_ON_GPU=True
+AIWORKER_CIVITAI_API_TOKEN=your_token_here
+```
+
+See the bridgeData_template.yaml for more options and specific information about each.
+
+#### Generating an `.env` file from a `bridgeData.yaml`
+If you have a local install of the worker, you can use the script `convert_config_to_env.py` to convert a bridgeData.yaml to a valid .env file, as seen here:
+
+- update-runtime users, windows
+  ```
+  .\runtime.cmd python -s -m convert_config_to_env --file .\bridgeData.yaml
+  ```
+
+- update-runtime users, linux
+  ```
+  ./runtime.sh python -s -m convert_config_to_env --file .\bridgeData.yaml
+  ```
+
+- venv users
+  ```
+  python -m convert_config_to_env --file .\bridgeData.yaml
+  ```
+
+... which will write a file to your current working directory named `bridgeData.env`, which is suitable for passing to `docker run` with the `--env-file` cli option. Note that the models_to_load and models_to_skip will be resolved to a list of models if you specified a meta-load command such as `TOP 5` (it would write out the top 5 at that time, **not** the literal `TOP 5`). If you want the dynamic nature of those commands, you should specify them manually.
+
 ## Customization
 
 - To add GPU-specific setup steps, create `setup_cuda.sh` or `setup_rocm.sh` in the project root and include them in the respective Dockerfile.

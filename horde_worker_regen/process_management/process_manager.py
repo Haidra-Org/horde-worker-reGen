@@ -1476,8 +1476,12 @@ class HordeWorkerProcessManager:
         except BrokenPipeError:
             if not self._shutting_down:
                 logger.debug(f"Process {process_info.process_id} control channel vanished")
-        process_info.mp_process.join(timeout=1)
-        process_info.mp_process.kill()
+        try:
+            process_info.mp_process.join(timeout=1)
+            process_info.mp_process.kill()
+        except Exception as e:
+            logger.error(f"Failed to kill process {process_info.process_id}: {e}")
+
         if not self._shutting_down:
             logger.info(f"Ended inference process {process_info.process_id}")
 
@@ -4344,10 +4348,13 @@ class HordeWorkerProcessManager:
             time.sleep((len(self.completed_jobs) * 4) + 2)
 
             for process in self._process_map.values():
-                process.mp_process.kill()
-                process.mp_process.kill()
+                try:
+                    process.mp_process.kill()
+                    process.mp_process.kill()
 
-                process.mp_process.join(1)
+                    process.mp_process.join(1)
+                except Exception as e:
+                    logger.error(f"Failed to kill process {process}: {e}")
 
             sys.exit(1)
 
@@ -4401,9 +4408,12 @@ class HordeWorkerProcessManager:
                 or (safety and process_info.process_type == HordeProcessType.SAFETY)
                 or (all_)
             ):
-                process_info.mp_process.kill()
-                process_info.mp_process.kill()
-                process_info.mp_process.join(1)
+                try:
+                    process_info.mp_process.kill()
+                    process_info.mp_process.kill()
+                    process_info.mp_process.join(1)
+                except Exception as e:
+                    logger.error(f"Failed to kill process {process_info}: {e}")
 
         self._process_map.clear()
         self._horde_model_map.root.clear()

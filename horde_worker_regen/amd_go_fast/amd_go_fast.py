@@ -28,6 +28,7 @@ if "AMD" in torch.cuda.get_device_name() or "Radeon" in torch.cuda.get_device_na
                     dropout_p=dropout_p,
                     is_causal=is_causal,
                     scale=scale,
+                    enable_gqa=enable_gqa,
                 )
             return hidden_states
 

@@ -20,6 +20,7 @@ if [ ! -z "${ROCM_VERSION_SHORT}" ]; then
     # ROCm environment
     export GPU_TYPE="rocm"
     export PYTORCH_EXTRA_INDEX="https://download.pytorch.org/whl/rocm${ROCM_VERSION_SHORT}"
+    export REQUIREMENTS_FILE="requirements.rocm.txt"
 elif [ ! -z "${CUDA_VERSION_SHORT}" ]; then
     # CUDA environment
     export GPU_TYPE="cuda"
@@ -27,12 +28,13 @@ elif [ ! -z "${CUDA_VERSION_SHORT}" ]; then
     export LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
     export PATH=${CUDA_HOME}/bin:${PATH}
     export PYTORCH_EXTRA_INDEX="https://download.pytorch.org/whl/cu${CUDA_VERSION_SHORT}"
+    export REQUIREMENTS_FILE="requirements.txt"
 else
     echo "Neither ROCm nor CUDA environment variables found in /env_vars. Exiting."
     exit 1
 fi
 
-python -m pip install -r requirements.txt -U --extra-index-url ${PYTORCH_EXTRA_INDEX}
+python -m pip install -r ${REQUIREMENTS_FILE} -U --extra-index-url ${PYTORCH_EXTRA_INDEX}
 
 # Run GPU-specific setup scripts if they exist
 if [ -f "${APP_HOME}/setup_${GPU_TYPE}.sh" ]; then

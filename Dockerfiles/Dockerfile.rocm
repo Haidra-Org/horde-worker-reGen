@@ -53,7 +53,7 @@ ARG PIP_CACHE_DIR=/pip-cache
 
 RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=locked,id=pip-cache \
     . /env_vars && \
-    pip install --cache-dir=${PIP_CACHE_DIR} opencv-python-headless -r ${APP_HOME}/requirements.txt -U --extra-index-url https://download.pytorch.org/whl/rocm${ROCM_VERSION_SHORT}; \
+    pip install --cache-dir=${PIP_CACHE_DIR} opencv-python-headless -r ${APP_HOME}/requirements.rocm.txt -U --extra-index-url https://download.pytorch.org/whl/rocm${ROCM_VERSION_SHORT}; \
     pip uninstall -y pynvml nvidia-ml-py
 
 # Stage 3: Final stage

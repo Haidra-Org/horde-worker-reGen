@@ -2,7 +2,7 @@ name: ldm
 channels:
   - conda-forge
   - defaults
-# These should only contain the minimal essentials to get the binaries going, everything else is managed in requirements.txt to keep it universal.
+# These should only contain the minimal essentials to get the binaries going, everything else is managed in requirements.rocm.txt to keep it universal.
 dependencies:
   - git
   - pip

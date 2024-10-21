@@ -53,7 +53,7 @@ def test_different_requirements_files_match(
     for dep in horde_dependency_versions:
         if dep == "torch":
             logger.warning(
-                f"Skipping torch version check (main: {horde_dependency_versions[dep]}, rocm: {rocm_deps[dep]})"
+                f"Skipping torch version check (main: {horde_dependency_versions[dep]}, rocm: {rocm_deps[dep]})",
             )
             continue
 
@@ -65,7 +65,7 @@ def test_different_requirements_files_match(
     for dep in rocm_deps:
         if dep == "torch":
             logger.warning(
-                f"Skipping torch version check (main: {horde_dependency_versions[dep]}, rocm: {rocm_deps[dep]})"
+                f"Skipping torch version check (main: {horde_dependency_versions[dep]}, rocm: {rocm_deps[dep]})",
             )
             continue
 

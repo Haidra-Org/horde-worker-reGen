@@ -39,3 +39,23 @@ def test_horde_update_runtime_updating(horde_dependency_versions: dict[str, str]
             ), f"Torch {torch_version} not found in initial torch install command"
 
     assert found_line, "No initial torch install command found"
+
+
+def test_different_requirements_files_match(
+    horde_dependency_versions: dict[str, str],
+    rocm_horde_dependency_versions: list[tuple[str, str]],
+) -> None:
+    """Check that the versions of horde deps. in the main and rocm requirements files match."""
+    rocm_deps = dict(rocm_horde_dependency_versions)
+
+    for dep in horde_dependency_versions:
+        assert dep in rocm_deps, f"Dependency {dep} not found in rocm requirements file"
+        assert (
+            horde_dependency_versions[dep] == rocm_deps[dep]
+        ), f"Dependency {dep} has different versions in main and rocm requirements files"
+
+    for dep in rocm_deps:
+        assert dep in horde_dependency_versions, f"Dependency {dep} not found in main requirements file"
+        assert (
+            rocm_deps[dep] == horde_dependency_versions[dep]
+        ), f"Dependency {dep} has different versions in main and rocm requirements files"

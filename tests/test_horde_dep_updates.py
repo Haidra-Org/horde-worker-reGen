@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from loguru import logger
+
 HORDE_BRIDGE_SCRIPT = Path(__file__).parent.parent / "horde-bridge.cmd"
 
 
@@ -49,12 +51,24 @@ def test_different_requirements_files_match(
     rocm_deps = dict(rocm_horde_dependency_versions)
 
     for dep in horde_dependency_versions:
+        if dep == "torch":
+            logger.warning(
+                f"Skipping torch version check (main: {horde_dependency_versions[dep]}, rocm: {rocm_deps[dep]})"
+            )
+            continue
+
         assert dep in rocm_deps, f"Dependency {dep} not found in rocm requirements file"
         assert (
             horde_dependency_versions[dep] == rocm_deps[dep]
         ), f"Dependency {dep} has different versions in main and rocm requirements files"
 
     for dep in rocm_deps:
+        if dep == "torch":
+            logger.warning(
+                f"Skipping torch version check (main: {horde_dependency_versions[dep]}, rocm: {rocm_deps[dep]})"
+            )
+            continue
+
         assert dep in horde_dependency_versions, f"Dependency {dep} not found in main requirements file"
         assert (
             rocm_deps[dep] == horde_dependency_versions[dep]

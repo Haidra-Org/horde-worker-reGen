@@ -4,10 +4,12 @@ import base64
 import collections
 import enum
 import json
+import math
 import multiprocessing
 import os
 import queue
 import random
+import ssl
 import sys
 import time
 from asyncio import CancelledError, Task
@@ -22,6 +24,7 @@ from multiprocessing.synchronize import Semaphore
 
 import aiohttp
 import aiohttp.client_exceptions
+import certifi
 import PIL
 import PIL.Image
 import psutil
@@ -88,6 +91,8 @@ from horde_worker_regen.process_management.messages import (
     ModelLoadState,
 )
 from horde_worker_regen.process_management.worker_entry_points import start_inference_process, start_safety_process
+
+sslcontext = ssl.create_default_context(cafile=certifi.where())
 
 # This is due to Linux/Windows differences in the multiprocessing module
 try:
@@ -336,7 +341,7 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         else:
             self[process_id].heartbeats_inference_steps = 0
 
-    def on_process_ended(self, process_id: int) -> None:
+    def on_process_ending(self, process_id: int) -> None:
         """Update the process map when a process has ended.
 
         Args:
@@ -478,6 +483,18 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         count = 0
         for p in self.values():
             if p.process_type == HordeProcessType.INFERENCE:
+                count += 1
+        return count
+
+    def num_loaded_inference_processes(self) -> int:
+        """Return the number of inference processes that haven't been ended."""
+        count = 0
+        for p in self.values():
+            if (
+                p.process_type == HordeProcessType.INFERENCE
+                and p.last_process_state != HordeProcessState.PROCESS_ENDING
+                and p.last_process_state != HordeProcessState.PROCESS_ENDED
+            ):
                 count += 1
         return count
 
@@ -657,6 +674,14 @@ class ProcessMap(dict[int, HordeProcessInfo]):
                 count += 1
         return count
 
+    def num_preloading_processes(self) -> int:
+        """Return the number of processes that are preloading models."""
+        count = 0
+        for p in self.values():
+            if p.last_process_state == HordeProcessState.PRELOADING_MODEL:
+                count += 1
+        return count
+
     def __repr__(self) -> str:
         """Return a string representation of the process map."""
         base_string = "Processes: "
@@ -688,6 +713,10 @@ class ProcessMap(dict[int, HordeProcessInfo]):
                 )
 
         return info_strings
+
+    def all_waiting_for_job(self) -> bool:
+        """Return true if all processes are waiting for a job."""
+        return all(p.last_process_state == HordeProcessState.WAITING_FOR_JOB for p in self.values())
 
 
 class TorchDeviceInfo(BaseModel):
@@ -891,6 +920,8 @@ class HordeWorkerProcessManager:
     can run at once. Use `max_concurrent_inference_processes` to control that behavior."""
 
     _max_concurrent_inference_processes: int
+    """The maximum number of inference processes that can run jobs concurrently. \
+        This is set at initialization to prevent changing the value at runtime."""
 
     @property
     def max_concurrent_inference_processes(self) -> int:
@@ -904,6 +935,17 @@ class HordeWorkerProcessManager:
 
     total_ram_bytes: int
     """The total amount of RAM on the system."""
+
+    @property
+    def total_ram_megabytes(self) -> int:
+        """The total amount of RAM on the system in megabytes."""
+        return self.total_ram_bytes // 1024 // 1024
+
+    @property
+    def total_ram_gigabytes(self) -> int:
+        """The total amount of RAM on the system in gigabytes."""
+        return self.total_ram_bytes // 1024 // 1024 // 1024
+
     target_ram_overhead_bytes: int
     """The target amount of RAM to keep free."""
 
@@ -932,6 +974,7 @@ class HordeWorkerProcessManager:
         return total
 
     jobs_lookup: dict[ImageGenerateJobPopResponse, HordeJobInfo]
+    """The mapping of API responses to their corresponding worker job info."""
 
     jobs_in_progress: list[ImageGenerateJobPopResponse]
     """A list of jobs that are currently in progress."""
@@ -940,27 +983,38 @@ class HordeWorkerProcessManager:
     """A list of jobs that have exhibited faults and what kinds."""
 
     jobs_pending_safety_check: list[HordeJobInfo]
+    """A list of jobs that were generated but have not yet been safety checked."""
     _jobs_safety_check_lock: Lock_Asyncio
+    """The asyncio lock for the safety check queue."""
 
     jobs_being_safety_checked: list[HordeJobInfo]
+    """The list of jobs that are currently being safety checked."""
 
     _num_jobs_faulted: int = 0
+    """The number of jobs which were marked as faulted. This may not include jobs which failed for unknown reasons."""
 
     completed_jobs: list[HordeJobInfo]
     """A list of 3 tuples containing the job, the state, and whether or not the job was censored."""
 
     _completed_jobs_lock: Lock_Asyncio
+    """The asyncio lock for the completed jobs queue."""
 
     kudos_generated_this_session: float = 0
+    """The amount of kudos generated this entire session."""
     kudos_events: list[tuple[float, float]]
     """A deque of kudos events, each is a tuple of the time the event occurred and the amount of kudos generated."""
     session_start_time: float = 0
+    """The time at which the session started in epoch time."""
 
     _aiohttp_client_session: aiohttp.ClientSession
+    """The aiohttp client session to use for making network calls."""
 
     stable_diffusion_reference: StableDiffusion_ModelReference | None
+    """The class which contains the list of models from horde_model_reference."""
     horde_client: AIHordeAPIAsyncSimpleClient
+    """The horde sdk client to make api calls."""
     horde_client_session: AIHordeAPIAsyncClientSession
+    """The context manager for the horde sdk client."""
 
     user_info: UserDetailsResponse | None = None
     """The user info for the user that this worker is logged in as."""
@@ -998,21 +1052,29 @@ class HordeWorkerProcessManager:
     job_deque: deque[ImageGenerateJobPopResponse]
     """A deque of jobs that are waiting to be processed."""
     _job_deque_lock: Lock_Asyncio
+    """The asyncio lock for the job deque."""
 
     job_pop_timestamps: dict[ImageGenerateJobPopResponse, float]
+    """A mapping of jobs to the time at which they were popped."""
     _job_pop_timestamps_lock: Lock_Asyncio
+    """The asyncio lock for the job pop timestamps."""
 
     _inference_semaphore: Semaphore
     """A semaphore that limits the number of inference processes that can run at once."""
     _disk_lock: Lock_MultiProcessing
+    """A lock to prevent multiple processes from accessing the disk at once."""
 
     _aux_model_lock: Lock_MultiProcessing
+    """A lock to prevent multiple processes from accessing the auxiliary models at once (such as LoRas)."""
 
     _shutting_down = False
+    """Whether or not the worker is shutting down."""
 
     _lru: LRUCache
+    """A simple LRU cache. This is used to keep track of the most recently used models."""
 
     _amd_gpu: bool
+    """Whether or not the GPU is an AMD GPU."""
 
     def __init__(
         self,
@@ -1142,7 +1204,7 @@ class HordeWorkerProcessManager:
 
         self._process_message_queue = multiprocessing.Queue()
 
-        self.kudos_events = []
+        self.kudos_events: list[tuple[float, float]] = []
 
         self.stable_diffusion_reference = None
 
@@ -1405,7 +1467,7 @@ class HordeWorkerProcessManager:
         :param process_info: HordeProcessInfo for the process to end
         :return: None
         """
-        self._process_map.on_process_ended(process_id=process_info.process_id)
+        self._process_map.on_process_ending(process_id=process_info.process_id)
         if process_info.loaded_horde_model_name is not None:
             self._horde_model_map.expire_entry(process_info.loaded_horde_model_name)
 
@@ -1414,14 +1476,22 @@ class HordeWorkerProcessManager:
         except BrokenPipeError:
             if not self._shutting_down:
                 logger.debug(f"Process {process_info.process_id} control channel vanished")
-        process_info.mp_process.join(timeout=1)
-        process_info.mp_process.kill()
+        try:
+            process_info.mp_process.join(timeout=1)
+            process_info.mp_process.kill()
+        except Exception as e:
+            logger.error(f"Failed to kill process {process_info.process_id}: {e}")
+
         if not self._shutting_down:
             logger.info(f"Ended inference process {process_info.process_id}")
 
     _num_process_recoveries = 0
+    """The number of times a child process crashed or was killed and recovered."""
     _safety_processes_should_be_replaced: bool = False
+    """Whether or not the safety processes should be replaced due to a detected problem."""
     _safety_processes_ending: bool = False
+    """Whether or not the safety processes are in the process of ending. \
+        This only occurs when they are being replaced."""
 
     def _replace_all_safety_process(self) -> None:
         """Replace all of the safety processes.
@@ -1499,6 +1569,7 @@ class HordeWorkerProcessManager:
         self._num_process_recoveries += 1
 
     total_num_completed_jobs: int = 0
+    """The total number of jobs that have been completed."""
 
     def end_safety_processes(self) -> None:
         """End any safety processes above the configured limit, or all of them if shutting down."""
@@ -1511,7 +1582,7 @@ class HordeWorkerProcessManager:
         process_info.safe_send_message(HordeControlMessage(control_flag=HordeControlFlag.END_PROCESS))
 
         # Update the process map
-        self._process_map.on_process_ended(process_id=process_info.process_id)
+        self._process_map.on_process_ending(process_id=process_info.process_id)
 
         logger.info(f"Ended safety process {process_info.process_id}")
 
@@ -1537,6 +1608,7 @@ class HordeWorkerProcessManager:
                 break
 
             self._in_deadlock = False
+            self._in_queue_deadlock = False
 
             if isinstance(message, HordeProcessHeartbeatMessage):
                 self._process_map.on_heartbeat(
@@ -1574,6 +1646,10 @@ class HordeWorkerProcessManager:
                     process_id=message.process_id,
                     new_state=message.process_state,
                 )
+
+                if message.process_state == HordeProcessState.PROCESS_ENDING:
+                    logger.info(f"Process {message.process_id} is ending")
+                    self._process_map.on_process_ending(process_id=message.process_id)
 
                 if message.process_state == HordeProcessState.PROCESS_ENDED:
                     logger.info(f"Process {message.process_id} has ended with message: {message.info}")
@@ -1835,6 +1911,8 @@ class HordeWorkerProcessManager:
                 # logger.debug([c.generation_faults for c in completed_job_info.job_image_results])
                 self.completed_jobs.append(completed_job_info)
 
+    _preload_delay_notified = False
+
     def preload_models(self) -> bool:
         """Preload models that are likely to be used soon.
 
@@ -1909,6 +1987,26 @@ class HordeWorkerProcessManager:
                 self._replace_inference_process(available_process)
                 return False
 
+            num_preloading_processes = self._process_map.num_preloading_processes()
+
+            at_least_one_preloading_process = num_preloading_processes >= 1
+            very_fast_disk_mode_enabled = self.bridge_data.very_fast_disk_mode
+            max_concurrent_inference_processes_reached = (
+                num_preloading_processes >= self._max_concurrent_inference_processes
+            )
+
+            if (not very_fast_disk_mode_enabled and at_least_one_preloading_process) or (
+                very_fast_disk_mode_enabled and max_concurrent_inference_processes_reached
+            ):
+                if not self._preload_delay_notified:
+                    logger.info(
+                        f"Already preloading {num_preloading_processes} models, waiting for one to finish before "
+                        f"preloading {job.model}",
+                    )
+                    self._preload_delay_notified = True
+                return False
+
+            self._preload_delay_notified = False
             logger.debug(f"Preloading model {job.model} on process {available_process.process_id}")
             logger.debug(f"Available inference processes: {self._process_map}")
             only_active_models = {
@@ -1999,6 +2097,7 @@ class HordeWorkerProcessManager:
             if job.model is not None:
                 logger.debug(f"Expiring entry for model {job.model}")
                 self._horde_model_map.expire_entry(job.model)
+
                 try:
                     self.jobs_in_progress.remove(job)
                 except ValueError:
@@ -2006,6 +2105,8 @@ class HordeWorkerProcessManager:
 
         if self._horde_model_map.is_model_loaded(next_job.model):
             if process_with_model is None:
+                if self._preload_delay_notified:
+                    return None
                 handle_process_missing(next_job)
                 return None
 
@@ -2048,6 +2149,8 @@ class HordeWorkerProcessManager:
                     return None
 
         if process_with_model is None:
+            if self._preload_delay_notified:
+                return None
             handle_process_missing(next_job)
             return None
 
@@ -2423,6 +2526,7 @@ class HordeWorkerProcessManager:
             return None
 
     _num_job_slowdowns = 0
+    """The number of jobs which did not meet the minimum expected kudos/second rate."""
 
     @logger.catch(reraise=True)
     async def submit_single_generation(self, new_submit: PendingSubmitJob) -> PendingSubmitJob:
@@ -2469,6 +2573,7 @@ class HordeWorkerProcessManager:
                     data=image_in_buffer_bytes,
                     skip_auto_headers=["content-type"],
                     timeout=aiohttp.ClientTimeout(total=10),
+                    ssl=sslcontext,
                 ) as response:
                     if response.status != 200:
                         logger.error(f"Failed to upload image to R2: {response}")
@@ -3173,11 +3278,19 @@ class HordeWorkerProcessManager:
         return job_pop_response
 
     _last_pop_no_jobs_available: bool = False
+    """Whether the last job pop attempt had a no jobs available response."""
     _last_pop_no_jobs_available_time: float = 0.0
+    """The time at which the last job pop attempt had a no jobs available response."""
     _time_spent_no_jobs_available: float = 0.0
+    """The number of seconds spent with no jobs popped or available."""
+    _max_time_spent_no_jobs_available: float = 60.0 * 60.0
+    """The maximum number of seconds to spend with no jobs popped or available before warning the user."""
     _too_many_consecutive_failed_jobs: bool = False
+    """Whether too many consecutive failed jobs have occurred and job pops are paused."""
     _too_many_consecutive_failed_jobs_time: float = 0.0
+    """The time at which too many consecutive failed jobs occurred."""
     _too_many_consecutive_failed_jobs_wait_time = 180
+    """The time to wait after too many consecutive failed jobs before resuming job pops."""
 
     @logger.catch(reraise=True)
     async def api_job_pop(self) -> None:
@@ -3248,12 +3361,15 @@ class HordeWorkerProcessManager:
             else:
                 seconds_to_wait = self.get_pending_megapixelsteps() * 0.9
 
+            if self.bridge_data.max_threads > 1:
+                seconds_to_wait *= 0.75
+
             if self.bridge_data.high_performance_mode:
                 seconds_to_wait *= 0.35
-                # logger.debug("High performance mode is enabled, reducing the wait time by 70%")
+                if seconds_to_wait < 25:
+                    seconds_to_wait = 1
             elif self.bridge_data.moderate_performance_mode:
                 seconds_to_wait *= 0.5
-                # logger.debug("Moderate performance mode is enabled, reducing the wait time by 50%")
 
             if self._triggered_max_pending_megapixelsteps is False:
                 self._triggered_max_pending_megapixelsteps = True
@@ -3467,14 +3583,20 @@ class HordeWorkerProcessManager:
             )
 
     _user_info_failed = False
+    """Whether the API request to fetch user info failed."""
     _user_info_failed_reason: str | None = None
+    """The reason the API request to fetch user info failed."""
 
     _current_worker_id: str | None = None
+    """The current worker ID."""
 
     def calculate_kudos_info(self) -> None:
         """Calculate and log information about the kudos generated in the current session."""
         time_since_session_start = time.time() - self.session_start_time
         kudos_per_hour_session = self.kudos_generated_this_session / time_since_session_start * 3600
+        active_kudos_per_hour = (
+            self.kudos_generated_this_session / (time_since_session_start - self._time_spent_no_jobs_available) * 3600
+        )
 
         kudos_total_past_hour = self.calculate_kudos_totals()
 
@@ -3482,6 +3604,7 @@ class HordeWorkerProcessManager:
             time_since_session_start,
             kudos_per_hour_session,
             kudos_total_past_hour,
+            active_kudos_per_hour,
         )
 
         self.log_kudos_info(kudos_info_string)
@@ -3514,6 +3637,7 @@ class HordeWorkerProcessManager:
         time_since_session_start: float,
         kudos_per_hour_session: float,
         kudos_total_past_hour: float,
+        active_kudos_per_hour: float,
     ) -> str:
         """Generate a string with information about the kudos generated in the current session.
 
@@ -3521,6 +3645,7 @@ class HordeWorkerProcessManager:
             time_since_session_start (float): The time since the session started.
             kudos_per_hour_session (float): The kudos per hour generated in the current session.
             kudos_total_past_hour (float): The total kudos generated in the past hour.
+            active_kudos_per_hour (float): The kudos per hour generated while active (jobs available).
 
         Returns:
             str: A string with information about the kudos generated in the current session.
@@ -3551,6 +3676,11 @@ class HordeWorkerProcessManager:
             # kudos_info_string_elements.append(
             #     "Last Hour: (pending) kudos",
             # )
+
+        if self._time_spent_no_jobs_available > self._max_time_spent_no_jobs_available:
+            kudos_info_string_elements.append(
+                f"Active (jobs available): {active_kudos_per_hour:,.2f} kudos/hr",
+            )
 
         return " | ".join(kudos_info_string_elements)
 
@@ -3608,6 +3738,7 @@ class HordeWorkerProcessManager:
             await logger.complete()
 
     _job_submit_loop_interval = 0.02
+    """The interval between job submit loop iterations."""
 
     async def _job_submit_loop(self) -> None:
         """Run the job submit loop."""
@@ -3667,7 +3798,9 @@ class HordeWorkerProcessManager:
                     await asyncio.sleep(self._api_call_loop_interval)
 
     _status_message_frequency = 20.0
+    """The rate in seconds at which to print status messages with details about the current state of the worker."""
     _last_status_message_time = 0.0
+    """The epoch time of the last status message."""
 
     async def _process_control_loop(self) -> None:
         self.start_safety_processes()
@@ -3765,7 +3898,14 @@ class HordeWorkerProcessManager:
 
                     #  self.unload_models()
 
-                    if self._shutting_down:
+                    is_job_and_one_inference_process = (
+                        len(self.job_deque) >= 1 and self._process_map.num_loaded_inference_processes() == 1
+                    )
+
+                    if self._shutting_down and not self._last_pop_recently() and not is_job_and_one_inference_process:
+                        # We want to avoid too aggressively killing inference processes
+                        # while we still have jobs to process, so we'll make sure at least 1 process stays up
+                        # while we have jobs to process
                         self.end_inference_processes()
 
                     if self.is_time_for_shutdown():
@@ -3801,12 +3941,18 @@ class HordeWorkerProcessManager:
 
         sys.exit(0)
 
-    _last_deadlock_detected_time = 0.0
-    _in_deadlock = False
-    _in_queue_deadlock = False
-    _last_queue_deadlock_detected_time = 0.0
+    _last_deadlock_detected_time: float = 0.0
+    """The epoch time of the last deadlock detected."""
+    _in_deadlock: bool = False
+    """Whether the worker is in a deadlock state."""
+    _in_queue_deadlock: bool = False
+    """Whether the worker is in a queue deadlock state."""
+    _last_queue_deadlock_detected_time: float = 0.0
+    """The epoch time of the last queue deadlock detected."""
     _queue_deadlock_model: str | None = None
+    """The model causing the queue deadlock."""
     _queue_deadlock_process_id: int | None = None
+    """The process ID causing the queue deadlock."""
 
     def detect_deadlock(self) -> None:
         """Detect if there are jobs in the queue but no processes doing anything."""
@@ -3830,7 +3976,7 @@ class HordeWorkerProcessManager:
             not self._in_queue_deadlock
             and (self._process_map.num_busy_processes() == 0 and len(self.job_deque) > 0)
             and len(self.jobs_in_progress) == 0
-        ):
+        ) or (self._process_map.all_waiting_for_job() and len(self.job_deque) > 0):
 
             currently_loaded_models = set()
             model_process_map: dict[str, int] = {}
@@ -3845,13 +3991,34 @@ class HordeWorkerProcessManager:
                     self._last_queue_deadlock_detected_time = time.time()
                     self._queue_deadlock_model = job.model
                     self._queue_deadlock_process_id = model_process_map[job.model]
+                    break
+            else:
+                logger.debug("Queue deadlock detected without a model causing it.")
+                _print_deadlock_info()
+                self._in_queue_deadlock = True
+                self._last_queue_deadlock_detected_time = time.time()
+                # we're going to fall back to the next model in the deque
+                self._queue_deadlock_model = self.job_deque[0].model
 
         elif self._in_queue_deadlock and (self._last_queue_deadlock_detected_time + 10) < time.time():
             logger.debug("Queue deadlock detected")
             _print_deadlock_info()
-            logger.debug(f"Model causing deadlock: {self._queue_deadlock_model}")
-            if self._queue_deadlock_process_id is not None:
-                self._replace_inference_process(self._process_map[self._queue_deadlock_process_id])
+            if self._queue_deadlock_model is not None:
+                logger.debug(f"Model causing deadlock: {self._queue_deadlock_model}")
+                if self._queue_deadlock_process_id is not None:
+                    self._horde_model_map.expire_entry(self._queue_deadlock_model)
+                    self._replace_inference_process(self._process_map[self._queue_deadlock_process_id])
+            else:
+                logger.warning("Queue deadlock detected but no model causing it.")
+                num_processes_replaced = 0
+                # We're going to replace up to two process which aren't busy
+                for process in self._process_map.values():
+                    if not process.is_process_busy():
+                        self._replace_inference_process(process)
+                        num_processes_replaced += 1
+                    if num_processes_replaced >= 2:
+                        break
+
             self._in_queue_deadlock = False
             self._queue_deadlock_model = None
             self._queue_deadlock_process_id = None
@@ -3894,6 +4061,8 @@ class HordeWorkerProcessManager:
             logger.info("Process info:")
             for process_info_string in process_info_strings:
                 logger.info(process_info_string)
+
+            max_power_dimension = int(math.sqrt(self.bridge_data.max_power * 8 * 64 * 64))
             logger.info(
                 " | ".join(
                     [
@@ -3901,7 +4070,7 @@ class HordeWorkerProcessManager:
                         f"(v{horde_worker_regen.__version__})",
                         f"horde user: {self.user_info.username if self.user_info is not None else 'Unknown'}",
                         f"num_models: {len(self.bridge_data.image_models_to_load)}",
-                        f"max_power: {self.bridge_data.max_power}",
+                        f"max_power: {self.bridge_data.max_power} ({max_power_dimension}x{max_power_dimension})",
                         f"max_threads: {self.max_concurrent_inference_processes}",
                         f"queue_size: {self.bridge_data.queue_size}",
                         f"safety_on_gpu: {self.bridge_data.safety_on_gpu}",
@@ -4010,7 +4179,12 @@ class HordeWorkerProcessManager:
                         f"Device {device.device_name} ({device.device_index}) has less than 10GB of memory. "
                         "This may cause issues with `high_memory_mode` enabled.",
                     )
-                elif total_memory_mb > 20_000 and not self.bridge_data.high_memory_mode:
+                elif (
+                    total_memory_mb > 20_000
+                    and not self.bridge_data.high_memory_mode
+                    and self.bridge_data.max_threads == 1
+                    and self.total_ram_gigabytes > 32
+                ):
                     logger.warning(
                         f"Device {device.device_name} ({device.device_index}) has more than 20GB of memory. "
                         "You should enable `high_memory_mode` in your config to take advantage of this.",
@@ -4040,7 +4214,7 @@ class HordeWorkerProcessManager:
                 if not self.bridge_data.suppress_speed_warnings:
                     logger.warning(
                         f"Your worker spent more than {minutes_allowed_without_jobs} minutes combined throughout this "
-                        f"session ({cur_session_minutes:.2f} minutes) "
+                        f"session ({self._time_spent_no_jobs_available/60:.2f}/{cur_session_minutes:.2f} minutes) "
                         "without jobs. This may be due to low demand. However, offering more models or increasing "
                         "your max_power may help increase the number of jobs you receive and reduce downtime.",
                     )
@@ -4056,9 +4230,12 @@ class HordeWorkerProcessManager:
             self._last_status_message_time = cur_time
 
     _bridge_data_loop_interval = 1.0
+    """The interval between bridge data loop iterations."""
     _last_bridge_data_reload_time = 0.0
+    """The epoch time of the last bridge data reload."""
 
     _bridge_data_last_modified_time = 0.0
+    """The time the bridge data file on disk was last modified."""
 
     def get_bridge_data_from_disk(self) -> None:
         """Load the bridge data from disk."""
@@ -4143,6 +4320,7 @@ class HordeWorkerProcessManager:
         await asyncio.gather(*tasks)
 
     _caught_sigints = 0
+    """The number of SIGINTs or SIGTERMs caught."""
 
     def start(self) -> None:
         """Start the process manager."""
@@ -4170,10 +4348,13 @@ class HordeWorkerProcessManager:
             time.sleep((len(self.completed_jobs) * 4) + 2)
 
             for process in self._process_map.values():
-                process.mp_process.kill()
-                process.mp_process.kill()
+                try:
+                    process.mp_process.kill()
+                    process.mp_process.kill()
 
-                process.mp_process.join(1)
+                    process.mp_process.join(1)
+                except Exception as e:
+                    logger.error(f"Failed to kill process {process}: {e}")
 
             sys.exit(1)
 
@@ -4227,9 +4408,12 @@ class HordeWorkerProcessManager:
                 or (safety and process_info.process_type == HordeProcessType.SAFETY)
                 or (all_)
             ):
-                process_info.mp_process.kill()
-                process_info.mp_process.kill()
-                process_info.mp_process.join(1)
+                try:
+                    process_info.mp_process.kill()
+                    process_info.mp_process.kill()
+                    process_info.mp_process.join(1)
+                except Exception as e:
+                    logger.error(f"Failed to kill process {process_info}: {e}")
 
         self._process_map.clear()
         self._horde_model_map.root.clear()

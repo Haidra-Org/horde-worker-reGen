@@ -68,6 +68,9 @@ class reGenBridgeData(CombinedHordeBridgeData):
     moderate_performance_mode: bool = Field(default=False)
     """If you have a 3080 or better, set this to true to enable moderate performance mode."""
 
+    very_fast_disk_mode: bool = Field(default=False)
+    """If you have a very fast disk, set this to true to concurrently load more models at a time from disk."""
+
     post_process_job_overlap: bool = Field(default=False)
     """High and moderate performance modes will skip post processing if this is set to true."""
 

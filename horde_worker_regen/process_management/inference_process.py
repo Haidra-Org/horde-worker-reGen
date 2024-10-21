@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import base64
 import contextlib
-import io
 import sys
 import time
 
@@ -352,13 +351,14 @@ class HordeInferenceProcess(HordeProcess):
             seamless_tiling_enabled (bool): Whether or not seamless tiling is enabled.
             job_info (ImageGenerateJobPopResponse): The job to preload the model for.
         """
+        logger.debug(f"Currently active model is {self._active_model_name}. Requested model is {horde_model_name}")
+
         if self._active_model_name == horde_model_name:
             return
 
         if self._is_busy:
             logger.warning("Cannot preload model while busy")
 
-        logger.debug(f"Currently active model is {self._active_model_name}")
         logger.debug(f"Preloading model {horde_model_name}")
 
         if self._active_model_name is not None:
@@ -585,13 +585,11 @@ class HordeInferenceProcess(HordeProcess):
 
         if results is not None:
             for result in results:
-                buffered_image = io.BytesIO()
-                if result.image is None:
+                if result.rawpng is None:
                     logger.critical("Result or result image is None")
                     continue
 
-                result.image.save(buffered_image, format="PNG")
-                image_base64 = base64.b64encode(buffered_image.getvalue()).decode("utf-8")
+                image_base64 = base64.b64encode(result.rawpng.getvalue()).decode("utf-8")
                 all_image_results.append(
                     HordeImageResult(
                         image_base64=image_base64,

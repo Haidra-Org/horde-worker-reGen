@@ -1,15 +1,17 @@
-numpy==1.26.4
-torch==2.3.1
-qrcode==7.4.2
+torch==2.5.0
+qrcode==7.4.2 # >8 breaks horde-engine 2.17.1 via the qr code generation nodes
 
-horde_sdk~=0.14.11
+certifi # Required for SSL cert resolution
+
+horde_sdk~=0.15.1
 horde_safety~=0.2.3
-horde_engine~=2.15.3
-horde_model_reference>=0.9.0
+horde_engine~=2.17.1
+horde_model_reference>=0.9.1
 
 python-dotenv
 ruamel.yaml
 semver
+wheel
 
 python-Levenshtein
 

@@ -58,6 +58,9 @@ class reGenBridgeData(CombinedHordeBridgeData):
     be favored when popping a job.
     """
 
+    low_memory_mode: bool = Field(default=False)
+    """If you have a low vram GPU or want to minimize memory usage, set this to true."""
+
     high_memory_mode: bool = Field(default=False)
 
     very_high_memory_mode: bool = Field(default=False)

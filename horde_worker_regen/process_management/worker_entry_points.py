@@ -62,7 +62,7 @@ def start_inference_process(
             extra_comfyui_args = ["--disable-smart-memory"]
 
             if amd_gpu:
-                extra_comfyui_args.append("--use-pytorch-cross-attention")
+                extra_comfyui_args.append("--use-split-cross-attention")
 
             models_not_to_force_load = ["flux"]
 

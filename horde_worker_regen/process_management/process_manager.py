@@ -1435,6 +1435,7 @@ class HordeWorkerProcessManager:
             kwargs={
                 "very_high_memory_mode": self.bridge_data.very_high_memory_mode,
                 "high_memory_mode": self.bridge_data.high_memory_mode,
+                "low_memory_mode": self.bridge_data.low_memory_mode,
                 "amd_gpu": self._amd_gpu,
             },
         )

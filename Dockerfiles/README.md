@@ -23,8 +23,8 @@ git sparse-checkout set --no-cone Dockerfiles /bridgeData_template.yaml
 If your system is set up properly (see [Prerequisites](#prerequisites))
 you can just [setup](https://github.com/Haidra-Org/horde-worker-reGen?tab=readme-ov-file#configure) your bridgeData.yaml file and then run
 ```bash
-docker compose -f Dockerfiles/compse.[cuda|rocm].yaml build --pull
-docker compose -f Dockerfiles/compse.[cuda|rocm].yaml up -dV
+docker compose -f Dockerfiles/compose.[cuda|rocm].yaml build --pull
+docker compose -f Dockerfiles/compose.[cuda|rocm].yaml up -dV
 ```
 
 > **Warning**: The compose files will automatically pull in your bridgeData.yaml as a mount inside the container. If you have any configuration options set to absolute or windows-style directories (**especially `cache_home`**), this will cause the worker inside the container to not work as expected. You can set `AIWORKER_BRIDGE_DATA_LOCATION` environment variable to set the location of the config file you would like to use if you need an alternative file and you can set `AIWORKER_CACHE_HOME` to set the location of your models folder on the host.
@@ -57,8 +57,8 @@ You just need to go to the `horde-worker-reGen` directory, update the git repo, 
 ```
 cd horde-worker-reGen
 git pull
-docker compose -f Dockerfiles/compse.[cuda|rocm].yaml build --pull
-docker compose -f Dockerfiles/compse.[cuda|rocm].yaml up -dV
+docker compose -f Dockerfiles/compose.[cuda|rocm].yaml build --pull
+docker compose -f Dockerfiles/compose.[cuda|rocm].yaml up -dV
 ```
 
 # Advanced options

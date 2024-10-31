@@ -2,6 +2,7 @@
 
 # Determine if the user has a flash attention supported card.
 SUPPORTED_CARD=$(rocminfo | grep -c -e gfx1100 -e gfx1101 -e gfx1102)
+export "${FLASH_ATTENTION_USE_TRITON_ROCM:=TRUE}"
 
 if [ "$SUPPORTED_CARD" -gt 0 ]; then
     if ! pip install -U pytest git+https://github.com/ROCm/flash-attention@micmelesse/upstream_pr_rebase; then

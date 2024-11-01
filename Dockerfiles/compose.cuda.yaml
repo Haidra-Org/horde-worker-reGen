@@ -16,6 +16,7 @@ services:
     volumes:
       - ${AIWORKER_CACHE_HOME:-../models/}:/horde-worker-reGen/models/
       - ${AIWORKER_BRIDGE_DATA_LOCATION:-../bridgeData.yaml}:/horde-worker-reGen/bridgeData.yaml:ro
+    stop_grace_period: 60s
     deploy:
       resources:
         reservations:

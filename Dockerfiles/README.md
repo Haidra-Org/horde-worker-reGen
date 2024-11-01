@@ -41,7 +41,7 @@ docker start -ai reGen
 ```
 
 ### Stop
-To stop a running container (set it to maintenance mode first using a mangement site like [Artbot](https://tinybots.net/artbot/settings?panel=workers)):
+To stop a running container:
 ```bash
 docker stop reGen
 ```

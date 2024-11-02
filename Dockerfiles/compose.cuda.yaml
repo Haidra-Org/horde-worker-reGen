@@ -22,3 +22,4 @@ services:
           devices:
           - driver: nvidia
             capabilities: [gpu]
+            count: all

@@ -45,9 +45,9 @@ fi
 if [ -e bridgeData.yaml ]; then
     # There is a bridgeData.yaml file, we'll load from that
     python download_models.py
-    python run_worker.py
+    exec python run_worker.py
 else
     # No bridgeData.yaml file, we'll use environment variables
     python download_models.py -e
-    python run_worker.py -e
+    exec python run_worker.py -e
 fi

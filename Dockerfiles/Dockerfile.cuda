@@ -57,4 +57,6 @@ COPY entrypoint.sh /entrypoint.sh
 COPY setup_*.sh ${APP_HOME}
 RUN chmod +x /entrypoint.sh
 
+STOPSIGNAL SIGINT
+
 ENTRYPOINT ["/entrypoint.sh"]

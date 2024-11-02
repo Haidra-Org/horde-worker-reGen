@@ -26,6 +26,7 @@ shift # past argument or value
 done
 
 CONDA_ENVIRONMENT_FILE=environment.rocm.yaml
+export FLASH_ATTENTION_USE_TRITON_ROCM=TRUE
 
 wget -qO- https://github.com/mamba-org/micromamba-releases/releases/latest/download/micromamba-linux-64.tar.bz2 | tar -xvj -C "${SCRIPT_DIR}"
 if [ ! -f "$SCRIPT_DIR/conda/envs/linux/bin/python" ]; then

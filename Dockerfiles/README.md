@@ -42,7 +42,7 @@ docker start -ai reGen
 
 ### Stop
 
-> Note: To reduce the chances of dropping jobs due to the `docker stop` timeout running out, please set your worker into maintenance mode first whenever possible via the [API](https://aihorde.net/api/) PUT endpoint `/v2/workers/{worker_id}` or with a frontend like [artbot.site](https://artbot.site/). 
+> Note: To reduce the chances of dropping jobs due to the `docker stop` timeout running out, please set your worker into maintenance mode first whenever possible via the [API](https://aihorde.net/api/) PUT endpoint `/v2/workers/{worker_id}` or with a frontend like [artbot.site](https://artbot.site/).
 
 To stop a running container:
 ```bash

@@ -21,6 +21,11 @@ if [ ! -z "${ROCM_VERSION_SHORT}" ]; then
     export GPU_TYPE="rocm"
     export PYTORCH_EXTRA_INDEX="https://download.pytorch.org/whl/rocm${ROCM_VERSION_SHORT}"
     export REQUIREMENTS_FILE="requirements.rocm.txt"
+
+    export "${FLASH_ATTENTION_USE_TRITON_ROCM:=TRUE}"
+    #export PYTORCH_TUNABLEOP_ENABLED=1
+    export MIOPEN_FIND_MODE="FAST"
+    #export PYTORCH_HIP_ALLOC_CONF="garbage_collection_threshold:0.8,max_split_size_mb:512,expandable_segments:True"
 elif [ ! -z "${CUDA_VERSION_SHORT}" ]; then
     # CUDA environment
     export GPU_TYPE="cuda"

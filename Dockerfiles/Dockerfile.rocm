@@ -4,6 +4,7 @@ FROM rocm/rocm-terminal:${ROCM_VERSION} AS base
 
 USER root
 WORKDIR /
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG PYTHON_VERSION=3.11
@@ -11,7 +12,7 @@ ENV PYTHON_VERSION=${PYTHON_VERSION}
 ENV APP_HOME=/horde-worker-reGen
 
 RUN apt-get update && \
-    apt-get install -y software-properties-common && \
+    apt-get install -y --no-install-recommends software-properties-common && \
     add-apt-repository ppa:deadsnakes/ppa && \
     apt-get install -y --no-install-recommends \
     python${PYTHON_VERSION} \
@@ -27,7 +28,7 @@ RUN apt-get update && \
 
 # Extract ROCm version for PyTorch
 ARG ROCM_VERSION
-RUN ROCM_VERSION_SHORT=$(echo ${ROCM_VERSION} | cut -d. -f1-2) && \
+RUN ROCM_VERSION_SHORT=$(echo "${ROCM_VERSION}" | cut -d. -f1-2) && \
     echo "export ROCM_VERSION_SHORT=${ROCM_VERSION_SHORT}" >> /env_vars
 
 # Stage 2: Clone repository and install dependencies
@@ -39,29 +40,34 @@ ARG GIT_OWNER=Haidra-Org
 RUN echo "export GIT_BRANCH=${GIT_BRANCH}" >> /env_vars && \
     echo "export GIT_OWNER=${GIT_OWNER}" >> /env_vars
 
+WORKDIR "${APP_HOME}"
+
 # Clone the repository
-RUN git clone https://github.com/${GIT_OWNER}/horde-worker-reGen.git ${APP_HOME} && \
-    cd ${APP_HOME} && \
-    git switch ${GIT_BRANCH}
+RUN git clone "https://github.com/${GIT_OWNER}/horde-worker-reGen.git" . && \
+    git switch "${GIT_BRANCH}"
 
 # Create virtual environment
-RUN python${PYTHON_VERSION} -m venv ${APP_HOME}/venv
+RUN python"${PYTHON_VERSION}" -m venv "${APP_HOME}/venv"
 ENV PATH="${APP_HOME}/venv/bin:$PATH"
 
 # Install dependencies
 ARG PIP_CACHE_DIR=/pip-cache
+ARG USE_PIP_CACHE=true
 
-RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=locked,id=pip-cache \
+RUN --mount=type=cache,target="${PIP_CACHE_DIR}",sharing=locked,id=pip-cache \
     . /env_vars && \
-    pip install --cache-dir=${PIP_CACHE_DIR} opencv-python-headless -r ${APP_HOME}/requirements.rocm.txt -U --extra-index-url https://download.pytorch.org/whl/rocm${ROCM_VERSION_SHORT}; \
-    pip uninstall -y pynvml nvidia-ml-py
+    if [ "${USE_PIP_CACHE}" = "true" ]; then \
+        pip install --cache-dir="${PIP_CACHE_DIR}" opencv-python-headless -r requirements.rocm.txt -U --extra-index-url "https://download.pytorch.org/whl/rocm${ROCM_VERSION_SHORT}"; \
+    else \
+        pip install opencv-python-headless -r requirements.rocm.txt -U --extra-index-url "https://download.pytorch.org/whl/rocm${ROCM_VERSION_SHORT}"; \
+    fi
 
 # Stage 3: Final stage
 FROM builder AS final
 
-WORKDIR ${APP_HOME}
+WORKDIR "${APP_HOME}"
 COPY entrypoint.sh /entrypoint.sh
-COPY setup_*.sh ${APP_HOME}
+COPY setup_*.sh "${APP_HOME}"
 RUN chmod +x /entrypoint.sh
 
 STOPSIGNAL SIGINT

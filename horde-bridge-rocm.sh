@@ -5,11 +5,15 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Build the absolute path to the Conda environment
 CONDA_ENV_PATH="$SCRIPT_DIR/conda/envs/linux/lib"
 
+# Use the triton backend for flash_attn
+export FLASH_ATTENTION_USE_TRITON_ROCM=TRUE
+export MIOPEN_FIND_MODE="FAST"
+
 # Add the Conda environment to LD_LIBRARY_PATH
 export LD_LIBRARY_PATH="$CONDA_ENV_PATH:$LD_LIBRARY_PATH"
 
-# Set torch garbage cleanup. Amd defaults cause problems.
-export PYTORCH_HIP_ALLOC_CONF=garbage_collection_threshold:0.6,max_split_size_mb:2048
+# Set torch garbage cleanup. Amd defaults cause problems. //this was less stable than the torch 2.5.0 defaults in my testing
+#export PYTORCH_HIP_ALLOC_CONF=garbage_collection_threshold:0.6,max_split_size_mb:2048
 
 # List of directories to check
 dirs=(
@@ -43,7 +47,7 @@ fi
 
 if "$SCRIPT_DIR/runtime-rocm.sh" python -s "$SCRIPT_DIR/download_models.py"; then
     echo "Model Download OK. Starting worker..."
-    "$SCRIPT_DIR/runtime-rocm.sh" python -s "$SCRIPT_DIR/run_worker.py" --amd $*
+    "$SCRIPT_DIR/runtime-rocm.sh" python -s "$SCRIPT_DIR/run_worker.py" $*
 else
     echo "download_models.py exited with error code. Aborting"
 fi

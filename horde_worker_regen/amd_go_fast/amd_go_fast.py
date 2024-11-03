@@ -10,7 +10,7 @@ if "AMD" in torch.cuda.get_device_name() or "Radeon" in torch.cuda.get_device_na
         def sdpa_hijack(
             query, key, value, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None, enable_gqa=False
         ):
-            if query.shape[3] <= 128 and attn_mask is None and query.dtype != torch.float32:
+            if query.shape[3] <= 256 and attn_mask is None and query.dtype != torch.float32:
                 hidden_states = flash_attn_func(
                     q=query.transpose(1, 2),
                     k=key.transpose(1, 2),

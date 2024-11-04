@@ -1,0 +1,5 @@
+ignored:
+  - DL3008 # Pin versions in apt get install
+  - DL3042 # Avoid cache directory with `pip install`
+  - DL3002 # Last USER should not be root
+failure-threshold: warning

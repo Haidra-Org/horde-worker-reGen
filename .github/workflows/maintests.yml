@@ -26,6 +26,19 @@ jobs:
         with:
           extra_args: --all-files
 
+  dockerfile-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Lint CUDA Dockerfile
+        uses: hadolint/hadolint-action@master
+        with:
+          dockerfile: "Dockerfiles/Dockerfile.cuda"
+      - name: Lint RoCM Dockerfile
+        uses: hadolint/hadolint-action@master
+        with:
+          dockerfile: "Dockerfiles/Dockerfile.rocm"
+
   unit-tests:
     runs-on: ubuntu-latest
     strategy:

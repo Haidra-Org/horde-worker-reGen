@@ -1,9 +1,6 @@
 #!/bin/bash
 
-# Determine if the user has a flash attention supported card.
-SUPPORTED_CARD=$(rocminfo | grep -c -e gfx1100 -e gfx1101 -e gfx1102)
-
-if [ "$SUPPORTED_CARD" -gt 0 -a "${FLASH_ATTENTION_USE_TRITON_ROCM^^}" == "TRUE" ]; then
+if [ "${FLASH_ATTENTION_USE_TRITON_ROCM^^}" == "TRUE" ]; then
     if ! pip install -U pytest git+https://github.com/ROCm/flash-attention@micmelesse/upstream_pr_rebase; then
 		echo "Tried to install flash attention and failed!"
 	else

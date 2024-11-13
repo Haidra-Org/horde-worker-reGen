@@ -53,7 +53,23 @@ rocminfo
 ```
 * It should return something like:
 ```
+WSL environment detected.
+=====================
+HSA System Attributes
+=====================
+Runtime Version:         1.1
+Runtime Ext Version:     1.6
+System Timestamp Freq.:  1000.000000MHz
+Sig. Max Wait Duration:  18446744073709551615 (0xFFFFFFFFFFFFFFFF) (timestamp count)
+Machine Model:           LARGE
+System Endianness:       LITTLE
+Mwaitx:                  DISABLED
+DMAbuf Support:          NO
 
+==========
+HSA Agents
+==========
+...
 ```
 * Now type `exit` to leave the root shell
 ```

@@ -8,7 +8,7 @@ from pathlib import Path  # noqa: E402
 
 ASSETS_FOLDER_PATH = Path(__file__).parent / "assets"
 
-__version__ = "9.2.0"
+__version__ = "9.2.1"
 
 
 import pkg_resources  # noqa: E402

@@ -10,6 +10,13 @@ SUPPORTED_CARD=$(rocminfo | grep -c -e gfx1100 -e gfx1101 -e gfx1102)
 if [ "$SUPPORTED_CARD" -gt 0 ]; then export FLASH_ATTENTION_USE_TRITON_ROCM="${FLASH_ATTENTION_USE_TRITON_ROCM:=TRUE}"; fi
 export MIOPEN_FIND_MODE="FAST"
 
+# Check if we are running in WSL2
+WSL_KERNEL=$(uname -a | grep -c -e WSL2 )
+if [ "$WSL_KERNEL" -gt 0 ]; then
+    export "${IN_WSL:=TRUE}"
+    for i in $(find ./ -iname libhsa-runtime64.so); do cp /opt/rocm/lib/libhsa-runtime64.so $i; done
+fi
+
 # Add the Conda environment to LD_LIBRARY_PATH
 export LD_LIBRARY_PATH="$CONDA_ENV_PATH:$LD_LIBRARY_PATH"
 

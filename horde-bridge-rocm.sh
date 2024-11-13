@@ -5,8 +5,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Build the absolute path to the Conda environment
 CONDA_ENV_PATH="$SCRIPT_DIR/conda/envs/linux/lib"
 
-# Use the triton backend for flash_attn
-export FLASH_ATTENTION_USE_TRITON_ROCM=TRUE
+# Determine if the user has a flash attention supported card.
+SUPPORTED_CARD=$(rocminfo | grep -c -e gfx1100 -e gfx1101 -e gfx1102)
+if [ "$SUPPORTED_CARD" -gt 0 ]; then export FLASH_ATTENTION_USE_TRITON_ROCM="${FLASH_ATTENTION_USE_TRITON_ROCM:=TRUE}"; fi
 export MIOPEN_FIND_MODE="FAST"
 
 # Add the Conda environment to LD_LIBRARY_PATH

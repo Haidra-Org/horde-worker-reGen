@@ -94,8 +94,13 @@ cd horde-worker-reGen
 
 Continue with the [Basic Usage](#basic-usage) instructions
 
-## Basic Usage
+### AMD
 
+**AMD** now has been shown to have better support but for **linux machines only** - it's best to have linux installed directly on your machine. [WSL support](README_advanced.md#advanced-users-amd-rocm-inside-windows-wsl) is highly experimental. You can now follow this guide using  `horde-bridge-rocm.sh` and `update-runtime-rocm.sh` where appropriate.
+
+If you are willing to try with your AMD card, join the [discord discussion](https://discord.com/channels/781145214752129095/1076124012305993768) in the [official discord](https://discord.gg/3DxrhksKzn).
+
+## Basic Usage
 ### Configure
 
 1. Make a copy of `bridgeData_template.yaml` to `bridgeData.yaml`
@@ -198,6 +203,7 @@ See [Updating runtime](#updating-runtime)
 
 #### Updating runtime
 > **Warning**: Certain antiviruses (including Avast) have been reported to interfere with the install. If you get the error `curl: (35) schannel: next InitializeSecurityContext failed: CRYPT_E_NO_REVOCATION_CHECK` when running this file, disable your antivirus, run the file again, and then re-enable your antivirus.
+
 4. Run the `update-runtime` script for your OS. This will update all dependencies if required.
    - Some updates may not require this and the update notification will tell you if this is the case.
    - When in doubt, you should run it anyway.

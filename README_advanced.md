@@ -61,7 +61,7 @@ exit
 ```
 
 ### Installing the worker:
-* From here steps are **mostly** identical to [Installing](https://github.com/Haidra-Org/horde-worker-reGen#linux) on Linux:
+* From here steps are **mostly** identical to [Installing](README.md/#linux) on Linux:
 * Install:
 ```
 git clone https://github.com/Haidra-Org/horde-worker-reGen.git
@@ -75,7 +75,7 @@ bash update-runtime-rocm.sh
 ```
 for i in $(find ./ -iname libhsa-runtime64.so); do cp /opt/rocm/lib/libhsa-runtime64.so $i; done
 ```
-* From here you can follow the standard [Usage](https://github.com/Haidra-Org/horde-worker-reGen#basic-usage) instructions
+* From here you can follow the standard [Usage](README.md/#basic-usage) instructions
 
 ## Advanced users, local install:
 

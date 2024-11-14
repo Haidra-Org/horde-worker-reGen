@@ -11,6 +11,72 @@
 - **The worker does not download models on worker start** for the moment (this will change.) You can download all models configured in your bridge data by invoking `python download_models.py`.
 
 
+## Advanced users, AMD ROCm inside Windows WSL:
+
+### System setup:
+* Make sure your Windows OS and AMD drivers are up to date.
+* You need to enable and install WSL on your system. Open a command prompt with Administrative privileges (search for cmd, then click "Run as Administrator")
+* Type the following to enable WSL and install an Ubuntu image:
+```
+wsl --install
+```
+* If WSL is already installed and enabled type the following to install an Ubuntu image:
+```
+wsl --install -d Ubuntu
+```
+* If you have previously used Ubuntu WSL, please reset the image (Note: this will delete the data inside the WSL image, make sure it's saved elsewhere):
+```
+wsl --unregister Ubuntu
+```
+* When the terminal asks you for a "unix username" type in a simple username. It will then ask for a password. Type in the password you want to use, press enter to confirm and repeat. It will not show any output, but your key presses are still registered.
+* To open your Ubuntu image after closing the terminal window you can search for `Ubuntu` in the Start Menu, or open a Termial and enter the command `wsl`
+
+### Ubuntu ROCm install:
+* First we need to update the image, then install ROCm. All these actions require root privileges, so switch to root for now and enter your password:
+```
+sudo su
+```
+* Now update the system and install a few tools:
+```
+apt update && apt full-upgrade -y && apt autopurge -y
+apt install -y curl git nano wget
+```
+* Now we can install ROCm. Command 3 will take a while to download and install everything:
+```
+wget -r -nd -np -A 'amdgpu-install*all.deb' "https://repo.radeon.com/amdgpu-install/6.2.3/ubuntu/noble/"
+apt-get install -y ./amdgpu-install*all.deb
+amdgpu-install -y --usecase=rocm,wsl --no-dkms
+```
+* We can now check whether ROCm was installed successfully with the `rocminfo` command.
+```
+rocminfo
+```
+* It should return something like:
+```
+
+```
+* Now type `exit` to leave the root shell
+```
+exit
+```
+
+### Installing the worker:
+* From here steps are **mostly** identical to [Installing](https://github.com/Haidra-Org/horde-worker-reGen#linux) on Linux:
+* Install:
+```
+git clone https://github.com/Haidra-Org/horde-worker-reGen.git
+cd horde-worker-reGen
+```
+* Then Update Runtime:
+```
+bash update-runtime-rocm.sh
+```
+* Now we have to make it work in WSL:
+```
+for i in $(find ./ -iname libhsa-runtime64.so); do cp /opt/rocm/lib/libhsa-runtime64.so $i; done
+```
+* From here you can follow the standard [Usage](https://github.com/Haidra-Org/horde-worker-reGen#basic-usage) instructions
+
 ## Advanced users, local install:
 
 ### Simple usage

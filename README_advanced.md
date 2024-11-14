@@ -19,6 +19,7 @@
 * Install [git](https://git-scm.com/) in your system.
 * Install CUDA/RoCM if you haven't already.
 * Install Python 3.10 or 3.11.
+* We **strongly recommend** you configure at least 8gb (preferably 16gb+) of memory swap space. This recommendation applies to linux too.
 * Clone the worker to your system
    `git clone https://github.com/Haidra-Org/horde-worker-reGen.git`
 

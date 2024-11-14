@@ -9,28 +9,28 @@ Not only does running a worker earn you kudos, it also helps support the AI Hord
 ## Table of Contents
 
 - [AI Horde Worker reGen](#ai-horde-worker-regen)
-  - [Table of Contents](#table-of-contents)
-  - [Installing](#installing)
-    - [Windows](#windows)
-      - [Using git (recommended)](#using-git-recommended)
-      - [Without git](#without-git)
-    - [Linux](#linux)
-  - [Basic Usage](#basic-usage)
-      - [AMD](#amd)
-    - [Configure](#configure)
-      - [Suggested settings](#suggested-settings)
-        - [Important Notes](#important-notes)
-  - [Updating](#updating)
-      - [git method](#git-method)
-      - [zip method](#zip-method)
-  - [Starting/stopping](#startingstopping)
-    - [Starting the worker](#starting-the-worker)
-    - [Stopping the worker](#stopping-the-worker)
-    - [Monitoring](#monitoring)
-    - [Running with multiple GPUs](#running-with-multiple-gpus)
-  - [Custom Models](#custom-models)
-  - [Docker](#docker)
-  - [Support](#support)
+    - [Table of Contents](#table-of-contents)
+    - [Installing](#installing)
+        - [Windows](#windows)
+            - [Using git (recommended)](#using-git-recommended)
+            - [Without git](#without-git)
+        - [Linux](#linux)
+    - [Basic Usage](#basic-usage)
+        - [Configure](#configure)
+            - [Suggested settings](#suggested-settings)
+                - [Important Notes](#important-notes)
+    - [Updating](#updating)
+            - [git method](#git-method)
+            - [zip method](#zip-method)
+            - [Updating runtime](#updating-runtime)
+    - [Starting/stopping](#startingstopping)
+        - [Starting the worker](#starting-the-worker)
+        - [Stopping the worker](#stopping-the-worker)
+        - [Monitoring](#monitoring)
+        - [Running with multiple GPUs](#running-with-multiple-gpus)
+    - [Custom Models](#custom-models)
+    - [Docker](#docker)
+    - [Support](#support)
 - [Model Usage](#model-usage)
 
 ## Installing
@@ -108,6 +108,7 @@ Continue with the [Basic Usage](#basic-usage) instructions
 To ensure a smooth experience running a worker, please keep the following in mind:
 
 - For optimal performance, we strongly recommend using an SSD, especially if you plan to offer more than one model. If using an HDD, you should only offer one model and ensure it can load within 60s.
+- We **strongly recommend** you configure at least 8gb (preferably 16gb+) of memory swap space. This recommendation applies to linux too.
 - To maintain stability, keep `threads` at 2 or lower unless you have a data-center grade card with 48GB+ VRAM.
 - Your worker's memory usage will increase up to the `queue_size` specified in the config. If you have less than 32GB of system RAM, stick with a `queue_size` of 1. For less than 16GB RAM, additional optimizations are needed (detailed below).
 - Running the SDXL models requires around 9GB of consistently free system RAM. 32GB+ installed is recommended.
@@ -171,7 +172,7 @@ To update:
 
 1. Shut down your worker by pressing `Ctrl+C` once and waiting for the worker to stop.
 
-2. Update this repo using the appropriate method:   
+2. Update this repo using the appropriate method:
 
 You can double click the provided script files below from a file explorer or run it from a terminal like `bash`, `cmd` depending on your OS. The latter option will allow you to **see errors in case of a crash**, so it's recommended.
 

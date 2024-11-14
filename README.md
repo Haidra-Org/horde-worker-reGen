@@ -96,18 +96,6 @@ Continue with the [Basic Usage](#basic-usage) instructions
 
 ## Basic Usage
 
-The below instructions refers to `horde-bridge` or `update-runtime`. Depending on your OS, append `.cmd` for windows, or `.sh` for linux
-- For example, `horde-bridge.cmd` and `update-runtime.cmd` for windows with a NVIDIA card.
-- If you have an **AMD** card you should use `horde-bridge-rocm.sh` and `update-runtime-rocm.sh` where appropriate
-
-You can double click the provided script files below from a file explorer or run it from a terminal like `bash`, `cmd` depending on your OS. The latter option will allow you to **see errors in case of a crash**, so it's recommended.
-
-#### AMD
-
-**AMD** now has been shown to have better support but for **linux machines only** - linux must be installed on the bare metal machine; windows systems, WSL or linux containers still do not work. You can now follow this guide using  `horde-bridge-rocm.sh` and `update-runtime-rocm.sh` where appropriate.
-
-If you are willing to try with your AMD card, join the [discord discussion](https://discord.com/channels/781145214752129095/1076124012305993768) in the [official discord](https://discord.gg/3DxrhksKzn).
-
 ### Configure
 
 1. Make a copy of `bridgeData_template.yaml` to `bridgeData.yaml`
@@ -170,15 +158,22 @@ Models are loaded as needed and just-in-time. You can offer as many models as yo
   - `- preload_timeout: 120`
     - gives you more time to load models off disk. **Note**: Abusing this value can lead to a major loss of kudos and may also lead to maintainance mode, even with `extra_slow_worker: true`.
 
+
 ## Updating
 
 The AI Horde workers are under constant improvement. You can follow progress [in our discord](https://discord.gg/3DxrhksKzn) and get notifications about updates there. If you are interested in receiving notifications for worker updates or betas, go to the [#get-roles channel](https://discord.com/channels/781145214752129095/977498954616954890) and get the appropriate role(s).
 
+The below instructions refers to `horde-bridge` or `update-runtime`. Depending on your OS, append `.cmd` for windows, or `.sh` for linux
+- For example, `horde-bridge.cmd` and `update-runtime.cmd` for windows with a NVIDIA card.
+- If you have an **AMD** card and you are on linux you should use `horde-bridge-rocm.sh` and `update-runtime-rocm.sh` where appropriate.
+  - All Windows AMD users should use WSL or [Docker](#docker).
 To update:
 
 1. Shut down your worker by pressing `Ctrl+C` once and waiting for the worker to stop.
 
-2. Update this repo using the appropriate method:
+2. Update this repo using the appropriate method:   
+
+You can double click the provided script files below from a file explorer or run it from a terminal like `bash`, `cmd` depending on your OS. The latter option will allow you to **see errors in case of a crash**, so it's recommended.
 
 #### git method
 
@@ -188,6 +183,8 @@ Use this approach if you cloned the original repository using `git clone`
 2. Navigate to the folder you have the AI Horde Worker repository installed if you're not already there.
 3. Run `git pull`
 
+See [Updating runtime](#updating-runtime)
+
 #### zip method
 
 Use this approach if you downloaded the git repository as a zip file and extracted it somewhere.
@@ -196,12 +193,16 @@ Use this approach if you downloaded the git repository as a zip file and extract
 2. Download the [repository from GitHub as a zip file](https://github.com/db0/horde-worker-reGen/archive/refs/heads/main.zip)
 3. Extract its contents into the same folder you have the AI Horde Worker repository installed, overwriting any existing files
 
-3. Run the `update-runtime` script for your OS. This will update all dependencies if required.
+See [Updating runtime](#updating-runtime)
+
+#### Updating runtime
+> **Warning**: Certain antiviruses (including Avast) have been reported to interfere with the install. If you get the error `curl: (35) schannel: next InitializeSecurityContext failed: CRYPT_E_NO_REVOCATION_CHECK` when running this file, disable your antivirus, run the file again, and then re-enable your antivirus.
+4. Run the `update-runtime` script for your OS. This will update all dependencies if required.
    - Some updates may not require this and the update notification will tell you if this is the case.
    - When in doubt, you should run it anyway.
    - **Advanced users**: If you do not want to use mamba or you are comfortable with python/venvs, see [README_advanced.md](README_advanced.md).
 
-4. Continue with [Starting/stopping](#startingstopping) instructions below
+5. Continue with [Starting/stopping](#startingstopping) instructions below
 
 ## Starting/stopping
 

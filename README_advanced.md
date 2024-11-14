@@ -13,6 +13,9 @@
 
 ## Advanced users, AMD ROCm inside Windows WSL:
 
+### Caveats and Limitations:
+> WSL will probably be slower than a native Linux System. Unless you have a lot of RAM, you might also run into memory issues. It might be neccessary to increase WSL memory limits or configure SWAP like described here: https://learn.microsoft.com/en-us/windows/wsl/wsl-config
+
 ### System setup:
 * Make sure your Windows OS and AMD drivers are up to date.
 * You need to enable and install WSL on your system. Open a command prompt with Administrative privileges (search for cmd, then click "Run as Administrator")
@@ -77,21 +80,8 @@ exit
 ```
 
 ### Installing the worker:
-* From here steps are **mostly** identical to [Installing](README.md/#linux) on Linux:
-* Install:
-```
-git clone https://github.com/Haidra-Org/horde-worker-reGen.git
-cd horde-worker-reGen
-```
-* Then Update Runtime:
-```
-bash update-runtime-rocm.sh
-```
-* Now we have to make it work in WSL:
-```
-for i in $(find ./ -iname libhsa-runtime64.so); do cp /opt/rocm/lib/libhsa-runtime64.so $i; done
-```
-* From here you can follow the standard [Usage](README.md/#basic-usage) instructions
+* From here steps are the same as running on any other Linux System with AMD: [Installing](README.md/#linux)
+
 
 ## Advanced users, local install:
 

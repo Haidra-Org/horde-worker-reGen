@@ -2881,7 +2881,7 @@ class HordeWorkerProcessManager:
                     # If the current file is greater than 2mb, we will create a new file with a sequential number
 
                     file_name_to_use = f"kudos_model_training/{self.bridge_data.kudos_training_data_file}"
-                    os.makedirs("kudos_model_training", exist_ok=True)                    
+                    os.makedirs("kudos_model_training", exist_ok=True)
                     if os.path.exists(file_name_to_use) and os.path.getsize(file_name_to_use) > 2 * 1024 * 1024:
                         for i in range(1, 10000):
                             new_file_name = f"{self.bridge_data.kudos_training_data_file}.{i}"
@@ -2947,10 +2947,14 @@ class HordeWorkerProcessManager:
                                         esi_combined_size += len(esi.image)
                                 model_dump["sdk_api_job_info"]["extra_source_images_combined_size"] = esi_combined_size
                                 model_dump["sdk_api_job_info"]["source_image_size"] = (
-                                    len(hji.sdk_api_job_info._downloaded_source_image) if hji.sdk_api_job_info._downloaded_source_image else 0
+                                    len(hji.sdk_api_job_info._downloaded_source_image)
+                                    if hji.sdk_api_job_info._downloaded_source_image
+                                    else 0
                                 )
                                 model_dump["sdk_api_job_info"]["source_mask_size"] = (
-                                    len(hji.sdk_api_job_info._downloaded_source_mask) if hji.sdk_api_job_info._downloaded_source_mask else 0
+                                    len(hji.sdk_api_job_info._downloaded_source_mask)
+                                    if hji.sdk_api_job_info._downloaded_source_mask
+                                    else 0
                                 )
                                 if not os.path.exists(file_name_to_use):
                                     with open(file_name_to_use, "w") as f:

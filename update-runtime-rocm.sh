@@ -50,6 +50,7 @@ ${SCRIPT_DIR}/bin/micromamba run -r "$SCRIPT_DIR/conda" -n linux python -s -m pi
 WSL_KERNEL=$(uname -a | grep -c -e WSL2 )
 if [ "$WSL_KERNEL" -gt 0 ]; then
     export "${IN_WSL:=TRUE}"
+    echo "WSL environment detected. Patching ROCm libhsa-runtime64.so"
     for i in $(find ./ -iname libhsa-runtime64.so); do cp /opt/rocm/lib/libhsa-runtime64.so $i; done
 fi
 

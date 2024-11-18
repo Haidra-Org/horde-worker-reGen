@@ -2884,7 +2884,7 @@ class HordeWorkerProcessManager:
                     os.makedirs("kudos_model_training", exist_ok=True)
                     if os.path.exists(file_name_to_use) and os.path.getsize(file_name_to_use) > 2 * 1024 * 1024:
                         for i in range(1, 10000):
-                            new_file_name = f"{self.bridge_data.kudos_training_data_file}.{i}"
+                            new_file_name = f"kudos_model_training/{self.bridge_data.kudos_training_data_file}.{i}"
                             if os.path.exists(new_file_name) and os.path.getsize(new_file_name) > 2 * 1024 * 1024:
                                 continue
 

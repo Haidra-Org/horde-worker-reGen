@@ -45,4 +45,13 @@ else
 fi
 
 ${SCRIPT_DIR}/bin/micromamba run -r "$SCRIPT_DIR/conda" -n linux python -s -m pip uninstall -y pynvml nvidia-ml-py
+
+# Check if we are running in WSL2
+WSL_KERNEL=$(uname -a | grep -c -e WSL2 )
+if [ "$WSL_KERNEL" -gt 0 ]; then
+    export "${IN_WSL:=TRUE}"
+    echo "WSL environment detected. Patching ROCm libhsa-runtime64.so"
+    for i in $(find ./ -iname libhsa-runtime64.so); do cp /opt/rocm/lib/libhsa-runtime64.so $i; done
+fi
+
 ${SCRIPT_DIR}/bin/micromamba run -r "$SCRIPT_DIR/conda" -n linux "$SCRIPT_DIR/horde_worker_regen/amd_go_fast/install_amd_go_fast.sh"

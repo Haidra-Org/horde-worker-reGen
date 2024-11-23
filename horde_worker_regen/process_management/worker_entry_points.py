@@ -59,7 +59,7 @@ def start_inference_process(
                 f"and amd_gpu={amd_gpu}",
             )
 
-            extra_comfyui_args = ["--disable-smart-memory --directml"]
+            extra_comfyui_args = ["--disable-smart-memory", "--directml=0"]
 
             if amd_gpu:
                 extra_comfyui_args.append("--use-pytorch-cross-attention")
@@ -148,7 +148,7 @@ def start_safety_process(
 
             logger.debug(f"Initialising hordelib with process_id={process_id} and high_memory_mode={high_memory_mode}")
 
-            extra_comfyui_args = ["--disable-smart-memory --directml"]
+            extra_comfyui_args = ["--disable-smart-memory", "--directml=0"]
 
             if amd_gpu:
                 extra_comfyui_args.append("--use-pytorch-cross-attention")

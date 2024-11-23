@@ -55,7 +55,7 @@ def download_all_models(
     _ = get_interrogator_no_blip()
     del _
 
-    extra_comfyui_args = ["--disable-smart-memory --directml"]
+    extra_comfyui_args = ["--directml=0"]
     hordelib.initialise(extra_comfyui_args=extra_comfyui_args)
     from hordelib.shared_model_manager import SharedModelManager
 

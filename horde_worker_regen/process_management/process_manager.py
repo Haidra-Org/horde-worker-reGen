@@ -3526,7 +3526,15 @@ class HordeWorkerProcessManager:
         if len(self.job_deque) > 0:
             info_string += f"Current number of popped jobs: {len(self.job_deque)}. "
 
-        info_string += f"(Skipped reasons: {job_pop_response.skipped.model_dump(exclude_defaults=True)})"
+        skipped_reasons = job_pop_response.skipped.model_dump(exclude_defaults=True)
+        # Include the extra fields as well
+        if job_pop_response.skipped.model_extra is not None:
+            skipped_reasons.update(job_pop_response.skipped.model_extra)
+
+        # Remove any '0' values
+        skipped_reasons = {k: v for k, v in skipped_reasons.items() if v != 0}
+
+        info_string += f"(Skipped reasons: {skipped_reasons})"
 
         if job_pop_response.id_ is None:
             self._last_pop_no_jobs_available = True

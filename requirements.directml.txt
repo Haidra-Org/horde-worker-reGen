@@ -1,0 +1,24 @@
+torch-directml
+qrcode==7.4.2 # >8 breaks horde-engine 2.18.1 via the qr code generation nodes
+
+certifi # Required for SSL cert resolution
+
+horde_sdk~=0.15.1
+horde_safety~=0.2.3
+horde_engine~=2.18.1
+horde_model_reference>=0.9.1
+
+python-dotenv
+ruamel.yaml
+semver
+wheel
+
+python-Levenshtein
+
+pydantic>=2.9.2
+typing_extensions
+requests
+StrEnum
+loguru
+
+babel

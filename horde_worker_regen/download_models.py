@@ -55,7 +55,7 @@ def download_all_models(
     _ = get_interrogator_no_blip()
     del _
 
-    hordelib.initialise()
+    hordelib.initialise(extra_comfyui_args="--directml")
     from hordelib.shared_model_manager import SharedModelManager
 
     SharedModelManager.load_model_managers()

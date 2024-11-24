@@ -19,20 +19,17 @@
 ### System setup:
 * Make sure your Windows OS and AMD drivers are up to date.
 * You need to enable and install WSL on your system. Open a command prompt with Administrative privileges (search for cmd, then click "Run as Administrator")
-* Type the following to enable WSL and install an Ubuntu image:
+* Type the following to download and enable WSL and install the Ubuntu 22.04 image:
+  - If that command throws an error about WSL not being installed/enabled, you might need to run just `wsl --install` before being able install a specific distribution.
 ```
-wsl --install
+wsl --install -d Ubuntu-22.04
 ```
-* If WSL is already installed and enabled type the following to install an Ubuntu image:
+* If you have previously used Ubuntu-22.04 WSL, please reset the image (Note: this will delete the data inside the WSL image, make sure it's saved elsewhere):
 ```
-wsl --install -d Ubuntu
-```
-* If you have previously used Ubuntu WSL, please reset the image (Note: this will delete the data inside the WSL image, make sure it's saved elsewhere):
-```
-wsl --unregister Ubuntu
+wsl --unregister Ubuntu-22.04
 ```
 * When the terminal asks you for a "unix username" type in a simple username. It will then ask for a password. Type in the password you want to use, press enter to confirm and repeat. It will not show any output, but your key presses are still registered.
-* To open your Ubuntu image after closing the terminal window you can search for `Ubuntu` in the Start Menu, or open a Termial and enter the command `wsl`
+* To open your Ubuntu image after closing the terminal window you can search for `Ubuntu 22.04` in the Start Menu, or open a Termial and enter the command `wsl -d Ubuntu-22.04`
 
 ### Ubuntu ROCm install:
 * First we need to update the image, then install ROCm. All these actions require root privileges, so switch to root for now and enter your password:
@@ -46,7 +43,7 @@ apt install -y curl git nano wget
 ```
 * Now we can install ROCm. Command 3 will take a while to download and install everything:
 ```
-wget -r -nd -np -A 'amdgpu-install*all.deb' "https://repo.radeon.com/amdgpu-install/6.2.3/ubuntu/noble/"
+wget -r -nd -np -A 'amdgpu-install*all.deb' "https://repo.radeon.com/amdgpu-install/6.2.3/ubuntu/jammy/"
 apt-get install -y ./amdgpu-install*all.deb
 amdgpu-install -y --usecase=rocm,wsl --no-dkms
 ```

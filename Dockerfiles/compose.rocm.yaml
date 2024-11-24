@@ -11,8 +11,8 @@ services:
         - GIT_OWNER=Haidra-Org
     container_name: reGen
     tty: true
-    environment:
-      - FLASH_ATTENTION_USE_TRITON_ROCM=TRUE
+    #environment:
+    #  - FLASH_ATTENTION_USE_TRITON_ROCM=TRUE
     group_add:
       - video
     volumes:

@@ -15,5 +15,5 @@ if [ "${FLASH_ATTENTION_USE_TRITON_ROCM^^}" == "TRUE" ]; then
 else
 	echo "Did not detect support for AMD GO FAST. Cleaning up."
  	pip uninstall flash_attn
-	rm "${PY_SITE_DIR}"/hordelib/nodes/amd_go_fast.py
+	rm -f "${PY_SITE_DIR}"/hordelib/nodes/amd_go_fast.py
 fi

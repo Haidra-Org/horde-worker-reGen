@@ -41,6 +41,6 @@ repos:
         - torch==2.5.0
         - ruamel.yaml
         - horde_engine==2.18.1
-        - horde_sdk==0.15.1
+        - horde_sdk==0.16.4
         - horde_model_reference==0.9.1
         - semver

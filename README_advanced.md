@@ -43,7 +43,7 @@ apt install -y curl git nano wget
 ```
 * Now we can install ROCm. Command 3 will take a while to download and install everything:
 ```
-wget -r -nd -np -A 'amdgpu-install*all.deb' "https://repo.radeon.com/amdgpu-install/6.2.3/ubuntu/jammy/"
+wget -r -nd -np -A 'amdgpu-install*all.deb' "https://repo.radeon.com/amdgpu-install/6.1.3/ubuntu/jammy/"
 apt-get install -y ./amdgpu-install*all.deb
 amdgpu-install -y --usecase=rocm,wsl --no-dkms
 ```

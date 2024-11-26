@@ -1090,7 +1090,7 @@ class HordeWorkerProcessManager:
         max_safety_processes: int = 1,
         max_download_processes: int = 1,
         amd_gpu: bool = False,
-        directml: int = None,
+        directml: int | None = None,
     ) -> None:
         """Initialise the process manager.
 

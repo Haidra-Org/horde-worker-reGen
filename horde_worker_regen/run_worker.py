@@ -18,7 +18,7 @@ from multiprocessing.context import BaseContext
 from loguru import logger
 
 
-def main(ctx: BaseContext, load_from_env_vars: bool = False, *, amd_gpu: bool = False, directml: int = None) -> None:
+def main(ctx: BaseContext, load_from_env_vars: bool = False, *, amd_gpu: bool = False, directml: int | None = None) -> None:
     """Check for a valid config and start the driver ('main') process for the reGen worker."""
     from horde_model_reference.model_reference_manager import ModelReferenceManager
     from pydantic import ValidationError

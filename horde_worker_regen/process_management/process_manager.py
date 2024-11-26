@@ -1076,6 +1076,9 @@ class HordeWorkerProcessManager:
     _amd_gpu: bool
     """Whether or not the GPU is an AMD GPU."""
 
+    _directml: int
+    """ID of the potential directml device."""
+
     def __init__(
         self,
         *,
@@ -1087,6 +1090,7 @@ class HordeWorkerProcessManager:
         max_safety_processes: int = 1,
         max_download_processes: int = 1,
         amd_gpu: bool = False,
+        directml: int = None,
     ) -> None:
         """Initialise the process manager.
 
@@ -1103,6 +1107,7 @@ class HordeWorkerProcessManager:
             max_download_processes (int, optional): The maximum number of download processes that can run at once. \
                 Defaults to 1.
             amd_gpu (bool, optional): Whether or not the GPU is an AMD GPU. Defaults to False.
+            directml (int, optional): ID of the potential directml device. Defaults to None.
         """
         self.session_start_time = time.time()
 
@@ -1124,6 +1129,7 @@ class HordeWorkerProcessManager:
         self._lru = LRUCache(self.max_inference_processes)
 
         self._amd_gpu = amd_gpu
+        self._directml = directml
 
         # If there is only one model to load and only one inference process, then we can only run one job at a time
         # and there is no point in having more than one inference process
@@ -1374,6 +1380,7 @@ class HordeWorkerProcessManager:
                 kwargs={
                     "high_memory_mode": self.bridge_data.high_memory_mode,
                     "amd_gpu": self._amd_gpu,
+                    "directml": self._directml,
                 },
             )
 
@@ -1436,6 +1443,7 @@ class HordeWorkerProcessManager:
                 "very_high_memory_mode": self.bridge_data.very_high_memory_mode,
                 "high_memory_mode": self.bridge_data.high_memory_mode,
                 "amd_gpu": self._amd_gpu,
+                "directml": self._directml,
             },
         )
         process.start()

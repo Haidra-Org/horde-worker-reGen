@@ -24,7 +24,7 @@ def start_inference_process(
     high_memory_mode: bool = False,
     very_high_memory_mode: bool = False,
     amd_gpu: bool = False,
-    directml: int = None,
+    directml: int | None = None,
 ) -> None:
     """Start an inference process.
 
@@ -124,7 +124,7 @@ def start_safety_process(
     *,
     high_memory_mode: bool = False,
     amd_gpu: bool = False,
-    directml: int = None,
+    directml: int | None = None,
 ) -> None:
     """Start a safety process.
 

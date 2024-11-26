@@ -5,7 +5,7 @@ def download_all_models(
     *,
     load_config_from_env_vars: bool = False,
     purge_unused_loras: bool = False,
-    directml: int = None,
+    directml: int | None = None,
 ) -> None:
     """Download all models specified in the config file."""
     from horde_worker_regen.load_env_vars import load_env_vars_from_config

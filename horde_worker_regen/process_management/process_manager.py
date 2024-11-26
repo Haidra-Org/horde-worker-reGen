@@ -1076,7 +1076,7 @@ class HordeWorkerProcessManager:
     _amd_gpu: bool
     """Whether or not the GPU is an AMD GPU."""
 
-    _directml: int
+    _directml: int | None
     """ID of the potential directml device."""
 
     def __init__(

@@ -24,6 +24,7 @@ def start_inference_process(
     high_memory_mode: bool = False,
     very_high_memory_mode: bool = False,
     amd_gpu: bool = False,
+    directml: int = None,
 ) -> None:
     """Start an inference process.
 
@@ -59,10 +60,13 @@ def start_inference_process(
                 f"and amd_gpu={amd_gpu}",
             )
 
-            extra_comfyui_args = ["--disable-smart-memory", "--directml=0"]
+            extra_comfyui_args = ["--disable-smart-memory"]
 
             if amd_gpu:
                 extra_comfyui_args.append("--use-pytorch-cross-attention")
+
+            if directml:
+                extra_comfyui_args.append(f"--directml={directml}")
 
             models_not_to_force_load = ["flux"]
 
@@ -120,6 +124,7 @@ def start_safety_process(
     *,
     high_memory_mode: bool = False,
     amd_gpu: bool = False,
+    directml: int = None,
 ) -> None:
     """Start a safety process.
 
@@ -148,10 +153,13 @@ def start_safety_process(
 
             logger.debug(f"Initialising hordelib with process_id={process_id} and high_memory_mode={high_memory_mode}")
 
-            extra_comfyui_args = ["--disable-smart-memory", "--directml=0"]
+            extra_comfyui_args = ["--disable-smart-memory"]
 
             if amd_gpu:
                 extra_comfyui_args.append("--use-pytorch-cross-attention")
+
+            if directml:
+                extra_comfyui_args.append(f"--directml={directml}")
 
             with logger.catch(reraise=True):
                 hordelib.initialise(

@@ -57,7 +57,7 @@ def download_all_models(
     del _
 
     extra_comfyui_args = []
-    if directml:
+    if directml is not None:
         extra_comfyui_args.append(f"--directml={directml}")
 
     hordelib.initialise(extra_comfyui_args=extra_comfyui_args)

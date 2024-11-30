@@ -65,7 +65,7 @@ def start_inference_process(
             if amd_gpu:
                 extra_comfyui_args.append("--use-pytorch-cross-attention")
 
-            if directml:
+            if directml is not None:
                 extra_comfyui_args.append(f"--directml={directml}")
 
             models_not_to_force_load = ["flux"]
@@ -158,7 +158,7 @@ def start_safety_process(
             if amd_gpu:
                 extra_comfyui_args.append("--use-pytorch-cross-attention")
 
-            if directml:
+            if directml is not None:
                 extra_comfyui_args.append(f"--directml={directml}")
 
             with logger.catch(reraise=True):

@@ -19,32 +19,41 @@ priority_usernames: []
 # Only high-end cards (e.g., 3080 or better) benefit from this setting.
 # If you have a 20xx or earlier, or a xx60/xx70, do not change this setting from 1.
 max_threads: 1
-# 24GB+ VRAM: 1 (2 max if Flux/Cascade loaded)
-# 12GB-16GB VRAM: 1
-# 8GB-10GB VRAM: 1
+# Suggested values:
+#   24GB+ VRAM: 1 (2 max if Flux/Cascade loaded)
+#   12GB-16GB VRAM: 1
+#   8GB-10GB VRAM: 1
 
-# Number of requests to keep in the queue to start working as soon as a thread is available.
+# Number of extra requests to keep in the queue to start working as soon as a thread is available.
 # Generally should be 1 or 2. Never set this higher than 2 if your max_threads is 2.
-# Warning: Increasing this value directly increases system RAM usage significantly.
+# Warning: Increasing this value directly increases system RAM usage significantly. Close unused programs if you increase this value.
+# It does not significantly increase VRAM usage, but ~150mb of fixed VRAM per queue slot is reserved at all times.
 queue_size: 1
-# 24GB+ VRAM: 2 (3 if 64GB+ RAM)
-# 8GB-10GB VRAM: 1 (max or only offer flux)
+# Suggested values:
+#   >64gb system RAM: 3
+#   64gb system RAM: 2
+#   32gb system RAM: 0 or 1
+#   32gb system RAM and offering Flux/Cascade: 0
+#   <32gb system RAM: 0
+
 
 # Number of jobs to pull per request and perform batched inference.
 # More optimized than doing them one by one but slower.
 # Ensure you can generate your max_batch at half your max_power.
 max_batch: 1
-# 24GB+ VRAM: 8 or higher
-# 12GB-16GB VRAM: 4 or higher
-# 8GB-10GB VRAM: 4 (no higher than 4)
+# Suggested values:
+#   24GB+ VRAM: 8 or higher
+#   12GB-16GB VRAM: 4 or higher
+#   8GB-10GB VRAM: 4 (no higher than 4)
 
 # Run CLIP model (checking for potential CSAM or NSFW) on GPU instead of CPU.
 # Enable this on cards with 12GB or more VRAM to increase job completion rate.
 # ~1.2GB of VRAM overhead
 safety_on_gpu: false
-# 24GB+ VRAM: true
-# 12GB-16GB VRAM: true (consider false if offering Cascade or Flux)
-# 8GB-10GB VRAM: false
+# Suggested values:
+#   24GB+ VRAM: true
+#   12GB-16GB VRAM: true (consider false if offering Cascade or Flux)
+#   8GB-10GB VRAM: false
 
 # Only pick up jobs where the user has the required kudos upfront.
 # Excludes all anonymous accounts and registered accounts who haven't contributed.

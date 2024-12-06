@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [ "${FLASH_ATTENTION_USE_TRITON_ROCM^^}" == "TRUE" ]; then
+if [ "${FLASH_ATTENTION_TRITON_AMD_ENABLE^^}" == "TRUE" ]; then
 	if ! pip install -U pytest git+https://github.com/Dao-AILab/flash-attention; then
 		echo "Tried to install flash attention and failed!"
 	else

@@ -7,7 +7,7 @@ def test_skipped_status_handles_unknown_fields() -> None:
     # printed without error.
     skipped_status = ImageGenerateJobPopSkippedStatus(
         max_pixels=100,
-        testing_field=1,
+        testing_field=1,  # type: ignore
     )
 
     assert skipped_status.max_pixels == 100

@@ -35,8 +35,10 @@ def tracked_dependencies() -> list[str]:
     return TRACKED_DEPENDENCIES
 
 
-def get_dependency_versions(requirements_file_path: str) -> dict[str, str]:
+def get_dependency_versions(requirements_file_path: str | Path) -> dict[str, str]:
     """Get the versions of horde dependencies from the given requirements file."""
+    requirements_file_path = Path(requirements_file_path)
+
     with open(requirements_file_path) as f:
         requirements = f.readlines()
 

@@ -18,7 +18,13 @@ from multiprocessing.context import BaseContext
 from loguru import logger
 
 
-def main(ctx: BaseContext, load_from_env_vars: bool = False, *, amd_gpu: bool = False, directml: int | None = None,) -> None:
+def main(
+    ctx: BaseContext,
+    load_from_env_vars: bool = False,
+    *,
+    amd_gpu: bool = False,
+    directml: int | None = None,
+) -> None:
     """Check for a valid config and start the driver ('main') process for the reGen worker."""
     from horde_model_reference.model_reference_manager import ModelReferenceManager
     from pydantic import ValidationError
@@ -213,7 +219,12 @@ def init() -> None:
 
     # We only need to download the legacy DBs once, so we do it here instead of in the worker processes
 
-    main(multiprocessing.get_context("spawn"), args.load_config_from_env_vars, amd_gpu=args.amd, directml=args.directml,)
+    main(
+        multiprocessing.get_context("spawn"),
+        args.load_config_from_env_vars,
+        amd_gpu=args.amd,
+        directml=args.directml,
+    )
 
 
 if __name__ == "__main__":

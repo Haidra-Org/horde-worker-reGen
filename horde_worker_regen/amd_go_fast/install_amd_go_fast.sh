@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ "${FLASH_ATTENTION_USE_TRITON_ROCM^^}" == "TRUE" ]; then
-	if ! pip install -U pytest git+https://github.com/ROCm/flash-attention@micmelesse/upstream_pr_rebase; then
+	if ! pip install -U pytest git+https://github.com/Dao-AILab/flash-attention; then
 		echo "Tried to install flash attention and failed!"
 	else
 		echo "Installed flash attn."

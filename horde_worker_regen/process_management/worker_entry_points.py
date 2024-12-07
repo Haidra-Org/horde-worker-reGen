@@ -24,6 +24,7 @@ def start_inference_process(
     high_memory_mode: bool = False,
     very_high_memory_mode: bool = False,
     amd_gpu: bool = False,
+    directml: int | None = None,
 ) -> None:
     """Start an inference process.
 
@@ -40,6 +41,8 @@ def start_inference_process(
             Defaults to False.
         amd_gpu (bool, optional): If true, the process will attempt to use AMD GPU-specific optimisations.
             Defaults to False.
+        directml (int | None, optional): If not None, the process will attempt to use DirectML \
+            with the specified device
     """
     with contextlib.nullcontext():  # contextlib.redirect_stdout(None), contextlib.redirect_stderr(None):
         logger.remove()
@@ -63,6 +66,9 @@ def start_inference_process(
 
             if amd_gpu:
                 extra_comfyui_args.append("--use-pytorch-cross-attention")
+
+            if directml is not None:
+                extra_comfyui_args.append(f"--directml={directml}")
 
             models_not_to_force_load = ["flux"]
 
@@ -120,6 +126,7 @@ def start_safety_process(
     *,
     high_memory_mode: bool = False,
     amd_gpu: bool = False,
+    directml: int | None = None,
 ) -> None:
     """Start a safety process.
 
@@ -132,6 +139,8 @@ def start_safety_process(
         high_memory_mode (bool, optional): If true, the process will attempt to use more memory. Defaults to False.
         amd_gpu (bool, optional): If true, the process will attempt to use AMD GPU-specific optimisations.
             Defaults to False.
+        directml (int | None, optional): If not None, the process will attempt to use DirectML \
+            with the specified device
     """
     with contextlib.nullcontext():  # contextlib.redirect_stdout(), contextlib.redirect_stderr():
         logger.remove()
@@ -152,6 +161,9 @@ def start_safety_process(
 
             if amd_gpu:
                 extra_comfyui_args.append("--use-pytorch-cross-attention")
+
+            if directml is not None:
+                extra_comfyui_args.append(f"--directml={directml}")
 
             with logger.catch(reraise=True):
                 hordelib.initialise(

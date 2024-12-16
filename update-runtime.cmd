@@ -4,7 +4,7 @@ cd /d "%~dp0"
 SET MAMBA_ROOT_PREFIX=%~dp0conda
 echo %MAMBA_ROOT_PREFIX%
 
-if exist "%MAMBA_ROOT_PREFIX%\condabin\micromamba.bat" (
+if exist "%MAMBA_ROOT_PREFIX%\condabin\mamba.bat" (
     echo Deleting micromamba.exe as its out of date
     del micromamba.exe
     if errorlevel 1 (
@@ -65,7 +65,7 @@ REM Check if hordelib argument is defined
 
 micromamba.exe shell hook -s cmd.exe %MAMBA_ROOT_PREFIX% -v
 call "%MAMBA_ROOT_PREFIX%\condabin\mamba_hook.bat"
-call "%MAMBA_ROOT_PREFIX%\condabin\mamba.bat" activate windows
+call "%MAMBA_ROOT_PREFIX%\condabin\micromamba.bat" activate windows
 
 python -s -m pip install torch==2.5.0 torchvision==0.19.1 --index-url https://download.pytorch.org/whl/cu124 -U
 

@@ -79,7 +79,7 @@ if defined hordelib (
     python -s -m pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu124 -U
   )
 )
-call deactivate
+call "%MAMBA_ROOT_PREFIX%\condabin\micromamba.bat" deactivate
 
 echo If there are no errors above everything should be correctly installed (If not, try deleting the folder /conda/envs/ and try again).
 

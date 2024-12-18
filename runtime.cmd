@@ -18,5 +18,5 @@ call update-runtime
 :APP
 micromamba.exe shell hook -s cmd.exe "%MAMBA_ROOT_PREFIX%" -v
 call "%MAMBA_ROOT_PREFIX%\condabin\mamba_hook.bat"
-call "%MAMBA_ROOT_PREFIX%\condabin\mamba.bat" activate windows
+call "%MAMBA_ROOT_PREFIX%\condabin\micromamba.bat" activate windows
 %*

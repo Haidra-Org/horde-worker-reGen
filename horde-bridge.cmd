@@ -30,6 +30,6 @@ GOTO END
 echo "download_models.py exited with error code. Aborting"
 
 :END
-call micromamba deactivate >nul
+call "%MAMBA_ROOT_PREFIX%\condabin\micromamba.bat" deactivate >nul
 call deactivate >nul
 pause

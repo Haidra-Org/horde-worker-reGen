@@ -21,6 +21,7 @@ Not only does running a worker earn you kudos, it also helps support the AI Hord
       - [Suggested settings](#suggested-settings)
         - [Important Notes](#important-notes)
   - [Updating](#updating)
+    - [Decision Chart](#decision-chart)
     - [git method](#git-method)
       - [zip method](#zip-method)
     - [Updating runtime](#updating-runtime)
@@ -184,6 +185,20 @@ The below instructions refers to `horde-bridge` or `update-runtime`. Depending o
 - For example, `horde-bridge.cmd` and `update-runtime.cmd` for windows with a NVIDIA card.
 - If you have an **AMD** card and you are on linux you should use `horde-bridge-rocm.sh` and `update-runtime-rocm.sh` where appropriate.
   - All Windows AMD users should use WSL or [Docker](#docker).
+
+
+### Decision Chart
+  
+```mermaid
+flowchart TD
+    B{Worker Needs Update?}
+    B -- Yes --> C[Shut down worker]
+    C --> D[Update with git pull]
+    D --> E[Run update-runtime script]
+    E --> F[Run horde-bridge script]
+    B -- No --> F
+```
+
 To update:
 
 1. Shut down your worker by pressing `Ctrl+C` once and waiting for the worker to stop.

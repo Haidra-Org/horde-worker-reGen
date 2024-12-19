@@ -43,33 +43,54 @@ def test_horde_update_runtime_updating(horde_dependency_versions: dict[str, str]
     assert found_line, "No initial torch install command found"
 
 
+def check_dependency_versions(
+    main_deps: dict[str, str],
+    other_deps: dict[str, str],
+    other_name: str,
+) -> None:
+    """Check that the main requirements file is consistent with the other requirements file.
+
+    Args:
+        main_deps (dict[str, str]): The versions of the dependencies in the main requirements file.
+        other_deps (dict[str, str]): The versions of the dependencies in the other requirements file.
+        other_name (str): The name of the other requirements file.
+
+    Raises:
+        AssertionError: If the versions of the dependencies are inconsistent.
+    """
+    for dep in main_deps:
+        if dep == "torch":
+            logger.warning(
+                f"Skipping torch version check (main: {main_deps[dep]}, {other_name}: {other_deps[dep]})",
+            )
+            continue
+
+        assert dep in other_deps, f"Dependency {dep} not found in {other_name} requirements file"
+        assert (
+            main_deps[dep] == other_deps[dep]
+        ), f"Dependency {dep} has different versions in main and {other_name} requirements files"
+
+    for dep in other_deps:
+        if dep == "torch":
+            logger.warning(
+                f"Skipping torch version check (main: {main_deps[dep]}, {other_name}: {other_deps[dep]})",
+            )
+            continue
+
+        assert dep in main_deps, f"Dependency {dep} not found in main requirements file"
+        assert (
+            other_deps[dep] == main_deps[dep]
+        ), f"Dependency {dep} has different versions in main and {other_name} requirements files"
+
+
 def test_different_requirements_files_match(
     horde_dependency_versions: dict[str, str],
     rocm_horde_dependency_versions: list[tuple[str, str]],
+    directml_horde_dependency_versions: list[tuple[str, str]],
 ) -> None:
-    """Check that the versions of horde deps. in the main and rocm requirements files match."""
+    """Check that the versions of horde deps. in the all of the various requirements files are consistent."""
     rocm_deps = dict(rocm_horde_dependency_versions)
+    directml_deps = dict(directml_horde_dependency_versions)
 
-    for dep in horde_dependency_versions:
-        if dep == "torch":
-            logger.warning(
-                f"Skipping torch version check (main: {horde_dependency_versions[dep]}, rocm: {rocm_deps[dep]})",
-            )
-            continue
-
-        assert dep in rocm_deps, f"Dependency {dep} not found in rocm requirements file"
-        assert (
-            horde_dependency_versions[dep] == rocm_deps[dep]
-        ), f"Dependency {dep} has different versions in main and rocm requirements files"
-
-    for dep in rocm_deps:
-        if dep == "torch":
-            logger.warning(
-                f"Skipping torch version check (main: {horde_dependency_versions[dep]}, rocm: {rocm_deps[dep]})",
-            )
-            continue
-
-        assert dep in horde_dependency_versions, f"Dependency {dep} not found in main requirements file"
-        assert (
-            rocm_deps[dep] == horde_dependency_versions[dep]
-        ), f"Dependency {dep} has different versions in main and rocm requirements files"
+    check_dependency_versions(horde_dependency_versions, rocm_deps, "rocm")
+    check_dependency_versions(horde_dependency_versions, directml_deps, "directml")

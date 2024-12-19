@@ -12,6 +12,7 @@ def start_working(
     horde_model_reference_manager: ModelReferenceManager,
     *,
     amd_gpu: bool = False,
+    directml: int | None = None,
 ) -> None:
     """Create and start process manager."""
     process_manager = HordeWorkerProcessManager(
@@ -19,6 +20,7 @@ def start_working(
         bridge_data=bridge_data,
         horde_model_reference_manager=horde_model_reference_manager,
         amd_gpu=amd_gpu,
+        directml=directml,
     )
 
     process_manager.start()

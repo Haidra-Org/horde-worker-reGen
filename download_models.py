@@ -17,6 +17,12 @@ if __name__ == "__main__":
         default=False,
         help="Load the config only from environment variables. This is useful for running the worker in a container.",
     )
+    parser.add_argument(
+        "--directml",
+        type=int,
+        default=None,
+        help="Enable directml and specify device to use.",
+    )
 
     args = parser.parse_args()
 
@@ -25,4 +31,5 @@ if __name__ == "__main__":
     download_all_models(
         purge_unused_loras=args.purge_unused_loras,
         load_config_from_env_vars=args.load_config_from_env_vars,
+        directml=args.directml,
     )

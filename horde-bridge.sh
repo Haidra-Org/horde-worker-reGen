@@ -28,7 +28,7 @@ done
 
 # If jemalloc was not found, print a warning
 if [ -z "$LD_PRELOAD" ]; then
-    printf "WARNING: jemalloc not found. You may run into memory issues! We recommend running `sudo apt install libjemalloc2`\n"
+    printf "WARNING: jemalloc not found. You may run into memory issues! We recommend running 'sudo apt install libjemalloc2'\n"
     # Press q to quit or any other key to continue
     read -n 1 -s -r -p "Press q to quit or any other key to continue: " key
     if [ "$key" = "q" ]; then

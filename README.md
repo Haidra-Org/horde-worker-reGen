@@ -113,6 +113,7 @@ If you are willing to try with your AMD card, join the [discord discussion](http
 
 1. Make a copy of `bridgeData_template.yaml` to `bridgeData.yaml`
 2. Edit `bridgeData.yaml` and follow the instructions within to fill in your details.
+3. Change each name (`dreamer_name`, `scribe_name`, `alchemist_name`) and try for something globally unique for each.
 
 #### Suggested settings
 

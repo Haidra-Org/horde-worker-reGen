@@ -77,6 +77,7 @@ require_upfront_kudos: false
 #######################################
 
 # Worker name for running a Dreamer instance.
+# This must be globally unique!  Do not use the default!
 dreamer_name: "An Awesome Dreamer"
 
 # Max resolution (max pixels) supported.
@@ -284,6 +285,7 @@ exit_on_unhandled_faults: false
 #########################
 
 # Worker name for running a Scribe worker.
+# This must be globally unique!  Do not use the default!
 scribe_name: "An Awesome Scribe"
 
 # KoboldAI Client API URL.
@@ -302,6 +304,7 @@ branded_model: true
 ## Alchemist (Image Interrogation and Post-Processing)
 
 # Worker name for running an Alchemist worker.
+# This must be globally unique!  Do not use the default!
 alchemist_name: "An Awesome Alchemist"
 
 # Alchemy forms this worker can serve.

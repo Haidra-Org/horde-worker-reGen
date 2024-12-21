@@ -307,7 +307,7 @@ max_context_length: 1024
 branded_model: true
 
 #########################
-## Alchemist (Image Interrogation and Post-Processing) 
+## Alchemist (Image Interrogation and Post-Processing)
 #########################
 
 # Note: Scribe is not currently supported in reGen. This section is for future use.

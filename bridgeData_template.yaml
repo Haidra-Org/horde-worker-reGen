@@ -77,6 +77,8 @@ require_upfront_kudos: false
 #######################################
 
 # Worker name for running a Dreamer instance.
+# This must be unique across the entire horde!  Do not use the default!
+# If you get the error `Wrong credentials to submit as this worker.`, try changing this name, someone else is already using it.
 dreamer_name: "An Awesome Dreamer"
 
 # Max resolution (max pixels) supported.
@@ -283,7 +285,12 @@ exit_on_unhandled_faults: false
 ## Scribe (LLM Worker) ##
 #########################
 
+# Note: Scribe is not currently supported in reGen. This section is for future use.
+# Use https://github.com/Haidra-Org/AI-Horde-Worker to run a Scribe worker.
+
 # Worker name for running a Scribe worker.
+# This must be unique across the entire horde!  Do not use the default!
+# If you get the error `Wrong credentials to submit as this worker.`, try changing this name, someone else is already using it.
 scribe_name: "An Awesome Scribe"
 
 # KoboldAI Client API URL.
@@ -299,9 +306,16 @@ max_context_length: 1024
 # Prevents the model from being used from the shared pool but ensures no other worker can pretend to serve it.
 branded_model: true
 
+#########################
 ## Alchemist (Image Interrogation and Post-Processing)
+#########################
+
+# Note: Scribe is not currently supported in reGen. This section is for future use.
+# Use https://github.com/Haidra-Org/AI-Horde-Worker to run an Alchemist worker.
 
 # Worker name for running an Alchemist worker.
+# This must be unique across the entire horde!  Do not use the default!
+# If you get the error `Wrong credentials to submit as this worker.`, try changing this name, someone else is already using it.
 alchemist_name: "An Awesome Alchemist"
 
 # Alchemy forms this worker can serve.

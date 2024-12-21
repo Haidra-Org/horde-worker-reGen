@@ -113,6 +113,8 @@ If you are willing to try with your AMD card, join the [discord discussion](http
 
 1. Make a copy of `bridgeData_template.yaml` to `bridgeData.yaml`
 2. Edit `bridgeData.yaml` and follow the instructions within to fill in your details.
+3. Change `dreamer_name`.
+   - This name must be unique horde wide. If you get an error about "Wrong Credentials", someone else already reserved this name.
 
 #### Suggested settings
 

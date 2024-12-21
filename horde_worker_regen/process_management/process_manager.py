@@ -3504,7 +3504,11 @@ class HordeWorkerProcessManager:
                     )
                 elif "wrong credentials" in job_pop_response.message.lower():
                     logger.warning(f"Failed to pop job (Wrong Credentials): {job_pop_response}")
-                    logger.error("Did you forget to set your worker name?")
+                    logger.error("Did you forget to set your worker name (`dreamer_name` in bridgeData.yaml)?")
+                    logger.error(
+                        "Horde Worker names must be unique horde-wide. If you haven't used this name before, "
+                        "try changing your worker name.",
+                    )
                 else:
                     logger.error(f"Failed to pop job (API Error): {job_pop_response}")
                 self._job_pop_frequency = self._error_job_pop_frequency

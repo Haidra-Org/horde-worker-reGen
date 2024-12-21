@@ -78,7 +78,7 @@ require_upfront_kudos: false
 
 # Worker name for running a Dreamer instance.
 # This must be unique across the entire horde!  Do not use the default!
-# If you get the error `Wrong credentials to submit as this worker.`, try changing this name.
+# If you get the error `Wrong credentials to submit as this worker.`, try changing this name, someone else is already using it.
 dreamer_name: "An Awesome Dreamer"
 
 # Max resolution (max pixels) supported.
@@ -287,7 +287,7 @@ exit_on_unhandled_faults: false
 
 # Worker name for running a Scribe worker.
 # This must be unique across the entire horde!  Do not use the default!
-# If you get the error `Wrong credentials to submit as this worker.`, try changing this name.
+# If you get the error `Wrong credentials to submit as this worker.`, try changing this name, someone else is already using it.
 scribe_name: "An Awesome Scribe"
 
 # KoboldAI Client API URL.
@@ -307,7 +307,7 @@ branded_model: true
 
 # Worker name for running an Alchemist worker.
 # This must be unique across the entire horde!  Do not use the default!
-# If you get the error `Wrong credentials to submit as this worker.`, try changing this name.
+# If you get the error `Wrong credentials to submit as this worker.`, try changing this name, someone else is already using it.
 alchemist_name: "An Awesome Alchemist"
 
 # Alchemy forms this worker can serve.

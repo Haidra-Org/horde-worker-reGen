@@ -21,6 +21,31 @@ def load_env_vars_from_config() -> None:  # FIXME: there is a dynamic way to do 
             raise FileNotFoundError(f"{template_file} found. Please set variables and rename it to {config_file}.")
         raise FileNotFoundError(f"{config_file} not found")
 
+    # Users on windows occasionally use backslashes in their paths, which causes issues on loading.
+    # We're going to load the file as text and print the lines with backslashes to the user, and instruct them to
+    # replace them with forward slashes.
+
+    with open(config_file, encoding="utf-8") as f:
+        lines = f.readlines()
+        found_backslashes = False
+        for line in lines:
+            if "\\" in line:
+                print(f"Backslashes found in the following line:\n{line}")
+                found_backslashes = True
+
+                print(
+                    "Please replace backslashes with forward slashes in the config file, "
+                    "as backslashes are not supported.",
+                )
+
+                corrected_line = line.replace("\\", "/")
+                print(f"Corrected line:\n{corrected_line}")
+
+    if found_backslashes:
+        import sys
+
+        sys.exit(1)
+
     with open(config_file, encoding="utf-8") as f:
         config = yaml.load(f)
 

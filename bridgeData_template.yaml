@@ -20,7 +20,7 @@ priority_usernames: []
 # If you have a 20xx or earlier, or a xx60/xx70, do not change this setting from 1.
 max_threads: 1
 # Suggested values:
-#   24GB+ VRAM: 1 (2 max if Flux/Cascade loaded)
+#   24GB+ VRAM: 1 (only increase if you have >32gb system RAM and are *not* offering Flux/Cascade)
 #   12GB-16GB VRAM: 1
 #   8GB-10GB VRAM: 1
 

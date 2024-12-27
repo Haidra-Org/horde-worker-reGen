@@ -93,7 +93,7 @@ AMD support is experimental, and **Linux-only** for now:
 
 1. Copy `bridgeData_template.yaml` to `bridgeData.yaml`.
 2. Edit `bridgeData.yaml` following the instructions inside.
-3. Set a unique `dreamer_name` 
+3. Set a unique `dreamer_name`
   - If the name is already taken, you'll get a "Wrong Credentials" error. The name must be unique across the entire horde network.
 
 ### Suggested Settings
@@ -103,12 +103,12 @@ Tailor settings to your GPU, following these pointers:
 - **24GB+ VRAM** (e.g. 3090, 4090):
 
   ```yaml
-  - safety_on_gpu: true 
+  - safety_on_gpu: true
   - high_performance_mode: true
   - post_process_job_overlap: true
   - unload_models_from_vram_often: false
   - max_threads: 1 # If not using Flux/Cascade, otherwise 2 max
-  - queue_size: 2 # Or 3 if 64GB+ RAM  
+  - queue_size: 2 # Or 3 if 64GB+ RAM
   - max_batch: 8 # Or higher
   ```
 
@@ -117,9 +117,9 @@ Tailor settings to your GPU, following these pointers:
   ```yaml
   - safety_on_gpu: true # Consider false if using Cascade/Flux
   - moderate_performance_mode: true
-  - unload_models_from_vram_often: false 
+  - unload_models_from_vram_often: false
   - max_threads: 1
-  - max_batch: 4 # Or higher  
+  - max_batch: 4 # Or higher
   ```
 
 - **8-10GB VRAM** (e.g. 2080, 3060, 4060, 4060 Ti):
@@ -128,9 +128,9 @@ Tailor settings to your GPU, following these pointers:
   - queue_size: 1 # Max, or only offer Flux
   - safety_on_gpu: false
   - max_threads: 1
-  - max_power: 32 # No higher   
+  - max_power: 32 # No higher
   - max_batch: 4 # No higher
-  - allow_post_processing: false # If using SDXL/Flux, else can be true  
+  - allow_post_processing: false # If using SDXL/Flux, else can be true
   - allow_sdxl_controlnet: false
   ```
 
@@ -188,7 +188,7 @@ For now, start a separate worker per GPU.
 On Linux, specify the GPU for each instance:
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 ./horde-bridge.sh -n "Instance 1" 
+CUDA_VISIBLE_DEVICES=0 ./horde-bridge.sh -n "Instance 1"
 CUDA_VISIBLE_DEVICES=1 ./horde-bridge.sh -n "Instance 2"
 ```
 

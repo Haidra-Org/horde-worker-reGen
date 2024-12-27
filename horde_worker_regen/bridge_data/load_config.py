@@ -301,7 +301,8 @@ class BridgeDataLoader:
 
         if total_resolved_models != used_models:
             logger.debug(
-                f"Resolved {total_resolved_models} models, but only {used_models} are available in the model reference manager.",
+                f"Resolved {total_resolved_models} models, but only {used_models} "
+                "are available in the model reference manager.",
             )
 
         return bridge_data.image_models_to_load

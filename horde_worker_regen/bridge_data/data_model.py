@@ -48,7 +48,11 @@ class reGenBridgeData(CombinedHordeBridgeData):
     post_process_timeout: int = Field(default=60, ge=15)
 
     download_timeout: int = Field(default=TOTAL_LORA_DOWNLOAD_TIMEOUT + 1)
+    """The maximum amount of time to allow an aux model to download before it is killed"""
     preload_timeout: int = Field(default=60, ge=15)
+    """The maximum amount of time to allow a model to load before it is killed"""
+    inference_step_timeout: int = Field(default=7, ge=7, le=20)
+    """The maximum amount of time to allow a single inference step to run before the process is killed"""
 
     minutes_allowed_without_jobs: int = Field(default=30, ge=0, lt=60 * 60)
 

@@ -423,6 +423,8 @@ class HordeInferenceProcess(HordeProcess):
 
     _in_post_processing: bool = False
 
+    _current_job_inference_steps_complete: bool = False
+
     def progress_callback(
         self,
         progress_report: ProgressReport,
@@ -449,11 +451,15 @@ class HordeInferenceProcess(HordeProcess):
             except Exception as e:
                 logger.error(f"Failed to release inference semaphore: {type(e).__name__} {e}")
 
-        if (
-            progress_report.comfyui_progress is not None
-            and progress_report.comfyui_progress.current_step == progress_report.comfyui_progress.total_steps
+        if self._current_job_inference_steps_complete:
+            return
+
+        if progress_report.comfyui_progress is not None and progress_report.comfyui_progress.current_step == (
+            progress_report.comfyui_progress.total_steps - 1
         ):
             self.send_heartbeat_message(heartbeat_type=HordeHeartbeatType.PIPELINE_STATE_CHANGE)
+            self._current_job_inference_steps_complete = True
+            logger.debug("Current job inference steps complete")
         elif progress_report.comfyui_progress is not None and progress_report.comfyui_progress.current_step > 0:
             self.send_heartbeat_message(heartbeat_type=HordeHeartbeatType.INFERENCE_STEP)
         else:
@@ -491,6 +497,7 @@ class HordeInferenceProcess(HordeProcess):
         finally:
             self._is_busy = False
             self._in_post_processing = False
+            self._current_job_inference_steps_complete = False
             with contextlib.suppress(Exception):
                 self._inference_semaphore.release()
         return results

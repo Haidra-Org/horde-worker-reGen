@@ -1417,12 +1417,16 @@ class HordeWorkerProcessManager:
             raise ValueError("num_processes_to_start cannot be less than 0")
 
         # Start the required number of processes
-        for _ in range(num_processes_to_start):
+        for i in range(num_processes_to_start):
             # Create a two-way communication pipe for the parent and child processes
             pid = len(self._process_map)
             self._start_inference_process(pid)
 
             logger.info(f"Started inference process (id: {pid})")
+
+            if i == 0:
+                # Sleep for 4 seconds to allow the first process to start and download the model references
+                time.sleep(4)
 
     def _start_inference_process(self, pid: int) -> HordeProcessInfo:
         """Starts an inference process.

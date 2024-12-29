@@ -145,7 +145,10 @@ class HordeInferenceProcess(HordeProcess):
             logger.critical(f"Failed to initialise HordeCheckpointLoader: {type(e).__name__} {e}")
             sys.exit(1)
 
-        SharedModelManager.load_model_managers(multiprocessing_lock=self.disk_lock)
+        SharedModelManager.load_model_managers(
+            multiprocessing_lock=self.disk_lock,
+            download_legacy_references=process_id == 1,  # Only download legacy references in the first process
+        )
 
         if SharedModelManager.manager.compvis is None:
             logger.critical("Failed to initialise SharedModelManager")

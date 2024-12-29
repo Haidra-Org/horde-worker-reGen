@@ -467,7 +467,11 @@ class ProcessMap(dict[int, HordeProcessInfo]):
             logger.debug(f"Deleting safety process {process_id} from process map")
             self.pop(process_id)
 
-    def is_stuck_on_inference(self, process_id: int) -> bool:
+    def is_stuck_on_inference(
+        self,
+        process_id: int,
+        inference_step_timeout: int,
+    ) -> bool:
         """Return true if the process is actively doing inference but we haven't received a heartbeat in a while."""
         if self[process_id].last_process_state != HordeProcessState.INFERENCE_STARTING:
             return False
@@ -475,7 +479,7 @@ class ProcessMap(dict[int, HordeProcessInfo]):
             return False
         return bool(
             self[process_id].last_heartbeat_type == HordeHeartbeatType.INFERENCE_STEP
-            and time.time() - self[process_id].last_heartbeat_timestamp > 45,
+            and time.time() - self[process_id].last_heartbeat_timestamp > inference_step_timeout,
         )
 
     def num_inference_processes(self) -> int:
@@ -4497,7 +4501,10 @@ class HordeWorkerProcessManager:
 
         any_replaced = False
         for process_info in self._process_map.values():
-            if self._process_map.is_stuck_on_inference(process_info.process_id):
+            if self._process_map.is_stuck_on_inference(
+                process_info.process_id,
+                self.bridge_data.inference_step_timeout,
+            ):
                 logger.error(f"{process_info} seems to be stuck mid inference, replacing it")
                 self._replace_inference_process(process_info)
                 any_replaced = True

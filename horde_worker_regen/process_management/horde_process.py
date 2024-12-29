@@ -217,7 +217,12 @@ class HordeProcess(abc.ABC):
                 logger.info("Received end process message")
                 return
 
-            self._receive_and_handle_control_message(message)
+            try:
+                self._receive_and_handle_control_message(message)
+            except Exception as e:
+                logger.error(f"Failed to handle control message: {type(e).__name__} {e}")
+                # This is a terminal error, so we should exit
+                self._end_process = True
 
     def worker_cycle(self) -> None:
         """Do any process specific handling after messages have been received and handled.

@@ -362,6 +362,10 @@ class HordeInferenceProcess(HordeProcess):
         if self._is_busy:
             logger.warning("Cannot preload model while busy")
 
+        from hordelib.comfy_horde import unload_all_models_ram
+
+        unload_all_models_ram()
+
         logger.debug(f"Preloading model {horde_model_name}")
 
         if self._active_model_name is not None:
@@ -445,7 +449,12 @@ class HordeInferenceProcess(HordeProcess):
             except Exception as e:
                 logger.error(f"Failed to release inference semaphore: {type(e).__name__} {e}")
 
-        if progress_report.comfyui_progress is not None and progress_report.comfyui_progress.current_step > 0:
+        if (
+            progress_report.comfyui_progress is not None
+            and progress_report.comfyui_progress.current_step == progress_report.comfyui_progress.total_steps
+        ):
+            self.send_heartbeat_message(heartbeat_type=HordeHeartbeatType.PIPELINE_STATE_CHANGE)
+        elif progress_report.comfyui_progress is not None and progress_report.comfyui_progress.current_step > 0:
             self.send_heartbeat_message(heartbeat_type=HordeHeartbeatType.INFERENCE_STEP)
         else:
             self.send_heartbeat_message(heartbeat_type=HordeHeartbeatType.PIPELINE_STATE_CHANGE)
@@ -529,8 +538,13 @@ class HordeInferenceProcess(HordeProcess):
             )
         else:
             self.send_process_state_change_message(
-                process_state=HordeProcessState.WAITING_FOR_JOB,
+                process_state=HordeProcessState.UNLOADED_MODEL_FROM_RAM,
                 info="No models to unload from RAM",
+            )
+
+            self.send_process_state_change_message(
+                process_state=HordeProcessState.WAITING_FOR_JOB,
+                info="Waiting for job",
             )
         logger.info("Unloaded all models from RAM")
         self._active_model_name = None

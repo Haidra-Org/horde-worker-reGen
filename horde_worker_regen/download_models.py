@@ -65,14 +65,6 @@ def download_all_models(
 
     SharedModelManager.load_model_managers()
 
-    if purge_unused_loras or bridge_data.purge_loras_on_download:
-        logger.info("Purging unused LORAs...")
-        if SharedModelManager.manager.lora is None:
-            logger.error("Failed to load LORA model manager")
-            exit(1)
-        deleted_loras = SharedModelManager.manager.lora.delete_unused_loras(30)
-        logger.success(f"Purged {len(deleted_loras)} unused LORAs.")
-
     if bridge_data.allow_lora:
         if SharedModelManager.manager.lora is None:
             logger.error("Failed to load LORA model manager")
@@ -80,7 +72,15 @@ def download_all_models(
         SharedModelManager.manager.lora.reset_adhoc_loras()
         SharedModelManager.manager.lora.download_default_loras(bridge_data.nsfw)
         SharedModelManager.manager.lora.wait_for_downloads(600)
-        SharedModelManager.manager.lora.wait_for_adhoc_reset(15)
+        SharedModelManager.manager.lora.wait_for_adhoc_reset(120)
+
+    if purge_unused_loras or bridge_data.purge_loras_on_download:
+        logger.info("Purging unused LORAs...")
+        if SharedModelManager.manager.lora is None:
+            logger.error("Failed to load LORA model manager")
+            exit(1)
+        deleted_loras = SharedModelManager.manager.lora.delete_unused_loras(30)
+        logger.success(f"Purged {len(deleted_loras)} unused LORAs.")
 
     if bridge_data.allow_controlnet:
         if SharedModelManager.manager.controlnet is None:

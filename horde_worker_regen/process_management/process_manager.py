@@ -161,6 +161,9 @@ class HordeProcessInfo:
     batch_amount: int
     """The total amount of batching being run by this process."""
 
+    recently_unloaded_from_ram: bool
+    """True if models were recently unloaded from RAM."""
+
     # TODO: VRAM usage
 
     def __init__(
@@ -200,6 +203,8 @@ class HordeProcessInfo:
         self.vram_usage_bytes = 0
         self.total_vram_bytes = 0
         self.batch_amount = 1
+
+        self.recently_unloaded_from_ram = False
 
     def is_process_busy(self) -> bool:
         """Return true if the process is actively engaged in a task.
@@ -434,6 +439,9 @@ class ProcessMap(dict[int, HordeProcessInfo]):
             last_job_referenced (ImageGenerateJobPopResponse | None, optional): The last job referenced by this \
                  process. Defaults to None.
         """
+        if horde_model_name is not None:
+            self[process_id].recently_unloaded_from_ram = False
+
         self[process_id].loaded_horde_model_name = horde_model_name
         self[process_id].last_received_timestamp = time.time()
         if last_job_referenced is not None:
@@ -444,6 +452,18 @@ class ProcessMap(dict[int, HordeProcessInfo]):
                 logger.debug(f"Resetting heartbeat for process {process_id}")
                 self.reset_heartbeat_state(process_id)
             self[process_id].last_job_referenced = last_job_referenced
+
+    def on_model_ram_clear(
+        self,
+        process_id: int,
+    ) -> None:
+        """Update the model load state for the given process ID.
+
+        Args:
+            process_id (int): The ID of the process to update.
+        """
+        self[process_id].recently_unloaded_from_ram = True
+        self[process_id].last_received_timestamp = time.time()
 
     def reset_heartbeat_state(self, process_id: int) -> None:
         """Reset the heartbeat state for the given process ID.
@@ -1691,6 +1711,10 @@ class HordeWorkerProcessManager:
                         process_id=message.process_id,
                     )
 
+                if message.process_state == HordeProcessState.UNLOADED_MODEL_FROM_RAM:
+                    logger.info(f"Process {message.process_id} cleared RAM: {message.info}")
+                    self._process_map.on_model_ram_clear(process_id=message.process_id)
+
             if isinstance(message, HordeAuxModelStateChangeMessage):
                 if message.process_state == HordeProcessState.DOWNLOADING_AUX_MODEL:
                     logger.info(f"Process {message.process_id} is downloading extra models (LoRas, etc.)")
@@ -2343,6 +2367,9 @@ class HordeWorkerProcessManager:
             logger.warning(f"Process {process_id} is not an inference process, not unloading models")
             return
 
+        if process_info.recently_unloaded_from_ram:
+            return
+
         if process_info.loaded_horde_model_name is not None:
             if not self._horde_model_map.is_model_loaded(process_info.loaded_horde_model_name):
                 raise ValueError(f"process_id {process_id} is references an invalid model`")
@@ -2364,6 +2391,12 @@ class HordeWorkerProcessManager:
                     process_id=process_id,
                 )
         else:
+            # Check the process is not ending
+            if (
+                process_info.last_process_state == HordeProcessState.PROCESS_ENDING
+                or process_info.last_process_state == HordeProcessState.PROCESS_ENDED
+            ):
+                return
             process_info.safe_send_message(
                 HordeControlMessage(
                     control_flag=HordeControlFlag.UNLOAD_MODELS_FROM_RAM,
@@ -2406,12 +2439,6 @@ class HordeWorkerProcessManager:
     def unload_models(self) -> None:
         """Unload models that are no longer needed and would use above the limit specified."""
         if len(self.job_deque) == 0:
-            return
-
-        if len(self.job_deque) == len(self.jobs_in_progress):
-            return
-
-        if len(self.job_deque) == len(self.jobs_in_progress) + len(self.jobs_pending_safety_check):
             return
 
         # 1 thread, 1 model, no need to unload as it should always be in use (or at least available)

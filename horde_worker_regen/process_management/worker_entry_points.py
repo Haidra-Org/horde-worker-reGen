@@ -173,11 +173,15 @@ def start_safety_process(
                     extra_comfyui_args=extra_comfyui_args,
                 )
         except Exception as e:
-            logger.critical(f"Failed to initialise hordelib: {type(e).__name__} {e}")
+            logger.critical(f"Failed to initialise: {type(e).__name__} {e}")
             sys.exit(1)
 
         from horde_worker_regen.process_management.safety_process import HordeSafetyProcess
 
+        logger.debug(
+            f"Initialising hordelib with process_id={process_id}, high_memory_mode={high_memory_mode} "
+            f"and amd_gpu={amd_gpu}",
+        )
         worker_process = HordeSafetyProcess(
             process_id=process_id,
             process_message_queue=process_message_queue,

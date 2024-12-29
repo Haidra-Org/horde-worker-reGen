@@ -137,7 +137,6 @@ def start_safety_process(
         logger.remove()
 
         try:
-            import hordelib
             from hordelib.utils.logger import HordeLog
 
             HordeLog.initialise(

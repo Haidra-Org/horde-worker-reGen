@@ -3929,7 +3929,7 @@ class HordeWorkerProcessManager:
                             await asyncio.sleep(self._loop_interval / 2)
                             self._replace_all_safety_process()
 
-                    #  self.unload_models()
+                    self.unload_models()
 
                     is_job_and_one_inference_process = (
                         len(self.job_deque) >= 1 and self._process_map.num_loaded_inference_processes() == 1

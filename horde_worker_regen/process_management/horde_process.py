@@ -250,7 +250,7 @@ class HordeProcess(abc.ABC):
         )
 
         # We are exiting, so send a final memory report
-        self.send_memory_report_message(include_vram=True)
+        self.send_memory_report_message(include_vram=False)
 
         # Exit the process (we expect to be a child process)
         sys.exit(0)

@@ -2122,6 +2122,9 @@ class HordeWorkerProcessManager:
 
         return False
 
+    _model_recently_missing = False
+    _model_recently_missing_time = 0.0
+
     def get_next_job_and_process(
         self,
     ) -> NextJobAndProcess | None:
@@ -2163,14 +2166,33 @@ class HordeWorkerProcessManager:
         skipped_line_for = None
 
         def handle_process_missing(job: ImageGenerateJobPopResponse) -> None:
+            if self._model_recently_missing:
+                # We don't want to spam the logs
+                return
             logger.error(
                 f"Expected to find a process with model {job.model} but none was found",
             )
             logger.debug(f"Horde model map: {self._horde_model_map}")
             logger.debug(f"Process map: {self._process_map}")
+
             if job.model is not None:
                 logger.debug(f"Expiring entry for model {job.model}")
                 self._horde_model_map.expire_entry(job.model)
+
+                if process_with_model is not None:
+                    logger.debug(f"Clearing process {process_with_model.process_id} of model {job.model}")
+                    self._process_map.on_model_load_state_change(
+                        process_id=process_with_model.process_id,
+                        horde_model_name=job.model,
+                    )
+
+                logger.debug(f"Horde model map: {self._horde_model_map}")
+                logger.debug(f"Process map: {self._process_map}")
+
+                self._model_recently_missing = True
+
+                logger.debug(f"Last missing time: {self._model_recently_missing_time}")
+                self._model_recently_missing_time = time.time()
 
                 try:
                     self.jobs_in_progress.remove(job)
@@ -2227,6 +2249,8 @@ class HordeWorkerProcessManager:
                 return None
             handle_process_missing(next_job)
             return None
+
+        self._model_recently_missing = False
 
         return NextJobAndProcess(
             next_job=next_job,

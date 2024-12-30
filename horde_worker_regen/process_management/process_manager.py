@@ -3041,11 +3041,15 @@ class HordeWorkerProcessManager:
                 )
 
             if completed_job_info.sdk_api_job_info in self.job_pop_timestamps:
-                del self.job_pop_timestamps[completed_job_info.sdk_api_job_info]
+                self.job_pop_timestamps.pop(completed_job_info.sdk_api_job_info)
                 logger.debug(f"Removed {completed_job_info.sdk_api_job_info.id_} from job_pop_timestamps")
 
+            if completed_job_info.sdk_api_job_info in self.jobs_in_progress:
+                self.jobs_in_progress.remove(completed_job_info.sdk_api_job_info)
+                logger.debug(f"Removed {completed_job_info.sdk_api_job_info.id_} from jobs_in_progress")
+
             if completed_job_info.sdk_api_job_info in self.jobs_lookup:
-                del self.jobs_lookup[completed_job_info.sdk_api_job_info]
+                self.jobs_lookup.pop(completed_job_info.sdk_api_job_info)
                 logger.debug(f"Removed {completed_job_info.sdk_api_job_info.id_} from jobs_lookup")
 
         await asyncio.sleep(self._api_call_loop_interval)
@@ -4032,11 +4036,9 @@ class HordeWorkerProcessManager:
             # before we assume we're in a deadlock
             return
 
-        if (
-            not self._in_queue_deadlock
-            and (self._process_map.num_busy_processes() == 0 and len(self.job_deque) > 0)
-            and len(self.jobs_in_progress) == 0
-        ) or (self._process_map.all_waiting_for_job() and len(self.job_deque) > 0):
+        if (not self._in_queue_deadlock and len(self.job_deque) > 0 and len(self.jobs_in_progress) == 0) or (
+            self._process_map.all_waiting_for_job() and len(self.job_deque) > 0
+        ):
 
             currently_loaded_models = set()
             model_process_map: dict[str, int] = {}

@@ -452,6 +452,7 @@ class HordeInferenceProcess(HordeProcess):
                 logger.error(f"Failed to release inference semaphore: {type(e).__name__} {e}")
 
         if self._current_job_inference_steps_complete:
+            self.send_heartbeat_message(heartbeat_type=HordeHeartbeatType.PIPELINE_STATE_CHANGE)
             return
 
         if progress_report.comfyui_progress is not None and progress_report.comfyui_progress.current_step == (
@@ -478,6 +479,8 @@ class HordeInferenceProcess(HordeProcess):
         self._inference_semaphore.acquire()
         logger.info("Acquired inference semaphore.")
         self._is_busy = True
+        self._current_job_inference_steps_complete = False
+
         try:
             logger.info(f"Starting inference for job(s) {job_info.ids}")
             esi_count = len(job_info.extra_source_images) if job_info.extra_source_images is not None else 0

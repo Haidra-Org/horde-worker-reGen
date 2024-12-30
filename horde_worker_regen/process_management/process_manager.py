@@ -499,7 +499,7 @@ class ProcessMap(dict[int, HordeProcessInfo]):
             return False
         return bool(
             self[process_id].last_heartbeat_type == HordeHeartbeatType.INFERENCE_STEP
-            and time.time() - self[process_id].last_heartbeat_timestamp > inference_step_timeout,
+            and self[process_id].last_heartbeat_delta > inference_step_timeout,
         )
 
     def num_inference_processes(self) -> int:

@@ -77,6 +77,7 @@ class HordeSafetyProcess(HordeProcess):
         process_message_queue: ProcessQueue,
         pipe_connection: Connection,
         disk_lock: Lock,
+        process_launch_identifier: int,
         cpu_only: bool = True,
     ) -> None:
         """Initialise the safety process.
@@ -86,9 +87,16 @@ class HordeSafetyProcess(HordeProcess):
             process_message_queue (ProcessQueue): The process message queue.
             pipe_connection (Connection): The connection to the parent process.
             disk_lock (Lock): The lock to use when accessing the disk.
+            process_launch_identifier (int): The unique identifier for this launch.
             cpu_only (bool, optional): Whether to only use the CPU. Defaults to True.
         """
-        super().__init__(process_id, process_message_queue, pipe_connection, disk_lock)
+        super().__init__(
+            process_id=process_id,
+            process_message_queue=process_message_queue,
+            pipe_connection=pipe_connection,
+            disk_lock=disk_lock,
+            process_launch_identifier=process_launch_identifier,
+        )
 
         try:
             from horde_safety.deep_danbooru_model import get_deep_danbooru_model
@@ -232,6 +240,7 @@ class HordeSafetyProcess(HordeProcess):
         self.process_message_queue.put(
             HordeSafetyResultMessage(
                 process_id=self.process_id,
+                process_launch_identifier=self.process_launch_identifier,
                 info=info_message,
                 time_elapsed=time_elapsed,
                 job_id=message.job_id,

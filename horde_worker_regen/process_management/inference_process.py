@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import gc
 import sys
 import time
 
@@ -369,6 +370,7 @@ class HordeInferenceProcess(HordeProcess):
         from hordelib.comfy_horde import unload_all_models_ram
 
         unload_all_models_ram()
+        gc.collect()
 
         logger.debug(f"Preloading model {horde_model_name}")
 
@@ -538,6 +540,8 @@ class HordeInferenceProcess(HordeProcess):
         from hordelib.comfy_horde import unload_all_models_ram
 
         unload_all_models_ram()
+        gc.collect()
+
         self.send_memory_report_message(include_vram=True)
         if self._active_model_name is not None:
             self.on_horde_model_state_change(

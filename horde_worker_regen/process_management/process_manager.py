@@ -164,6 +164,9 @@ class HordeProcessInfo:
     recently_unloaded_from_ram: bool
     """True if models were recently unloaded from RAM."""
 
+    process_launch_identifier: int
+    """The identifier for the process launch. Used to track restarting of specific process slots."""
+
     # TODO: VRAM usage
 
     def __init__(
@@ -173,6 +176,7 @@ class HordeProcessInfo:
         process_id: int,
         process_type: HordeProcessType,
         last_process_state: HordeProcessState,
+        process_launch_identifier: int,
     ) -> None:
         """Initialize a new HordeProcessInfo object.
 
@@ -182,6 +186,8 @@ class HordeProcessInfo:
             process_id (int): The ID of this process. This is not an OS process ID.
             process_type (HordeProcessType): The type of this process.
             last_process_state (HordeProcessState): The last known state of this process.
+            process_launch_identifier (int): The identifier for the process launch. Used to track restarting of \
+                specific process slots.
         """
         self.mp_process = mp_process
         self.pipe_connection = pipe_connection
@@ -205,6 +211,8 @@ class HordeProcessInfo:
         self.batch_amount = 1
 
         self.recently_unloaded_from_ram = False
+
+        self.process_launch_identifier = process_launch_identifier
 
     def is_process_busy(self) -> bool:
         """Return true if the process is actively engaged in a task.
@@ -957,6 +965,9 @@ class HordeWorkerProcessManager:
     max_download_processes: int
     """The maximum number of download processes that can run at once."""
 
+    num_processes_launched: int = 0
+    """The number of processes that have been launched."""
+
     total_ram_bytes: int
     """The total amount of RAM on the system."""
 
@@ -1399,6 +1410,7 @@ class HordeWorkerProcessManager:
                     self._process_message_queue,
                     child_pipe_connection,
                     self._disk_lock,
+                    self.num_processes_launched,
                     cpu_only,
                 ),
                 kwargs={
@@ -1417,9 +1429,11 @@ class HordeWorkerProcessManager:
                 process_id=pid,
                 process_type=HordeProcessType.SAFETY,
                 last_process_state=HordeProcessState.PROCESS_STARTING,
+                process_launch_identifier=self.num_processes_launched,
             )
 
             logger.info(f"Started safety process (id: {pid})")
+            self.num_processes_launched += 1
 
     def start_inference_processes(self) -> None:
         """Start all the inference processes configured to be used.
@@ -1466,6 +1480,7 @@ class HordeWorkerProcessManager:
                 self._inference_semaphore,
                 self._disk_lock,
                 self._aux_model_lock,
+                self.num_processes_launched,
             ),
             kwargs={
                 "very_high_memory_mode": self.bridge_data.very_high_memory_mode,
@@ -1482,8 +1497,10 @@ class HordeWorkerProcessManager:
             process_id=pid,
             process_type=HordeProcessType.INFERENCE,
             last_process_state=HordeProcessState.PROCESS_STARTING,
+            process_launch_identifier=self.num_processes_launched,
         )
         self._process_map[pid] = process_info
+        self.num_processes_launched += 1
         return process_info
 
     def end_inference_processes(self) -> None:
@@ -1664,6 +1681,23 @@ class HordeWorkerProcessManager:
                 raise ValueError(f"Received a message that is not a HordeProcessMessage: {message}")
             if message.process_id not in self._process_map:
                 raise ValueError(f"Received a message from an unknown process: {message}")
+
+            known_launch_identifier = self._process_map[message.process_id].process_launch_identifier
+
+            if message.process_launch_identifier != known_launch_identifier:
+                if self._process_map[message.process_id].last_process_state != HordeProcessState.PROCESS_STARTING:
+                    logger.error(
+                        f"Received a message from process {message.process_id} with launch identifier "
+                        f"{message.process_launch_identifier}, but expected {known_launch_identifier}",
+                    )
+                    logger.error("This is probably due to a process being replaced. Ignoring.")
+                    logger.error(f"Message: {message}")
+                else:
+                    logger.debug(
+                        f"Received a message from process {message.process_id} with launch identifier "
+                        f"{message.process_launch_identifier}, but expected {known_launch_identifier}",
+                    )
+                continue
 
             # If the process is updating us on its memory usage, update the process map for those values only
             # and then continue to the next message

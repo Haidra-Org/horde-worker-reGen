@@ -61,6 +61,9 @@ class HordeProcess(abc.ABC):
     disk_lock: Lock
     """A lock used to prevent multiple processes from accessing disk at the same time."""
 
+    process_launch_identifier: int
+    """The unique identifier for this launch."""
+
     _loop_interval: float = 0.02
     """The time to sleep between each loop iteration."""
 
@@ -94,6 +97,7 @@ class HordeProcess(abc.ABC):
         process_message_queue: ProcessQueue,
         pipe_connection: Connection,
         disk_lock: Lock,
+        process_launch_identifier: int,
     ) -> None:
         """Initialise the process.
 
@@ -103,11 +107,13 @@ class HordeProcess(abc.ABC):
                 processes.
             pipe_connection (Connection): Receives `HordeControlMessage`s from the main process.
             disk_lock (Lock): A lock used to prevent multiple processes from accessing disk at the same time.
+            process_launch_identifier (int): The unique identifier for this launch.
         """
         self.process_id = process_id
         self.process_message_queue = process_message_queue
         self.pipe_connection = pipe_connection
         self.disk_lock = disk_lock
+        self.process_launch_identifier = process_launch_identifier
 
         self.send_process_state_change_message(
             process_state=HordeProcessState.PROCESS_STARTING,
@@ -132,6 +138,7 @@ class HordeProcess(abc.ABC):
         message = HordeProcessStateChangeMessage(
             process_state=process_state,
             process_id=self.process_id,
+            process_launch_identifier=self.process_launch_identifier,
             info=info,
             time_elapsed=time_elapsed,
         )
@@ -155,6 +162,7 @@ class HordeProcess(abc.ABC):
 
         message = HordeProcessHeartbeatMessage(
             process_id=self.process_id,
+            process_launch_identifier=self.process_launch_identifier,
             info="Heartbeat",
             time_elapsed=None,
             heartbeat_type=heartbeat_type,
@@ -179,6 +187,7 @@ class HordeProcess(abc.ABC):
         """
         message = HordeProcessMemoryMessage(
             process_id=self.process_id,
+            process_launch_identifier=self.process_launch_identifier,
             info="Memory report",
             time_elapsed=None,
             ram_usage_bytes=psutil.Process().memory_info().rss,

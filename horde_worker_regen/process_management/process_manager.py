@@ -3917,7 +3917,8 @@ class HordeWorkerProcessManager:
                                         )
 
                                 if (
-                                    self._process_map.keep_single_inference(
+                                    self.bridge_data.max_threads > 1
+                                    and self._process_map.keep_single_inference(
                                         stable_diffusion_model_reference=self.stable_diffusion_reference,
                                     )
                                     and len(self.jobs_in_progress) > 0

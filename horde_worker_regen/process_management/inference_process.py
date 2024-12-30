@@ -86,6 +86,7 @@ class HordeInferenceProcess(HordeProcess):
         inference_semaphore: Semaphore,
         aux_model_lock: Lock,
         disk_lock: Lock,
+        process_launch_identifier: int,
         *,
         high_memory_mode: bool = False,
     ) -> None:
@@ -99,6 +100,7 @@ class HordeInferenceProcess(HordeProcess):
             inference_semaphore (Semaphore): A semaphore used to limit the number of concurrent inference jobs.
             aux_model_lock (Lock): A lock used to prevent multiple processes from downloading auxiliary models at the \
             disk_lock (Lock): A lock used to prevent multiple processes from accessing disk at the same time.
+            process_launch_identifier (int): The identifier for the process launch.
             high_memory_mode (bool, optional): Whether or not to use high memory mode. This mode uses more memory, but\
                 may be faster if the system has enough memory and VRAM. \
                 Defaults to False.
@@ -108,6 +110,7 @@ class HordeInferenceProcess(HordeProcess):
             process_message_queue=process_message_queue,
             pipe_connection=pipe_connection,
             disk_lock=disk_lock,
+            process_launch_identifier=process_launch_identifier,
         )
 
         self._aux_model_lock = aux_model_lock
@@ -213,6 +216,7 @@ class HordeInferenceProcess(HordeProcess):
         model_update_message = HordeModelStateChangeMessage(
             process_state=process_state,
             process_id=self.process_id,
+            process_launch_identifier=self.process_launch_identifier,
             info=f"Model {horde_model_name} {horde_model_state.name}",
             horde_model_name=horde_model_name,
             horde_model_state=horde_model_state,
@@ -586,6 +590,7 @@ class HordeInferenceProcess(HordeProcess):
         message = HordeAuxModelStateChangeMessage(
             process_state=process_state,
             process_id=self.process_id,
+            process_launch_identifier=self.process_launch_identifier,
             info=info,
             time_elapsed=time_elapsed,
             sdk_api_job_info=job_info,
@@ -626,6 +631,7 @@ class HordeInferenceProcess(HordeProcess):
 
         message = HordeInferenceResultMessage(
             process_id=self.process_id,
+            process_launch_identifier=self.process_launch_identifier,
             info="Inference result",
             state=GENERATION_STATE.ok if results is not None and len(results) > 0 else GENERATION_STATE.faulted,
             time_elapsed=time_elapsed,

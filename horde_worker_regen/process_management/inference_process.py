@@ -304,6 +304,10 @@ class HordeInferenceProcess(HordeProcess):
 
             loras = job_info.payload.loras or []
 
+            if not loras:
+                logger.info("No auxiliary models to download")
+                return None
+
             try:
                 lora_manager.load_model_database()
                 lora_manager.reset_adhoc_loras()

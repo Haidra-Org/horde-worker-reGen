@@ -2380,7 +2380,10 @@ class HordeWorkerProcessManager:
         """
         next_n_models = list(self.get_next_n_models(self.max_inference_processes))
         logger.debug(f"Next n models: {next_n_models}")
-        next_model = next_n_models.pop(0) if len(next_n_models) > 0 else None
+        next_model = None
+        if len(next_n_models) > 0:
+            next_model = next_n_models.pop()
+
         in_progress_models = {job.model for job in self.jobs_in_progress}
 
         for process_info in self._process_map.values():
@@ -2488,16 +2491,16 @@ class HordeWorkerProcessManager:
                 last_job_referenced=None,
             )
 
-    def get_next_n_models(self, n: int) -> set[str]:
+    def get_next_n_models(self, n: int) -> list[str]:
         """Get the next n models that will be used in the job deque.
 
         Args:
             n: The number of models to get.
 
         Returns:
-            A set of the next n models that will be used in the job deque.
+            A list of the next n models that will be used in the job deque.
         """
-        next_n_models: set[str] = set()
+        next_n_models: list[str] = []
         jobs_traversed = 0
         while len(next_n_models) < n:
             if jobs_traversed >= len(self.job_deque):
@@ -2509,7 +2512,7 @@ class HordeWorkerProcessManager:
                 raise ValueError(f"job_deque[{jobs_traversed}].model is None")
 
             if model_name not in next_n_models:
-                next_n_models.add(model_name)
+                next_n_models.append(model_name)
 
             jobs_traversed += 1
 
@@ -2524,7 +2527,7 @@ class HordeWorkerProcessManager:
         if self._max_concurrent_inference_processes == 1 and len(self.bridge_data.image_models_to_load) == 1:
             return
 
-        next_n_models: set[str] = self.get_next_n_models(self.max_inference_processes)
+        next_n_models: set[str] = set(self.get_next_n_models(self.max_inference_processes))
 
         for process_info in self._process_map.values():
             if process_info.process_type != HordeProcessType.INFERENCE:

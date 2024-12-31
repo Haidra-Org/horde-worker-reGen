@@ -381,7 +381,7 @@ class HordeInferenceProcess(HordeProcess):
 
         logger.debug(f"Preloading model {horde_model_name}")
 
-        if self._active_model_name is not None:
+        if self._active_model_name is not None and self._active_model_name != horde_model_name:
             self.on_horde_model_state_change(
                 process_state=HordeProcessState.UNLOADED_MODEL_FROM_RAM,
                 horde_model_name=self._active_model_name,

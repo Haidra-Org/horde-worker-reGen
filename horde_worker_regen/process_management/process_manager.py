@@ -632,8 +632,6 @@ class ProcessMap(dict[int, HordeProcessInfo]):
             if p.is_process_busy():
                 continue
 
-            if ():
-                return p
         return None
 
     def get_safety_process(self) -> HordeProcessInfo | None:

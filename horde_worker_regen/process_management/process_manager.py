@@ -1776,7 +1776,11 @@ class HordeWorkerProcessManager:
                         process_id=message.process_id,
                     )
 
-                if message.process_state == HordeProcessState.UNLOADED_MODEL_FROM_RAM:
+                if (
+                    message.process_state == HordeProcessState.UNLOADED_MODEL_FROM_RAM
+                    and self._process_map[message.process_id].last_process_state
+                    != HordeProcessState.UNLOADED_MODEL_FROM_RAM
+                ):
                     logger.info(f"Process {message.process_id} cleared RAM: {message.info}")
                     self._process_map.on_model_ram_clear(process_id=message.process_id)
 
@@ -2155,6 +2159,7 @@ class HordeWorkerProcessManager:
 
     def get_next_job_and_process(
         self,
+        information_only: bool = False,
     ) -> NextJobAndProcess | None:
         """Get the next job and process that can be started, if any.
 
@@ -2228,7 +2233,11 @@ class HordeWorkerProcessManager:
                     logger.error(f"Job {job.id_} not found in jobs_in_progress.")
 
         if process_with_model is None:
-            if self._preload_delay_notified or self._horde_model_map.is_model_loading(next_job.model):
+            if (
+                self._preload_delay_notified
+                or self._horde_model_map.is_model_loading(next_job.model)
+                or information_only
+            ):
                 return None
             handle_process_missing(next_job)
             return None
@@ -3987,7 +3996,7 @@ class HordeWorkerProcessManager:
                             # We want to get any messages next cycle from preloading processes to make sure
                             # the state of everything is up to date
                             if not self.preload_models():
-                                next_job_and_process = self.get_next_job_and_process()
+                                next_job_and_process = self.get_next_job_and_process(information_only=True)
 
                                 next_job_heavy_model_and_workflow = False
                                 if next_job_and_process is not None:

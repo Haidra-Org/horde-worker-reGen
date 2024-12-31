@@ -223,13 +223,11 @@ class HordeProcessInfo:
         """
         return (
             self.last_process_state == HordeProcessState.INFERENCE_STARTING
-            or self.last_control_flag == HordeControlFlag.START_INFERENCE
             or self.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING
             or self.last_process_state == HordeProcessState.ALCHEMY_STARTING
             or self.last_process_state == HordeProcessState.DOWNLOADING_MODEL
             or self.last_process_state == HordeProcessState.DOWNLOADING_AUX_MODEL
             or self.last_process_state == HordeProcessState.PRELOADING_MODEL
-            or self.last_control_flag == HordeControlFlag.PRELOAD_MODEL
             or self.last_process_state == HordeProcessState.JOB_RECEIVED
             or self.last_process_state == HordeProcessState.EVALUATING_SAFETY
             or self.last_process_state == HordeProcessState.PROCESS_STARTING

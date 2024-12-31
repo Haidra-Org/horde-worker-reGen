@@ -2070,6 +2070,7 @@ class HordeWorkerProcessManager:
                 available_process.last_process_state != HordeProcessState.WAITING_FOR_JOB
                 and available_process.loaded_horde_model_name is not None
                 and self.bridge_data.cycle_process_on_model_change
+                and not self._shutting_down
             ):
                 # We're going to restart the process and then exit the loop, because
                 # available_process is very quickly _not_ going to be available.
@@ -2417,10 +2418,13 @@ class HordeWorkerProcessManager:
                     process_info.last_control_flag = HordeControlFlag.UNLOAD_MODELS_FROM_VRAM
             else:
                 logger.debug(f"Unloading all models from VRAM on process {process_info.process_id}")
-                if not process_info.safe_send_message(
-                    HordeControlMessage(
-                        control_flag=HordeControlFlag.UNLOAD_MODELS_FROM_VRAM,
-                    ),
+                if (
+                    not process_info.safe_send_message(
+                        HordeControlMessage(
+                            control_flag=HordeControlFlag.UNLOAD_MODELS_FROM_VRAM,
+                        ),
+                    )
+                    and not self._shutting_down
                 ):
                     self._replace_inference_process(process_info)
 
@@ -4109,6 +4113,9 @@ class HordeWorkerProcessManager:
         if self._last_pop_recently():
             # We just popped a job, lets allow some time for gears to start turning
             # before we assume we're in a deadlock
+            return
+
+        if self._shutting_down:
             return
 
         if not self._in_queue_deadlock and self._process_map.all_waiting_for_job() and len(self.job_deque) > 0:

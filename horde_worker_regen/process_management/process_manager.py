@@ -2265,7 +2265,14 @@ class HordeWorkerProcessManager:
                 # has a model that's already loaded.
                 # If it does, we'll start inference on that job instead.
                 for candidate_small_job in next_n_jobs:
-                    if candidate_small_job.model is not None and candidate_small_job.model != next_job.model:
+                    job_has_loras = (
+                        candidate_small_job.payload.loras is not None and len(candidate_small_job.payload.loras) > 0
+                    )
+                    if (
+                        candidate_small_job.model is not None
+                        and candidate_small_job.model != next_job.model
+                        and not job_has_loras
+                    ):
                         candidate_process_with_model = self._process_map.get_process_by_horde_model_name(
                             candidate_small_job.model,
                         )

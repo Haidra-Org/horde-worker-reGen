@@ -595,19 +595,28 @@ class ProcessMap(dict[int, HordeProcessInfo]):
             return True
         return False
 
-    def get_first_available_inference_process(self) -> HordeProcessInfo | None:
+    def get_first_available_inference_process(
+        self,
+        disallowed_processes: list[int] | None = None,
+    ) -> HordeProcessInfo | None:
         """Return the first available inference process, or None if there are none available."""
+        if disallowed_processes is None:
+            disallowed_processes = []
+
         for p in self.values():
             if (
                 p.process_type == HordeProcessType.INFERENCE
                 and p.last_process_state == HordeProcessState.WAITING_FOR_JOB
                 and p.loaded_horde_model_name is None
+                and p.process_id not in disallowed_processes
             ):
                 return p
 
         for p in self.values():
             if p.process_type == HordeProcessType.INFERENCE and p.can_accept_job():
                 if p.last_process_state == HordeProcessState.PRELOADED_MODEL:
+                    continue
+                if p.process_id in disallowed_processes:
                     continue
                 return p
 
@@ -2013,33 +2022,18 @@ class HordeWorkerProcessManager:
             if job.model is None:
                 raise ValueError(f"job.model is None ({job})")
 
-            if job.payload.loras is not None and len(job.payload.loras) > 0:
-                for p in self._process_map.values():
-                    if (
-                        p.loaded_horde_model_name == job.model
-                        and (
-                            p.last_process_state == HordeProcessState.INFERENCE_COMPLETE
-                            or p.last_process_state == HordeProcessState.WAITING_FOR_JOB
-                        )
-                        and p.last_control_flag != HordeControlFlag.PRELOAD_MODEL
-                    ):
-                        logger.info(f"Preloading LoRas for job {job.id_} on process {p.process_id}")
-                        p.safe_send_message(
-                            HordePreloadInferenceModelMessage(
-                                control_flag=HordeControlFlag.PRELOAD_MODEL,
-                                horde_model_name=job.model,
-                                will_load_loras=True,
-                                seamless_tiling_enabled=job.payload.tiling,
-                                sdk_api_job_info=job,
-                            ),
-                        )
-                        p.last_control_flag = HordeControlFlag.PRELOAD_MODEL
-                        return True
-
             if job.model in loaded_models:
                 continue
 
-            available_process = self._process_map.get_first_available_inference_process()
+            processes_with_model_for_queued_job: list[int] = []
+
+            for p in self._process_map.values():
+                if p.loaded_horde_model_name in queued_models:
+                    processes_with_model_for_queued_job.append(p.process_id)
+
+            available_process = self._process_map.get_first_available_inference_process(
+                disallowed_processes=processes_with_model_for_queued_job,
+            )
             model_to_unload = self._lru.append(job.model)
 
             if available_process is None and model_to_unload is not None and model_to_unload not in queued_models:

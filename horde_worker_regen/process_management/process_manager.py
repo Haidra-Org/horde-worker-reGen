@@ -622,13 +622,22 @@ class ProcessMap(dict[int, HordeProcessInfo]):
 
         return None
 
-    def _get_first_inference_process_to_kill(self) -> HordeProcessInfo | None:
+    def _get_first_inference_process_to_kill(
+        self,
+        disallowed_processes: list[int] | None = None,
+    ) -> HordeProcessInfo | None:
         """Return the first inference process eligible to be killed, or None if there are none.
 
         Used during shutdown.
         """
+        if disallowed_processes is None:
+            disallowed_processes = []
+
         for p in self.values():
             if p.process_type != HordeProcessType.INFERENCE:
+                continue
+
+            if p.process_id in disallowed_processes:
                 continue
 
             if (
@@ -1522,8 +1531,12 @@ class HordeWorkerProcessManager:
         if len(self.job_deque) > 0 and len(self.job_deque) != len(self.jobs_in_progress):
             return
 
+        processes_with_model_for_queued_job: list[int] = self.get_processes_with_model_for_queued_job()
+
         # Get the process to end
-        process_info = self._process_map._get_first_inference_process_to_kill()
+        process_info = self._process_map._get_first_inference_process_to_kill(
+            disallowed_processes=processes_with_model_for_queued_job,
+        )
 
         if process_info is not None:
             self._end_inference_process(process_info)
@@ -1999,6 +2012,16 @@ class HordeWorkerProcessManager:
                 # logger.debug([c.generation_faults for c in completed_job_info.job_image_results])
                 self.completed_jobs.append(completed_job_info)
 
+    def get_processes_with_model_for_queued_job(self) -> list[int]:
+        """Get the processes that have the model for the queued job."""
+        processes_with_model_for_queued_job: list[int] = []
+
+        for p in self._process_map.values():
+            if p.loaded_horde_model_name in self.jobs_lookup:
+                processes_with_model_for_queued_job.append(p.process_id)
+
+        return processes_with_model_for_queued_job
+
     _preload_delay_notified = False
 
     def preload_models(self) -> bool:
@@ -2025,11 +2048,7 @@ class HordeWorkerProcessManager:
             if job.model in loaded_models:
                 continue
 
-            processes_with_model_for_queued_job: list[int] = []
-
-            for p in self._process_map.values():
-                if p.loaded_horde_model_name in queued_models:
-                    processes_with_model_for_queued_job.append(p.process_id)
+            processes_with_model_for_queued_job: list[int] = self.get_processes_with_model_for_queued_job()
 
             available_process = self._process_map.get_first_available_inference_process(
                 disallowed_processes=processes_with_model_for_queued_job,

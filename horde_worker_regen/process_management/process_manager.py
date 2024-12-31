@@ -3973,13 +3973,16 @@ class HordeWorkerProcessManager:
                                         )
 
                                 if (
-                                    self.bridge_data.max_threads > 1
-                                    and self._process_map.keep_single_inference(
+                                    self._process_map.keep_single_inference(
                                         stable_diffusion_model_reference=self.stable_diffusion_reference,
                                     )
                                     and len(self.jobs_in_progress) > 0
                                 ):
-                                    if self.has_queued_jobs() and time.time() - self._batch_wait_log_time > 10:
+                                    if (
+                                        self.has_queued_jobs()
+                                        and (time.time() - self._batch_wait_log_time > 10)
+                                        and self.bridge_data.max_threads > 1
+                                    ):
                                         logger.info(
                                             "Blocking further inference because batch or slow_model inference "
                                             "in process.",

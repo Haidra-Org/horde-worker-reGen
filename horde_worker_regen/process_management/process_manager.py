@@ -2036,7 +2036,14 @@ class HordeWorkerProcessManager:
 
         for m in self._horde_model_map.root.values():
             if m.horde_model_load_state.is_active() and m.process_id not in processes_with_model_for_queued_job:
-                logger.debug(f"Model {m.horde_model_name} is active but not in processes_with_model_for_queued_job")
+                if (
+                    len(self.job_deque) == 0
+                    and len(self.jobs_in_progress) == 0
+                    and len(self.jobs_pending_safety_check) == 0
+                ):
+                    continue
+
+                # logger.debug(f"Model {m.horde_model_name} is active but not in processes_with_model_for_queued_job")
                 processes_with_model_for_queued_job.append(m.process_id)
 
         return processes_with_model_for_queued_job

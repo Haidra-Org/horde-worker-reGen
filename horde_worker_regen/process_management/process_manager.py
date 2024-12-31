@@ -2355,6 +2355,10 @@ class HordeWorkerProcessManager:
             process_with_model: The process that is running a job.
         """
         next_n_models = list(self.get_next_n_models(self.max_inference_processes))
+        logger.debug(f"Next n models: {next_n_models}")
+        next_model = next_n_models.pop(0)
+        in_progress_models = {job.model for job in self.jobs_in_progress}
+
         for process_info in self._process_map.values():
             if process_info.process_id == process_with_model.process_id:
                 continue
@@ -2363,23 +2367,27 @@ class HordeWorkerProcessManager:
                 continue
 
             if process_info.is_process_busy():
-                continue
+                logger.debug(f"Process {process_info.process_id} is busy")
+                # continue
 
             if process_info.loaded_horde_model_name is not None:
-
-                # if len(self.job_deque) == len(self.jobs_in_progress) + len(self.jobs_pending_safety_check):
-                #     logger.debug("Not unloading models from VRAM because there are no jobs to make room for.")
-                #     continue
-
                 if len(self.bridge_data.image_models_to_load) == 1:
                     logger.debug("Not unloading models from VRAM because there is only one model to load.")
                     continue
 
-                # If the model would be used by another process soon, don't unload it
-                if process_info.loaded_horde_model_name in next_n_models:
+                # If this models is in progress, don't unload it
+                if process_info.loaded_horde_model_name in in_progress_models:
+                    continue
+
+                # If the model would be used next, don't unload it
+                if process_info.loaded_horde_model_name == next_model:
                     continue
 
                 if process_info.last_control_flag != HordeControlFlag.UNLOAD_MODELS_FROM_VRAM:
+                    logger.info(
+                        f"Unloading model {process_info.loaded_horde_model_name} from VRAM on process "
+                        f"{process_info.process_id}",
+                    )
                     process_info.safe_send_message(
                         HordeControlModelMessage(
                             control_flag=HordeControlFlag.UNLOAD_MODELS_FROM_VRAM,
@@ -2389,6 +2397,7 @@ class HordeWorkerProcessManager:
                     process_info.last_job_referenced = None
                     process_info.last_control_flag = HordeControlFlag.UNLOAD_MODELS_FROM_VRAM
             else:
+                logger.debug(f"Unloading all models from VRAM on process {process_info.process_id}")
                 if not process_info.safe_send_message(
                     HordeControlMessage(
                         control_flag=HordeControlFlag.UNLOAD_MODELS_FROM_VRAM,
@@ -2414,10 +2423,9 @@ class HordeWorkerProcessManager:
         if process_info.recently_unloaded_from_ram:
             return
 
-        if process_info.loaded_horde_model_name is not None:
-            if not self._horde_model_map.is_model_loaded(process_info.loaded_horde_model_name):
-                raise ValueError(f"process_id {process_id} is references an invalid model`")
-
+        if process_info.loaded_horde_model_name is not None and self._horde_model_map.is_model_loaded(
+            process_info.loaded_horde_model_name,
+        ):
             if process_info.last_control_flag != HordeControlFlag.UNLOAD_MODELS_FROM_RAM:
                 process_info.safe_send_message(
                     HordeControlModelMessage(

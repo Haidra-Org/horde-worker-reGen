@@ -2030,14 +2030,14 @@ class HordeWorkerProcessManager:
         """Get the processes that have the model for any queued job."""
         processes_with_model_for_queued_job: list[int] = []
 
-        # If the number of still active inference processes is less than the number of jobs in the deque or in progress
-        # then we return all processes that are active
-        if self._process_map.num_loaded_inference_processes() < (len(self.job_deque) + len(self.jobs_in_progress)):
-            return [p.process_id for p in self._process_map.values()]
-
         for p in self._process_map.values():
             if p.loaded_horde_model_name in self.jobs_lookup:
                 processes_with_model_for_queued_job.append(p.process_id)
+
+        for m in self._horde_model_map.root.values():
+            if m.horde_model_load_state.is_active() and m.process_id not in processes_with_model_for_queued_job:
+                logger.debug(f"Model {m.horde_model_name} is active but not in processes_with_model_for_queued_job")
+                processes_with_model_for_queued_job.append(m.process_id)
 
         return processes_with_model_for_queued_job
 
@@ -2067,6 +2067,13 @@ class HordeWorkerProcessManager:
                 continue
 
             processes_with_model_for_queued_job: list[int] = self.get_processes_with_model_for_queued_job()
+
+            # If the number of still active inference processes is less than the number of jobs in the deque or in
+            # progress then we use all processes that are active
+            if self._process_map.num_loaded_inference_processes() < (len(self.job_deque) + len(self.jobs_in_progress)):
+                processes_with_model_for_queued_job = [
+                    p.process_id for p in self._process_map.values() if p.is_process_busy()
+                ]
 
             available_process = self._process_map.get_first_available_inference_process(
                 disallowed_processes=processes_with_model_for_queued_job,

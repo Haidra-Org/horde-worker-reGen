@@ -474,6 +474,12 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         Args:
             process_id (int): The ID of the process to update.
         """
+        self.on_model_load_state_change(
+            process_id=process_id,
+            horde_model_name=None,
+            last_job_referenced=None,
+        )
+
         self[process_id].recently_unloaded_from_ram = True
         self[process_id].last_received_timestamp = time.time()
 
@@ -2467,25 +2473,27 @@ class HordeWorkerProcessManager:
         if process_info.recently_unloaded_from_ram:
             return
 
+        if process_info.last_control_flag == HordeControlFlag.UNLOAD_MODELS_FROM_RAM:
+            return
+
         if process_info.loaded_horde_model_name is not None and self._horde_model_map.is_model_loaded(
             process_info.loaded_horde_model_name,
         ):
-            if process_info.last_control_flag != HordeControlFlag.UNLOAD_MODELS_FROM_RAM:
-                process_info.safe_send_message(
-                    HordeControlModelMessage(
-                        control_flag=HordeControlFlag.UNLOAD_MODELS_FROM_RAM,
-                        horde_model_name=process_info.loaded_horde_model_name,
-                    ),
-                )
-
-                process_info.last_job_referenced = None
-                process_info.last_control_flag = HordeControlFlag.UNLOAD_MODELS_FROM_RAM
-
-                self._horde_model_map.update_entry(
+            process_info.safe_send_message(
+                HordeControlModelMessage(
+                    control_flag=HordeControlFlag.UNLOAD_MODELS_FROM_RAM,
                     horde_model_name=process_info.loaded_horde_model_name,
-                    load_state=ModelLoadState.ON_DISK,
-                    process_id=process_id,
-                )
+                ),
+            )
+
+            process_info.last_job_referenced = None
+            process_info.last_control_flag = HordeControlFlag.UNLOAD_MODELS_FROM_RAM
+
+            self._horde_model_map.update_entry(
+                horde_model_name=process_info.loaded_horde_model_name,
+                load_state=ModelLoadState.ON_DISK,
+                process_id=process_id,
+            )
         else:
             # Check the process is not ending
             if (
@@ -2498,12 +2506,7 @@ class HordeWorkerProcessManager:
                     control_flag=HordeControlFlag.UNLOAD_MODELS_FROM_RAM,
                 ),
             )
-
-            self._process_map.on_model_load_state_change(
-                process_id=process_id,
-                horde_model_name=None,
-                last_job_referenced=None,
-            )
+        self._process_map.on_model_ram_clear(process_id=process_id)
 
     def get_next_n_models(self, n: int) -> list[str]:
         """Get the next n models that will be used in the job deque.

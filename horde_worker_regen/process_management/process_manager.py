@@ -2277,10 +2277,8 @@ class HordeWorkerProcessManager:
             )
 
         processes_post_processing = 0
-        if (
-            self.bridge_data.post_process_job_overlap
-            and self.bridge_data.moderate_performance_mode
-            or self.bridge_data.high_performance_mode
+        if self.bridge_data.post_process_job_overlap and (
+            self.bridge_data.moderate_performance_mode or self.bridge_data.high_performance_mode
         ):
             processes_post_processing = self._process_map.num_busy_with_post_processing()
 

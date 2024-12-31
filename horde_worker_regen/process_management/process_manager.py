@@ -2027,7 +2027,7 @@ class HordeWorkerProcessManager:
                 self.completed_jobs.append(completed_job_info)
 
     def get_processes_with_model_for_queued_job(self) -> list[int]:
-        """Get the processes that have the model for the queued job."""
+        """Get the processes that have the model for any queued job."""
         processes_with_model_for_queued_job: list[int] = []
 
         # If the number of still active inference processes is less than the number of jobs in the deque or in progress
@@ -2174,13 +2174,13 @@ class HordeWorkerProcessManager:
         """
         next_job: ImageGenerateJobPopResponse | None = None
         next_n_jobs: list[ImageGenerateJobPopResponse] = []
-        for candidate_small_job in self.job_deque:
-            if candidate_small_job in self.jobs_in_progress:
+        for job in self.job_deque:
+            if job in self.jobs_in_progress:
                 continue
             if next_job is None:
-                next_job = candidate_small_job
+                next_job = job
 
-            next_n_jobs.append(candidate_small_job)
+            next_n_jobs.append(job)
 
         if next_job is None:
             return None

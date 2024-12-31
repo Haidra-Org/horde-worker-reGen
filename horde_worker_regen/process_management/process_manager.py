@@ -2356,7 +2356,7 @@ class HordeWorkerProcessManager:
         """
         next_n_models = list(self.get_next_n_models(self.max_inference_processes))
         logger.debug(f"Next n models: {next_n_models}")
-        next_model = next_n_models.pop(0)
+        next_model = next_n_models.pop(0) if len(next_n_models) > 0 else None
         in_progress_models = {job.model for job in self.jobs_in_progress}
 
         for process_info in self._process_map.values():

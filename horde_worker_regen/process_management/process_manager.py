@@ -120,6 +120,8 @@ _excludes_for_job_dump = {
     },
 }
 
+_caught_signal = False
+
 
 class HordeProcessInfo:
     """Contains information about a horde child process."""
@@ -252,7 +254,9 @@ class HordeProcessInfo:
             self.pipe_connection.send(message)
             return True
         except Exception as e:
-            logger.error(f"Failed to send message to process {self.process_id}: {e}")
+            global _caught_signal
+            if not _caught_signal:
+                logger.error(f"Failed to send message to process {self.process_id}: {e}")
             return False
 
     def __repr__(self) -> str:
@@ -4480,6 +4484,9 @@ class HordeWorkerProcessManager:
         self._caught_sigints += 1
         logger.warning("Shutting down after current jobs are finished...")
         self._shutting_down = True
+
+        global _caught_signal
+        _caught_signal = True
 
     def _start_timed_shutdown(self) -> None:
         import threading

@@ -2055,7 +2055,6 @@ class HordeWorkerProcessManager:
             for model in self._horde_model_map.root.values()
             if model.horde_model_load_state.is_loaded() or model.horde_model_load_state == ModelLoadState.LOADING
         )
-        queued_models = {job.model for job in self.job_deque if job not in self.jobs_in_progress}
 
         # logger.debug(f"Loaded models: {loaded_models}, queued: {queued_models}")
         # Starting from the left of the deque, preload models that are not yet loaded up to the
@@ -2072,15 +2071,6 @@ class HordeWorkerProcessManager:
             available_process = self._process_map.get_first_available_inference_process(
                 disallowed_processes=processes_with_model_for_queued_job,
             )
-            model_to_unload = self._lru.append(job.model)
-
-            if available_process is None and model_to_unload is not None and model_to_unload not in queued_models:
-                for p in self._process_map.values():
-                    if p.loaded_horde_model_name == model_to_unload and (
-                        p.last_process_state == HordeProcessState.INFERENCE_COMPLETE
-                        or p.last_process_state == HordeProcessState.WAITING_FOR_JOB
-                    ):
-                        available_process = p
 
             if available_process is None:
                 return False

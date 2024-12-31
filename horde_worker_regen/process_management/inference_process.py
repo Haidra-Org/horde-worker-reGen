@@ -295,6 +295,7 @@ class HordeInferenceProcess(HordeProcess):
             time_start = time.time()
 
             lora_manager = self._shared_model_manager.manager.lora
+
             if lora_manager is None:
                 raise RuntimeError("Failed to load LORA model manager")
 
@@ -387,6 +388,16 @@ class HordeInferenceProcess(HordeProcess):
                 horde_model_state=ModelLoadState.ON_DISK,
             )
 
+        download_time = self.download_aux_models(job_info)
+
+        if download_time is not None:
+            self.send_aux_model_message(
+                process_state=HordeProcessState.DOWNLOAD_AUX_COMPLETE,
+                info="Downloaded auxiliary models",
+                time_elapsed=download_time,
+                job_info=job_info,
+            )
+
         self.on_horde_model_state_change(
             process_state=HordeProcessState.PRELOADING_MODEL,
             horde_model_name=horde_model_name,
@@ -411,16 +422,6 @@ class HordeInferenceProcess(HordeProcess):
             horde_model_state=ModelLoadState.LOADED_IN_RAM,
             time_elapsed=time.time() - time_start,
         )
-
-        download_time = self.download_aux_models(job_info)
-
-        if download_time is not None:
-            self.send_aux_model_message(
-                process_state=HordeProcessState.DOWNLOAD_AUX_COMPLETE,
-                info="Downloaded auxiliary models",
-                time_elapsed=download_time,
-                job_info=job_info,
-            )
 
         self.send_memory_report_message(include_vram=True)
 

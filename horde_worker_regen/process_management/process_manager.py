@@ -1112,6 +1112,13 @@ class HordeWorkerProcessManager:
     _directml: int | None
     """ID of the potential directml device."""
 
+    @property
+    def post_process_job_overlap_allowed(self) -> bool:
+        """Return true if post processing jobs are allowed to overlap."""
+        return (
+            self.bridge_data.moderate_performance_mode or self.bridge_data.high_performance_mode
+        ) and self.bridge_data.post_process_job_overlap
+
     def __init__(
         self,
         *,
@@ -2148,7 +2155,7 @@ class HordeWorkerProcessManager:
             raise ValueError(f"next_job.model is None ({next_job})")
 
         processes_post_processing = 0
-        if self.bridge_data.moderate_performance_mode or self.bridge_data.high_performance_mode:
+        if self.post_process_job_overlap_allowed:
             processes_post_processing = self._process_map.num_busy_with_post_processing()
 
         if len(self.jobs_in_progress) >= (self.max_concurrent_inference_processes + processes_post_processing):
@@ -2197,56 +2204,47 @@ class HordeWorkerProcessManager:
                 except ValueError:
                     logger.error(f"Job {job.id_} not found in jobs_in_progress.")
 
-        if self._horde_model_map.is_model_loaded(next_job.model):
-            if process_with_model is None:
-                if self._preload_delay_notified:
-                    return None
-                handle_process_missing(next_job)
-                return None
-
-            candidate_job_size = 25
-
-            if self.bridge_data.high_performance_mode:
-                candidate_job_size = 100
-
-            elif self.bridge_data.moderate_performance_mode:
-                candidate_job_size = 50
-
-            if not process_with_model.can_accept_job():
-                if process_with_model.last_process_state == HordeProcessState.DOWNLOADING_AUX_MODEL or (
-                    self.bridge_data.post_process_job_overlap
-                    and process_with_model.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING
-                    and (self.bridge_data.high_performance_mode or self.bridge_data.moderate_performance_mode)
-                ):
-                    # If any of the next n jobs (other than this one) aren't using the same model, see if that job
-                    # has a model that's already loaded.
-                    # If it does, we'll start inference on that job instead.
-                    for candidate_small_job in next_n_jobs:
-                        if candidate_small_job.model is not None and candidate_small_job.model != next_job.model:
-                            candidate_process_with_model = self._process_map.get_process_by_horde_model_name(
-                                candidate_small_job.model,
-                            )
-                            if (
-                                candidate_process_with_model is not None
-                                and self.get_single_job_effective_megapixelsteps(candidate_small_job)
-                                <= candidate_job_size
-                            ):
-                                skipped_line = True
-                                skipped_line_for = next_job
-
-                                next_job = candidate_small_job
-                                process_with_model = candidate_process_with_model
-                                break
-                    else:
-                        return None
-                else:
-                    return None
-
         if process_with_model is None:
-            if self._preload_delay_notified:
+            if self._preload_delay_notified or self._horde_model_map.is_model_loading(next_job.model):
                 return None
             handle_process_missing(next_job)
             return None
+
+        candidate_job_size = 25
+
+        if self.bridge_data.high_performance_mode:
+            candidate_job_size = 100
+
+        elif self.bridge_data.moderate_performance_mode:
+            candidate_job_size = 50
+
+        if not process_with_model.can_accept_job():
+            if (process_with_model.last_process_state == HordeProcessState.DOWNLOADING_AUX_MODEL) or (
+                self.post_process_job_overlap_allowed
+                and process_with_model.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING
+            ):
+                # If any of the next n jobs (other than this one) aren't using the same model, see if that job
+                # has a model that's already loaded.
+                # If it does, we'll start inference on that job instead.
+                for candidate_small_job in next_n_jobs:
+                    if candidate_small_job.model is not None and candidate_small_job.model != next_job.model:
+                        candidate_process_with_model = self._process_map.get_process_by_horde_model_name(
+                            candidate_small_job.model,
+                        )
+                        if (
+                            candidate_process_with_model is not None
+                            and self.get_single_job_effective_megapixelsteps(candidate_small_job) <= candidate_job_size
+                        ):
+                            skipped_line = True
+                            skipped_line_for = next_job
+
+                            next_job = candidate_small_job
+                            process_with_model = candidate_process_with_model
+                            break
+                else:
+                    return None
+            else:
+                return None
 
         self._model_recently_missing = False
 
@@ -2275,9 +2273,7 @@ class HordeWorkerProcessManager:
             )
 
         processes_post_processing = 0
-        if self.bridge_data.post_process_job_overlap and (
-            self.bridge_data.moderate_performance_mode or self.bridge_data.high_performance_mode
-        ):
+        if self.post_process_job_overlap_allowed:
             processes_post_processing = self._process_map.num_busy_with_post_processing()
 
         if processes_post_processing > 0 and len(self.jobs_in_progress) >= self.max_concurrent_inference_processes:

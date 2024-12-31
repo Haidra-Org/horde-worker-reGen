@@ -298,6 +298,8 @@ class HordeInferenceProcess(HordeProcess):
             if lora_manager is None:
                 raise RuntimeError("Failed to load LORA model manager")
 
+            lora_manager._using_multiprocessing = False
+
             performed_a_download = False
 
             loras = job_info.payload.loras or []

@@ -2573,9 +2573,9 @@ class HordeWorkerProcessManager:
                     continue
 
                 if process_info.loaded_horde_model_name in next_n_models:
-                    logger.debug(
-                        f"Model {process_info.loaded_horde_model_name} is in use by another process, not unloading",
-                    )
+                    # logger.debug(
+                    # f"Model {process_info.loaded_horde_model_name} is in use by another process, not unloading",
+                    # )
                     continue
 
             self.unload_from_ram(process_info.process_id)

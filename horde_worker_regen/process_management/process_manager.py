@@ -4084,10 +4084,7 @@ class HordeWorkerProcessManager:
             # before we assume we're in a deadlock
             return
 
-        if (not self._in_queue_deadlock and len(self.job_deque) > 0 and len(self.jobs_in_progress) == 0) or (
-            self._process_map.all_waiting_for_job() and len(self.job_deque) > 0
-        ):
-
+        if not self._in_queue_deadlock and self._process_map.all_waiting_for_job() and len(self.job_deque) > 0:
             currently_loaded_models = set()
             model_process_map: dict[str, int] = {}
             for process in self._process_map.values():

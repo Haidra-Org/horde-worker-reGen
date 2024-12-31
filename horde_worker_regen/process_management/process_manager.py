@@ -2198,8 +2198,8 @@ class HordeWorkerProcessManager:
             if self._model_recently_missing:
                 # We don't want to spam the logs
                 return
-            logger.error(
-                f"Expected to find a process with model {job.model} but none was found",
+            logger.warning(
+                f"Expected to find a process with model {job.model} but none was found. Attempt to load it now...",
             )
             logger.debug(f"Horde model map: {self._horde_model_map}")
             logger.debug(f"Process map: {self._process_map}")
@@ -2226,7 +2226,7 @@ class HordeWorkerProcessManager:
                 try:
                     self.jobs_in_progress.remove(job)
                 except ValueError:
-                    logger.error(f"Job {job.id_} not found in jobs_in_progress.")
+                    logger.debug(f"Job {job.id_} not found in jobs_in_progress.")
 
         if process_with_model is None:
             if (

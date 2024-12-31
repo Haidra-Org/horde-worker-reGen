@@ -524,6 +524,12 @@ class HordeInferenceProcess(HordeProcess):
         from hordelib.comfy_horde import unload_all_models_vram
 
         unload_all_models_vram()
+
+        from torch.cuda import empty_cache
+
+        gc.collect()
+        empty_cache()
+
         if self._active_model_name is not None:
             self.on_horde_model_state_change(
                 process_state=HordeProcessState.UNLOADED_MODEL_FROM_VRAM,

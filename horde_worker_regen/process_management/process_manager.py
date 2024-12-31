@@ -2020,6 +2020,11 @@ class HordeWorkerProcessManager:
         """Get the processes that have the model for the queued job."""
         processes_with_model_for_queued_job: list[int] = []
 
+        # If the number of still active inference processes is less than the number of jobs in the deque or in progress
+        # then we return all processes that are active
+        if self._process_map.num_loaded_inference_processes() < (len(self.job_deque) + len(self.jobs_in_progress)):
+            return [p.process_id for p in self._process_map.values()]
+
         for p in self._process_map.values():
             if p.loaded_horde_model_name in self.jobs_lookup:
                 processes_with_model_for_queued_job.append(p.process_id)

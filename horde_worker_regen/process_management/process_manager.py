@@ -1371,6 +1371,8 @@ class HordeWorkerProcessManager:
             return False
         if len(self.job_deque) > 0:
             return False
+        if len(self.completed_jobs) > 0:
+            return False
 
         any_process_alive = False
 

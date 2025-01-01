@@ -546,6 +546,14 @@ class ProcessMap(dict[int, HordeProcessInfo]):
                 count += 1
         return count
 
+    def num_starting_processes(self) -> int:
+        """Return the number of processes that are currently starting."""
+        count = 0
+        for p in self.values():
+            if p.last_process_state == HordeProcessState.PROCESS_STARTING:
+                count += 1
+        return count
+
     def keep_single_inference(
         self,
         *,
@@ -4178,9 +4186,15 @@ class HordeWorkerProcessManager:
                 # we're going to fall back to the next model in the deque
                 self._queue_deadlock_model = self.job_deque[0].model
 
-        elif self._in_queue_deadlock and (self._last_queue_deadlock_detected_time + 10) < time.time():
+        elif self._in_queue_deadlock and (self._last_queue_deadlock_detected_time + 30) < time.time():
+            if self._process_map.num_starting_processes > 0:
+                logger.debug("Queue deadlock detected but some processes are starting. Waiting.")
+                self._last_queue_deadlock_detected_time = time.time()
+                return
+
             logger.debug("Queue deadlock detected")
             _print_deadlock_info()
+
             if self._queue_deadlock_model is not None:
                 logger.debug(f"Model causing deadlock: {self._queue_deadlock_model}")
                 if self._queue_deadlock_process_id is not None:

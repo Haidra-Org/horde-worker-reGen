@@ -603,6 +603,10 @@ class ProcessMap(dict[int, HordeProcessInfo]):
             return True
         return False
 
+    def get_inference_processes(self) -> list[HordeProcessInfo]:
+        """Return a list of all inference processes."""
+        return [p for p in self.values() if p.process_type == HordeProcessType.INFERENCE]
+
     def get_first_available_inference_process(
         self,
         disallowed_processes: list[int] | None = None,
@@ -1350,7 +1354,7 @@ class HordeWorkerProcessManager:
         if all(
             inference_process.last_process_state == HordeProcessState.PROCESS_ENDING
             or inference_process.last_process_state == HordeProcessState.PROCESS_ENDED
-            for inference_process in self._process_map.values()
+            for inference_process in self._process_map.get_inference_processes()
         ):
             return True
 

@@ -20,7 +20,7 @@ priority_usernames: []
 # If you have a 20xx or earlier, or a xx60/xx70, do not change this setting from 1.
 max_threads: 1
 # Suggested values:
-#   24GB+ VRAM: 1 (2 max if Flux/Cascade loaded)
+#   24GB+ VRAM: 1 (only increase if you have >32gb system RAM and are *not* offering Flux/Cascade)
 #   12GB-16GB VRAM: 1
 #   8GB-10GB VRAM: 1
 
@@ -71,6 +71,13 @@ require_upfront_kudos: false
 #
 # Remove the # from the line below and add your civitai API token to enable this feature.
 # civitai_api_token:
+
+
+# If true, the worker will clear maintenance mode on startup.
+# Warning: While this can be convenient, being put into maintenance mode is a safety feature to prevent workers
+# which are not working correctly from taking jobs. If you see this happening frequently, you should investigate
+# your logs to determine the cause.
+remove_maintenance_on_init: false
 
 #######################################
 ## Dreamer (Stable Diffusion Worker) ##

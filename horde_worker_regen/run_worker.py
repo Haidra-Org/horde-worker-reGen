@@ -100,6 +100,9 @@ def main(ctx: BaseContext, load_from_env_vars: bool = False, *, amd_gpu: bool = 
         amd_gpu=amd_gpu,
     )
 
+    logger.info("Worker has finished working.")
+    logger.info("Exiting...")
+
 
 class LogConsoleRewriter(io.StringIO):
     """Makes the console output more readable by shortening certain strings."""

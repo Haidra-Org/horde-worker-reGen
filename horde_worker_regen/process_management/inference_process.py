@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import gc
 import sys
 import time
 
@@ -86,6 +87,7 @@ class HordeInferenceProcess(HordeProcess):
         inference_semaphore: Semaphore,
         aux_model_lock: Lock,
         disk_lock: Lock,
+        process_launch_identifier: int,
         *,
         high_memory_mode: bool = False,
     ) -> None:
@@ -99,6 +101,7 @@ class HordeInferenceProcess(HordeProcess):
             inference_semaphore (Semaphore): A semaphore used to limit the number of concurrent inference jobs.
             aux_model_lock (Lock): A lock used to prevent multiple processes from downloading auxiliary models at the \
             disk_lock (Lock): A lock used to prevent multiple processes from accessing disk at the same time.
+            process_launch_identifier (int): The identifier for the process launch.
             high_memory_mode (bool, optional): Whether or not to use high memory mode. This mode uses more memory, but\
                 may be faster if the system has enough memory and VRAM. \
                 Defaults to False.
@@ -108,6 +111,7 @@ class HordeInferenceProcess(HordeProcess):
             process_message_queue=process_message_queue,
             pipe_connection=pipe_connection,
             disk_lock=disk_lock,
+            process_launch_identifier=process_launch_identifier,
         )
 
         self._aux_model_lock = aux_model_lock
@@ -145,7 +149,10 @@ class HordeInferenceProcess(HordeProcess):
             logger.critical(f"Failed to initialise HordeCheckpointLoader: {type(e).__name__} {e}")
             sys.exit(1)
 
-        SharedModelManager.load_model_managers(multiprocessing_lock=self.disk_lock)
+        SharedModelManager.load_model_managers(
+            multiprocessing_lock=self.disk_lock,
+            download_legacy_references=process_id == 1,  # Only download legacy references in the first process
+        )
 
         if SharedModelManager.manager.compvis is None:
             logger.critical("Failed to initialise SharedModelManager")
@@ -210,6 +217,7 @@ class HordeInferenceProcess(HordeProcess):
         model_update_message = HordeModelStateChangeMessage(
             process_state=process_state,
             process_id=self.process_id,
+            process_launch_identifier=self.process_launch_identifier,
             info=f"Model {horde_model_name} {horde_model_state.name}",
             horde_model_name=horde_model_name,
             horde_model_state=horde_model_state,
@@ -287,12 +295,19 @@ class HordeInferenceProcess(HordeProcess):
             time_start = time.time()
 
             lora_manager = self._shared_model_manager.manager.lora
+
             if lora_manager is None:
                 raise RuntimeError("Failed to load LORA model manager")
+
+            lora_manager._using_multiprocessing = False
 
             performed_a_download = False
 
             loras = job_info.payload.loras or []
+
+            if not loras:
+                logger.info("No auxiliary models to download")
+                return None
 
             try:
                 lora_manager.load_model_database()
@@ -359,13 +374,28 @@ class HordeInferenceProcess(HordeProcess):
         if self._is_busy:
             logger.warning("Cannot preload model while busy")
 
+        from hordelib.comfy_horde import unload_all_models_ram
+
+        unload_all_models_ram()
+        gc.collect()
+
         logger.debug(f"Preloading model {horde_model_name}")
 
-        if self._active_model_name is not None:
+        if self._active_model_name is not None and self._active_model_name != horde_model_name:
             self.on_horde_model_state_change(
                 process_state=HordeProcessState.UNLOADED_MODEL_FROM_RAM,
                 horde_model_name=self._active_model_name,
                 horde_model_state=ModelLoadState.ON_DISK,
+            )
+
+        download_time = self.download_aux_models(job_info)
+
+        if download_time is not None:
+            self.send_aux_model_message(
+                process_state=HordeProcessState.DOWNLOAD_AUX_COMPLETE,
+                info="Downloaded auxiliary models",
+                time_elapsed=download_time,
+                job_info=job_info,
             )
 
         self.on_horde_model_state_change(
@@ -393,28 +423,15 @@ class HordeInferenceProcess(HordeProcess):
             time_elapsed=time.time() - time_start,
         )
 
-        download_time = self.download_aux_models(job_info)
-
-        if download_time is not None:
-            self.send_aux_model_message(
-                process_state=HordeProcessState.DOWNLOAD_AUX_COMPLETE,
-                info="Downloaded auxiliary models",
-                time_elapsed=download_time,
-                job_info=job_info,
-            )
-
         self.send_memory_report_message(include_vram=True)
-
-        self.send_process_state_change_message(
-            process_state=HordeProcessState.WAITING_FOR_JOB,
-            info=f"Preloaded model {horde_model_name}",
-        )
 
     _is_busy: bool = False
 
     _start_inference_time: float = 0.0
 
     _in_post_processing: bool = False
+
+    _current_job_inference_steps_complete: bool = False
 
     def progress_callback(
         self,
@@ -442,7 +459,17 @@ class HordeInferenceProcess(HordeProcess):
             except Exception as e:
                 logger.error(f"Failed to release inference semaphore: {type(e).__name__} {e}")
 
-        if progress_report.comfyui_progress is not None and progress_report.comfyui_progress.current_step > 0:
+        if self._current_job_inference_steps_complete:
+            self.send_heartbeat_message(heartbeat_type=HordeHeartbeatType.PIPELINE_STATE_CHANGE)
+            return
+
+        if progress_report.comfyui_progress is not None and progress_report.comfyui_progress.current_step == (
+            progress_report.comfyui_progress.total_steps - 1
+        ):
+            self.send_heartbeat_message(heartbeat_type=HordeHeartbeatType.PIPELINE_STATE_CHANGE)
+            self._current_job_inference_steps_complete = True
+            logger.debug("Current job inference steps complete")
+        elif progress_report.comfyui_progress is not None and progress_report.comfyui_progress.current_step > 0:
             self.send_heartbeat_message(heartbeat_type=HordeHeartbeatType.INFERENCE_STEP)
         else:
             self.send_heartbeat_message(heartbeat_type=HordeHeartbeatType.PIPELINE_STATE_CHANGE)
@@ -460,6 +487,8 @@ class HordeInferenceProcess(HordeProcess):
         self._inference_semaphore.acquire()
         logger.info("Acquired inference semaphore.")
         self._is_busy = True
+        self._current_job_inference_steps_complete = False
+
         try:
             logger.info(f"Starting inference for job(s) {job_info.ids}")
             esi_count = len(job_info.extra_source_images) if job_info.extra_source_images is not None else 0
@@ -479,9 +508,18 @@ class HordeInferenceProcess(HordeProcess):
         finally:
             self._is_busy = False
             self._in_post_processing = False
+            self._current_job_inference_steps_complete = False
             with contextlib.suppress(Exception):
                 self._inference_semaphore.release()
         return results
+
+    @staticmethod
+    def clear_gc_and_torch_cache() -> None:
+        """Clear the garbage collector and the PyTorch cache."""
+        gc.collect()
+        from torch.cuda import empty_cache
+
+        empty_cache()
 
     @logger.catch(reraise=True)
     def unload_models_from_vram(self) -> None:
@@ -489,6 +527,9 @@ class HordeInferenceProcess(HordeProcess):
         from hordelib.comfy_horde import unload_all_models_vram
 
         unload_all_models_vram()
+
+        self.clear_gc_and_torch_cache()
+
         if self._active_model_name is not None:
             self.on_horde_model_state_change(
                 process_state=HordeProcessState.UNLOADED_MODEL_FROM_VRAM,
@@ -512,6 +553,9 @@ class HordeInferenceProcess(HordeProcess):
         from hordelib.comfy_horde import unload_all_models_ram
 
         unload_all_models_ram()
+
+        self.clear_gc_and_torch_cache()
+
         self.send_memory_report_message(include_vram=True)
         if self._active_model_name is not None:
             self.on_horde_model_state_change(
@@ -526,8 +570,13 @@ class HordeInferenceProcess(HordeProcess):
             )
         else:
             self.send_process_state_change_message(
-                process_state=HordeProcessState.WAITING_FOR_JOB,
+                process_state=HordeProcessState.UNLOADED_MODEL_FROM_RAM,
                 info="No models to unload from RAM",
+            )
+
+            self.send_process_state_change_message(
+                process_state=HordeProcessState.WAITING_FOR_JOB,
+                info="Waiting for job",
             )
         logger.info("Unloaded all models from RAM")
         self._active_model_name = None
@@ -559,6 +608,7 @@ class HordeInferenceProcess(HordeProcess):
         message = HordeAuxModelStateChangeMessage(
             process_state=process_state,
             process_id=self.process_id,
+            process_launch_identifier=self.process_launch_identifier,
             info=info,
             time_elapsed=time_elapsed,
             sdk_api_job_info=job_info,
@@ -599,6 +649,7 @@ class HordeInferenceProcess(HordeProcess):
 
         message = HordeInferenceResultMessage(
             process_id=self.process_id,
+            process_launch_identifier=self.process_launch_identifier,
             info="Inference result",
             state=GENERATION_STATE.ok if results is not None and len(results) > 0 else GENERATION_STATE.faulted,
             time_elapsed=time_elapsed,

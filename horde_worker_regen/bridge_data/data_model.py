@@ -29,18 +29,26 @@ class reGenBridgeData(CombinedHordeBridgeData):
     safety_on_gpu: bool = Field(
         default=False,
     )
+    """If true, the safety model will be run on the GPU."""
 
     _yaml_loader: YAML | None = None
 
     cycle_process_on_model_change: bool = Field(
         default=False,
     )
+    """If true, the process will stop and restart when the model loaded changes.
+
+    Warning: This can cause substantial delays in processing.
+    """
 
     CIVIT_API_TOKEN: str | None = Field(
         default=None,
         alias="civitai_api_token",
     )
+    """The API token for CivitAI, used for downloading LoRas and login-required models."""
+
     unload_models_from_vram_often: bool = Field(default=True)
+    """If true, models will be unloaded from VRAM more often."""
 
     process_timeout: int = Field(default=900)
     """The maximum amount of time to allow a job to run before it is killed"""
@@ -63,8 +71,13 @@ class reGenBridgeData(CombinedHordeBridgeData):
     """
 
     high_memory_mode: bool = Field(default=False)
+    """Indicates that the worker should consume more memory to improve performance."""
 
     very_high_memory_mode: bool = Field(default=False)
+    """Indicates that the worker should consume even more memory to improve performance.
+
+    This has data-center grade cards in mind, and is not recommended for consumer grade cards.
+    """
 
     high_performance_mode: bool = Field(default=False)
     """If you have a 4090 or better, set this to true to enable high performance mode."""
@@ -79,9 +92,11 @@ class reGenBridgeData(CombinedHordeBridgeData):
     """High and moderate performance modes will skip post processing if this is set to true."""
 
     capture_kudos_training_data: bool = Field(default=False)
+
     kudos_training_data_file: str | None = Field(default=None)
 
     exit_on_unhandled_faults: bool = Field(default=False)
+    """If true, the worker will exit if an unhandled fault occurs instead of attempting to recover."""
 
     purge_loras_on_download: bool = Field(default=False)
 
@@ -100,16 +115,10 @@ class reGenBridgeData(CombinedHordeBridgeData):
         Returns:
             reGenBridgeData: The config model with the performance modes set appropriately.
         """
-        if self.max_threads == 2 and self.queue_size > 3:
+        if self.max_threads >= 2 and self.queue_size > 3:
             self.queue_size = 3
             logger.warning(
                 "The queue_size value has been set to 3 because the max_threads value is 2.",
-            )
-
-        if self.max_threads > 2 and self.queue_size > 2:
-            self.queue_size = 2
-            logger.warning(
-                "The queue_size value has been set to 2 because the max_threads value is greater than 2.",
             )
 
         if self.extra_slow_worker:
@@ -151,29 +160,29 @@ class reGenBridgeData(CombinedHordeBridgeData):
                     "Extra slow worker is enabled, so the preload_timeout value has been set to 120. "
                     "This behavior may change in the future.",
                 )
-            if not self.post_process_job_overlap:
-                self.post_process_job_overlap = True
-                logger.warning(
-                    "Extra slow worker is enabled, so the post_process_job_overlap value has been set to True. "
-                    "This behavior may change in the future.",
-                )
 
         if self.very_high_memory_mode and not self.high_memory_mode:
             self.high_memory_mode = True
-            logger.warning(
+            logger.debug(
                 "Very high memory mode is enabled, so the high_memory_mode value has been set to True.",
             )
 
-        if self.high_memory_mode and not self.very_high_memory_mode:
-            if self.max_threads != 1:
+        if self.high_memory_mode:
+            if self.max_threads == 1:
                 logger.warning(
-                    "High memory mode is enabled. You may experience performance issues with more than one thread.",
+                    "High memory mode is enabled, you should consider setting max_threads to 2.",
+                )
+
+            if self.queue_size == 0:
+                logger.warning(
+                    "High memory mode is enabled, you should consider setting queue_size to 1 or higher. "
+                    "Increasing this value increases system memory usage. See the bridgeData_template.yaml for more "
+                    "information.",
                 )
 
             if self.unload_models_from_vram_often:
                 logger.warning(
-                    "Please let us know if `unload_models_from_vram_often` improves or degrades performance with"
-                    " `high_memory_mode` enabled.",
+                    "High memory mode is enabled, you should consider setting unload_models_from_vram_often to False.",
                 )
 
             if self.cycle_process_on_model_change:

@@ -425,11 +425,6 @@ class HordeInferenceProcess(HordeProcess):
 
         self.send_memory_report_message(include_vram=True)
 
-        self.send_process_state_change_message(
-            process_state=HordeProcessState.WAITING_FOR_JOB,
-            info=f"Preloaded model {horde_model_name}",
-        )
-
     _is_busy: bool = False
 
     _start_inference_time: float = 0.0

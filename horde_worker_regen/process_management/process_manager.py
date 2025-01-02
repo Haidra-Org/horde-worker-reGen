@@ -1359,17 +1359,9 @@ class HordeWorkerProcessManager:
         if self._recently_recovered:
             return False
 
-        if all(
-            inference_process.last_process_state == HordeProcessState.PROCESS_ENDING
-            or inference_process.last_process_state == HordeProcessState.PROCESS_ENDED
-            for inference_process in self._process_map.get_inference_processes()
-        ):
-            return True
-
         # If any job hasn't been submitted to the API yet, then we can't shut down
         if len(self.completed_jobs) > 0:
             return False
-
         # If there are any jobs in progress, then we can't shut down
         if len(self.jobs_being_safety_checked) > 0 or len(self.jobs_pending_safety_check) > 0:
             return False
@@ -1379,6 +1371,13 @@ class HordeWorkerProcessManager:
             return False
         if len(self.completed_jobs) > 0:
             return False
+
+        if all(
+            inference_process.last_process_state == HordeProcessState.PROCESS_ENDING
+            or inference_process.last_process_state == HordeProcessState.PROCESS_ENDED
+            for inference_process in self._process_map.get_inference_processes()
+        ):
+            return True
 
         any_process_alive = False
 

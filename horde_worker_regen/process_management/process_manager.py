@@ -4189,7 +4189,7 @@ class HordeWorkerProcessManager:
                 self._queue_deadlock_model = self.job_deque[0].model
 
         elif self._in_queue_deadlock and (self._last_queue_deadlock_detected_time + 30) < time.time():
-            if self._process_map.num_starting_processes > 0:
+            if self._process_map.num_starting_processes() > 0:
                 logger.debug("Queue deadlock detected but some processes are starting. Waiting.")
                 self._last_queue_deadlock_detected_time = time.time()
                 return

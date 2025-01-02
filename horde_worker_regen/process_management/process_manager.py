@@ -2126,9 +2126,14 @@ class HordeWorkerProcessManager:
 
             at_least_one_preloading_process = num_preloading_processes >= 1
             very_fast_disk_mode_enabled = self.bridge_data.very_fast_disk_mode
-            max_concurrent_inference_processes_reached = (
-                num_preloading_processes >= self._max_concurrent_inference_processes
-            )
+            if very_fast_disk_mode_enabled:
+                max_concurrent_inference_processes_reached = num_preloading_processes >= (
+                    self._max_concurrent_inference_processes + 1
+                )
+            else:
+                max_concurrent_inference_processes_reached = (
+                    num_preloading_processes >= self._max_concurrent_inference_processes
+                )
 
             if (not very_fast_disk_mode_enabled and at_least_one_preloading_process) or (
                 very_fast_disk_mode_enabled and max_concurrent_inference_processes_reached

@@ -80,7 +80,7 @@ def start_inference_process(
             if very_high_memory_mode:
                 extra_comfyui_args.append("--gpu-only")
             elif high_memory_mode:
-                extra_comfyui_args.append("--normalvram")
+                # extra_comfyui_args.append("--normalvram")
                 models_not_to_force_load.extend(
                     [
                         "cascade",

@@ -268,6 +268,7 @@ class HordeProcessInfo:
         """Return true if the process can accept a job."""
         return (
             self.last_process_state == HordeProcessState.WAITING_FOR_JOB
+            or self.last_process_state == HordeProcessState.PRELOADED_MODEL
             or self.last_process_state == HordeProcessState.INFERENCE_COMPLETE
             or self.last_process_state == HordeProcessState.ALCHEMY_COMPLETE
         )
@@ -410,6 +411,7 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         if (
             new_state == HordeProcessState.INFERENCE_COMPLETE
             or new_state == HordeProcessState.INFERENCE_FAILED
+            or new_state == HordeProcessState.PRELOADED_MODEL
             or new_state == HordeProcessState.WAITING_FOR_JOB
         ):
             self.reset_heartbeat_state(process_id)
@@ -568,7 +570,6 @@ class ProcessMap(dict[int, HordeProcessInfo]):
             if (
                 (
                     p.last_process_state == HordeProcessState.INFERENCE_STARTING
-                    or p.last_process_state == HordeProcessState.PRELOADED_MODEL
                     or p.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING
                 )
                 and p.last_job_referenced is not None
@@ -626,7 +627,10 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         for p in self.values():
             if (
                 p.process_type == HordeProcessType.INFERENCE
-                and p.last_process_state == HordeProcessState.WAITING_FOR_JOB
+                and (
+                    p.last_process_state == HordeProcessState.WAITING_FOR_JOB
+                    or p.last_process_state == HordeProcessState.PRELOADED_MODEL
+                )
                 and p.loaded_horde_model_name is None
                 and p.process_id not in disallowed_processes
             ):
@@ -634,8 +638,6 @@ class ProcessMap(dict[int, HordeProcessInfo]):
 
         for p in self.values():
             if p.process_type == HordeProcessType.INFERENCE and p.can_accept_job():
-                if p.last_process_state == HordeProcessState.PRELOADED_MODEL:
-                    continue
                 if p.process_id in disallowed_processes:
                     continue
                 return p
@@ -784,7 +786,10 @@ class ProcessMap(dict[int, HordeProcessInfo]):
 
     def all_waiting_for_job(self) -> bool:
         """Return true if all processes are waiting for a job."""
-        return all(p.last_process_state == HordeProcessState.WAITING_FOR_JOB for p in self.values())
+        return all(
+            p.last_process_state in [HordeProcessState.WAITING_FOR_JOB, HordeProcessState.PRELOADED_MODEL]
+            for p in self.values()
+        )
 
 
 class TorchDeviceInfo(BaseModel):
@@ -2042,7 +2047,10 @@ class HordeWorkerProcessManager:
         processes_with_model_for_queued_job: list[int] = []
 
         for p in self._process_map.values():
-            if p.loaded_horde_model_name in self.jobs_lookup:
+            if (
+                p.loaded_horde_model_name in self.jobs_lookup
+                or p.last_process_state == HordeProcessState.PRELOADED_MODEL
+            ):
                 processes_with_model_for_queued_job.append(p.process_id)
 
         for m in self._horde_model_map.root.values():

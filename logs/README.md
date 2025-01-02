@@ -1,4 +1,4 @@
-# Logging Explanation
+# Log File Explanation
 
 ## bridge.log
 

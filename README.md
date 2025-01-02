@@ -1,8 +1,10 @@
 # AI Horde Worker reGen
 
-Welcome to the AI Horde, a free and open decentralized platform for collaborative AI! The AI Horde enables people from around the world to contribute their GPU power to generate images, text, and more. By running a worker on your local machine, you can earn [kudos](https://github.com/Haidra-Org/haidra-assets/blob/main/docs/kudos.md) which give you priority when making your own requests to the horde.
+Welcome to the [AI Horde](https://github.com/Haidra-Org/AI-Horde), a free and open decentralized platform for collaborative AI! The AI Horde enables people from around the world to contribute their GPU power to generate images, text, and more. By running a worker on your local machine, you can earn [kudos](https://github.com/Haidra-Org/haidra-assets/blob/main/docs/kudos.md) which give you priority when making your own requests to the horde.
 
 A worker is a piece of software that handles jobs from the AI Horde, such as generating an image from a text prompt. When your worker successfully completes a job, you are rewarded with kudos. The more kudos you have, the faster your own requests will be processed.
+
+You can read about [kudos](https://github.com/Haidra-Org/haidra-assets/blob/main/docs/kudos.md), the reward granted to you for running a worker, including some reasons for running a worker on our [detailed kudos explanation](https://github.com/Haidra-Org/haidra-assets/blob/main/docs/kudos.md).
 
 ## Contents
 
@@ -39,6 +41,7 @@ Before installing the worker:
 
 1. Register an account on the [AI Horde website](https://aihorde.net/register).
 2. Securely store the API key you receive. **Treat this key like a password**.
+
 
 ## Installation
 
@@ -267,6 +270,9 @@ Common issues and fixes:
   - Lower `max_power`
   - Disable `allow_post_processing`, `allow_controlnet`, `allow_sdxl_controlnet`, and/or `allow_lora`
 - **Out of memory**: Decrease `max_threads`, `max_batch`, or `queue_size` to reduce VRAM/RAM use. Close other intensive programs.
+- **I have less kudos than I expect**: As a new user, 50% of your job reward kudos and 100% of uptime kudos are held in escrow until you become trusted after ~1 week of worker uptime. You'll then receive the escrowed kudos and earn full rewards immediately going forward.
+- **My worker is in [maintenance mode](https://github.com/Haidra-Org/haidra-assets/blob/main/docs/definitions.md#maintenance)**: You can log into [artbot here](https://tinybots.net/artbot/settings) and use the [manage workers](https://tinybots.net/artbot/settings?panel=workers) page **with the worker on** and click "unpause" to take your worker out of maintenance mode.
+  - **Note**: Workers are put into maintenance mode automatically by the server when the worker is failing to perform fast enough or if it is reporting that it failed too many jobs. You should investigate the [logs](logs/README.md) (search for "ERROR") to see what led to the issue. You can also [open an issue](https://github.com/Haidra-Org/horde-worker-reGen/issues) or ask in the [#local-workers channel](https://discord.com/channels/781145214752129095/1076124012305993768) in our [Discord](https://discord.gg/3DxrhksKzn).
 
 [Open an issue](https://github.com/Haidra-Org/horde-worker-reGen/issues) to report bugs or request features. We appreciate your help!
 

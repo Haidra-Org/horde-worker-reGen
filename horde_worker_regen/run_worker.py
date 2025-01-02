@@ -107,6 +107,9 @@ def main(
         directml=directml,
     )
 
+    logger.info("Worker has finished working.")
+    logger.info("Exiting...")
+
 
 class LogConsoleRewriter(io.StringIO):
     """Makes the console output more readable by shortening certain strings."""

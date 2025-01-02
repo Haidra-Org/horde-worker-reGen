@@ -72,6 +72,13 @@ require_upfront_kudos: false
 # Remove the # from the line below and add your civitai API token to enable this feature.
 # civitai_api_token:
 
+
+# If true, the worker will clear maintenance mode on startup.
+# Warning: While this can be convenient, being put into maintenance mode is a safety feature to prevent workers
+# which are not working correctly from taking jobs. If you see this happening frequently, you should investigate
+# your logs to determine the cause.
+remove_maintenance_on_init: false
+
 #######################################
 ## Dreamer (Stable Diffusion Worker) ##
 #######################################

@@ -4116,8 +4116,6 @@ class HordeWorkerProcessManager:
             await asyncio.sleep(0.2)
 
         self.end_safety_processes()
-        await asyncio.sleep(0.2)
-        self.receive_and_handle_process_messages()
 
         logger.info("Shutting down process manager")
 
@@ -4421,6 +4419,7 @@ class HordeWorkerProcessManager:
 
             if self._shutting_down:
                 logger.warning("Shutting down after current jobs are finished...")
+                self._status_message_frequency = 5.0
 
             self._last_status_message_time = cur_time
 

@@ -518,6 +518,14 @@ class HordeInferenceProcess(HordeProcess):
                 self._inference_semaphore.release()
         return results
 
+    @staticmethod
+    def clear_gc_and_torch_cache() -> None:
+        """Clear the garbage collector and the PyTorch cache."""
+        gc.collect()
+        from torch.cuda import empty_cache
+
+        empty_cache()
+
     @logger.catch(reraise=True)
     def unload_models_from_vram(self) -> None:
         """Unload all models from VRAM."""
@@ -525,10 +533,7 @@ class HordeInferenceProcess(HordeProcess):
 
         unload_all_models_vram()
 
-        from torch.cuda import empty_cache
-
-        gc.collect()
-        empty_cache()
+        self.clear_gc_and_torch_cache()
 
         if self._active_model_name is not None:
             self.on_horde_model_state_change(
@@ -553,7 +558,8 @@ class HordeInferenceProcess(HordeProcess):
         from hordelib.comfy_horde import unload_all_models_ram
 
         unload_all_models_ram()
-        gc.collect()
+
+        self.clear_gc_and_torch_cache()
 
         self.send_memory_report_message(include_vram=True)
         if self._active_model_name is not None:

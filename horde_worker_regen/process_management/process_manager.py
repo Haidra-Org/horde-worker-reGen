@@ -4129,7 +4129,9 @@ class HordeWorkerProcessManager:
 
             process.mp_process.join(0.2)
 
-        sys.exit(0)
+        await asyncio.sleep(0.2)
+
+        return
 
     _last_deadlock_detected_time: float = 0.0
     """The epoch time of the last deadlock detected."""

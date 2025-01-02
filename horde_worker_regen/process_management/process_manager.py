@@ -3737,7 +3737,6 @@ class HordeWorkerProcessManager:
             new_response_dict["payload"]["seed"] = random.randint(0, (2**32) - 1)
 
         if job_pop_response.payload.denoising_strength is not None and job_pop_response.source_image is None:
-            logger.debug(f"Job {job_pop_response.id_} has denoising_strength but no source image!")
             new_response_dict = job_pop_response.model_dump(by_alias=True)
             new_response_dict["payload"]["denoising_strength"] = None
 

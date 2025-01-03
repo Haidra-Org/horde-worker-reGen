@@ -16,6 +16,7 @@ Not only does running a worker earn you kudos, it also helps support the AI Hord
       - [Without git](#without-git)
     - [Linux](#linux)
     - [AMD](#amd)
+    - [DirectML](#directml)
   - [Basic Usage](#basic-usage)
     - [Configure](#configure)
       - [Suggested settings](#suggested-settings)
@@ -107,6 +108,10 @@ Continue with the [Basic Usage](#basic-usage) instructions
 
 If you are willing to try with your AMD card, join the [discord discussion](https://discord.com/channels/781145214752129095/1076124012305993768) in the [official discord](https://discord.gg/3DxrhksKzn).
 
+### DirectML
+
+**Experimental** Support for DirectML has beed added. See [Running on DirectML](README_advanced.md#advanced-users-running-on-directml) for more information and further instructions. You can now follow this guide using  `update-runtime-directml.cmd` and `horde-bridge-directml.cmd` where appropriate. Please note that DirectML is several times slower than *ANY* other methos of running the worker.
+
 ## Basic Usage
 
 ### Configure
@@ -185,7 +190,7 @@ The below instructions refers to `horde-bridge` or `update-runtime`. Depending o
 
 - For example, `horde-bridge.cmd` and `update-runtime.cmd` for windows with a NVIDIA card.
 - If you have an **AMD** card and you are on linux you should use `horde-bridge-rocm.sh` and `update-runtime-rocm.sh` where appropriate.
-  - All Windows AMD users should use WSL or [Docker](#docker).
+  - Windows AMD users should try to use WSL.
 
 To update:
 

@@ -117,6 +117,26 @@ Pressing control-c will stop the worker but will first have the worker complete 
 ### Important note if manually manage your venvs
 - You should be running `python -m pip install -r requirements.txt -U https://download.pytorch.org/whl/cu124` every time you `git pull`. (Use `/whl/rocm6.2` instead if applicable)
 
+
+## Advanced users, running on directml
+
+### Caveats and Limitations:
+> DirectML is anywhere from 3x to 10x slower than other methods and will max out your VRAM at 100%. It is also not compatible with Flux.1. If you can use *ANY* other method, do that instead. Unless you have a lot of RAM, you might also run into memory issues. You should limit yourself to the smallest models and easiest jobs, even if you have a decent GPU in theory.
+
+### Prerequisites
+* Install [git](https://git-scm.com/) in your system.
+* Make sure your Windows OS and GPU drivers are up to date.
+
+### General Use:
+- The first steps are identical to the normal process: [install](README.md/#installing) and [configure](README.md/#configure) the worker. Remember to stick with the lowest end settings.
+
+- Now [update](README.md/#updating) the runtime, but make sure to use the `update-runtime-directml.cmd` script. Follow the linked instructions and run this script for future updates as well.
+
+- To run the worker again follow [starting/stopping](README.md/#startingstopping), making sure to use the `horde-bridge-directml.cmd` script.
+
+For more direct support, join the [discord discussion](https://discord.com/channels/781145214752129095/1076124012305993768) in the [official discord](https://discord.gg/3DxrhksKzn).
+
+
 ## Advanced users, container install
 
 You can find the docker images at https://hub.docker.com/r/tazlin/horde-worker-regen/tags.

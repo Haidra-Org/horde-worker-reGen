@@ -1251,10 +1251,6 @@ class HordeWorkerProcessManager:
                 )
 
             self.target_ram_overhead_bytes = min(self.target_ram_overhead_bytes, int(20 * 1024 * 1024 * 1024 / 2))
-            logger.warning(
-                "VRAM heavy models detected. Target RAM overhead set to 20GB. "
-                "This may cause the worker to run differently than expected.",
-            )
 
         if self.target_ram_overhead_bytes > self.total_ram_bytes:
             raise ValueError(

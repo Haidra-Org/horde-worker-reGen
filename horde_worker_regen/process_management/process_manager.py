@@ -1035,7 +1035,7 @@ class HordeWorkerProcessManager:
     @property
     def current_queue_size(self) -> int:
         """The current number of jobs that are queued."""
-        return len(self.job_deque)
+        return len(self.jobs_pending_inference)
 
     @property
     def target_ram_bytes_used(self) -> int:
@@ -1069,8 +1069,8 @@ class HordeWorkerProcessManager:
     _num_jobs_faulted: int = 0
     """The number of jobs which were marked as faulted. This may not include jobs which failed for unknown reasons."""
 
-    completed_jobs: list[HordeJobInfo]
-    """A list of 3 tuples containing the job, the state, and whether or not the job was censored."""
+    jobs_pending_submit: list[HordeJobInfo]
+    """A list of HordeJobInfo objects containing the job, the state, and whether or not the job was censored."""
 
     _completed_jobs_lock: Lock_Asyncio
     """The asyncio lock for the completed jobs queue."""
@@ -1125,9 +1125,9 @@ class HordeWorkerProcessManager:
     _process_message_queue: ProcessQueue
     """A queue of messages sent from child processes."""
 
-    job_deque: deque[ImageGenerateJobPopResponse]
+    jobs_pending_inference: deque[ImageGenerateJobPopResponse]
     """A deque of jobs that are waiting to be processed."""
-    _job_deque_lock: Lock_Asyncio
+    _jobs_pending_inference_lock: Lock_Asyncio
     """The asyncio lock for the job deque."""
 
     job_pop_timestamps: dict[ImageGenerateJobPopResponse, float]
@@ -1224,7 +1224,7 @@ class HordeWorkerProcessManager:
         self.jobs_lookup = {}
         self._jobs_lookup_lock = Lock_Asyncio()
 
-        self.completed_jobs = []
+        self.jobs_pending_submit = []
         self._completed_jobs_lock = Lock_Asyncio()
 
         self.jobs_pending_safety_check = []
@@ -1281,8 +1281,8 @@ class HordeWorkerProcessManager:
 
         self.jobs_in_progress = []
 
-        self.job_deque = deque()
-        self._job_deque_lock = Lock_Asyncio()
+        self.jobs_pending_inference = deque()
+        self._jobs_pending_inference_lock = Lock_Asyncio()
 
         self.job_pop_timestamps: dict[ImageGenerateJobPopResponse, float] = {}
         self._job_pop_timestamps_lock = Lock_Asyncio()
@@ -1361,16 +1361,16 @@ class HordeWorkerProcessManager:
             return False
 
         # If any job hasn't been submitted to the API yet, then we can't shut down
-        if len(self.completed_jobs) > 0:
+        if len(self.jobs_pending_submit) > 0:
             return False
         # If there are any jobs in progress, then we can't shut down
         if len(self.jobs_being_safety_checked) > 0 or len(self.jobs_pending_safety_check) > 0:
             return False
         if len(self.jobs_in_progress) > 0:
             return False
-        if len(self.job_deque) > 0:
+        if len(self.jobs_pending_inference) > 0:
             return False
-        if len(self.completed_jobs) > 0:
+        if len(self.jobs_pending_submit) > 0:
             return False
 
         if all(
@@ -1403,7 +1403,7 @@ class HordeWorkerProcessManager:
 
     def has_queued_jobs(self) -> bool:
         """Return true if there are any jobs not already in progress but are popped."""
-        return any(job not in self.jobs_in_progress for job in self.job_deque)
+        return any(job not in self.jobs_in_progress for job in self.jobs_pending_inference)
 
     def get_expected_ram_usage(self, horde_model_name: str) -> int:  # TODO: Use or rework this
         """Return the expected RAM usage of the given model, in bytes."""
@@ -1550,7 +1550,7 @@ class HordeWorkerProcessManager:
 
     def end_inference_processes(self) -> None:
         """End any inference processes above the configured limit, or all of them if shutting down."""
-        if len(self.job_deque) > 0 and len(self.job_deque) != len(self.jobs_in_progress):
+        if len(self.jobs_pending_inference) > 0 and len(self.jobs_pending_inference) != len(self.jobs_in_progress):
             return
 
         processes_with_model_for_queued_job: list[int] = self.get_processes_with_model_for_queued_job()
@@ -1892,11 +1892,11 @@ class HordeWorkerProcessManager:
                             f"(Process {message.process_id})",
                         )
                         self.jobs_in_progress.remove(message.sdk_api_job_info)
-                    if message.sdk_api_job_info in self.job_deque:
+                    if message.sdk_api_job_info in self.jobs_pending_inference:
                         logger.error(
                             f"Job {message.sdk_api_job_info.id_} found in job_deque. (Process {message.process_id})",
                         )
-                        self.job_deque.remove(message.sdk_api_job_info)
+                        self.jobs_pending_inference.remove(message.sdk_api_job_info)
                     continue
 
                 job_info = self.jobs_lookup[message.sdk_api_job_info]
@@ -1910,9 +1910,9 @@ class HordeWorkerProcessManager:
                         f"(Process {message.process_id})",
                     )
 
-                for job in self.job_deque:
+                for job in self.jobs_pending_inference:
                     if job.id_ == message.sdk_api_job_info.id_:
-                        self.job_deque.remove(job)
+                        self.jobs_pending_inference.remove(job)
                         break
 
                 self.total_num_completed_jobs += 1
@@ -1943,7 +1943,7 @@ class HordeWorkerProcessManager:
                         f"Job data: {message.sdk_api_job_info.model_dump(exclude=_excludes_for_job_dump)}",  # type: ignore
                     )
 
-                    self.completed_jobs.append(job_info)
+                    self.jobs_pending_submit.append(job_info)
 
             # If the process is sending us a safety job result:
             # - if an unexpected error occurred, log an error a
@@ -2036,7 +2036,7 @@ class HordeWorkerProcessManager:
                                 completed_job_info.state = GENERATION_STATE.censored
 
                 # logger.debug([c.generation_faults for c in completed_job_info.job_image_results])
-                self.completed_jobs.append(completed_job_info)
+                self.jobs_pending_submit.append(completed_job_info)
 
     def get_processes_with_model_for_queued_job(self) -> list[int]:
         """Get the processes that have the model for any queued job."""
@@ -2052,7 +2052,7 @@ class HordeWorkerProcessManager:
         for m in self._horde_model_map.root.values():
             if m.horde_model_load_state.is_active() and m.process_id not in processes_with_model_for_queued_job:
                 if (
-                    len(self.job_deque) == 0
+                    len(self.jobs_pending_inference) == 0
                     and len(self.jobs_in_progress) == 0
                     and len(self.jobs_pending_safety_check) == 0
                 ):
@@ -2081,7 +2081,7 @@ class HordeWorkerProcessManager:
         # logger.debug(f"Loaded models: {loaded_models}, queued: {queued_models}")
         # Starting from the left of the deque, preload models that are not yet loaded up to the
         # number of inference processes that are available
-        for job in self.job_deque:
+        for job in self.jobs_pending_inference:
             if job.model is None:
                 raise ValueError(f"job.model is None ({job})")
 
@@ -2092,7 +2092,9 @@ class HordeWorkerProcessManager:
 
             # If the number of still active inference processes is less than the number of jobs in the deque or in
             # progress then we use all processes that are active
-            if self._process_map.num_loaded_inference_processes() < (len(self.job_deque) + len(self.jobs_in_progress)):
+            if self._process_map.num_loaded_inference_processes() < (
+                len(self.jobs_pending_inference) + len(self.jobs_in_progress)
+            ):
                 processes_with_model_for_queued_job = [
                     p.process_id for p in self._process_map.values() if p.is_process_busy()
                 ]
@@ -2198,7 +2200,7 @@ class HordeWorkerProcessManager:
         """
         next_job: ImageGenerateJobPopResponse | None = None
         next_n_jobs: list[ImageGenerateJobPopResponse] = []
-        for job in self.job_deque:
+        for job in self.jobs_pending_inference:
             if job in self.jobs_in_progress:
                 continue
             if next_job is None:
@@ -2325,7 +2327,7 @@ class HordeWorkerProcessManager:
         )
 
     def start_inference(self) -> None:
-        """Start inference for the next job in the deque, if possible."""
+        """Start inference for the next job in jobs_pending_inference, if possible."""
         next_job_and_process = self.get_next_job_and_process()
 
         if next_job_and_process is None:
@@ -2551,10 +2553,10 @@ class HordeWorkerProcessManager:
         next_n_models: list[str] = []
         jobs_traversed = 0
         while len(next_n_models) < n:
-            if jobs_traversed >= len(self.job_deque):
+            if jobs_traversed >= len(self.jobs_pending_inference):
                 break
 
-            model_name = self.job_deque[jobs_traversed].model
+            model_name = self.jobs_pending_inference[jobs_traversed].model
 
             if model_name is None:
                 raise ValueError(f"job_deque[{jobs_traversed}].model is None")
@@ -2568,7 +2570,7 @@ class HordeWorkerProcessManager:
 
     def unload_models(self) -> None:
         """Unload models that are no longer needed and would use above the limit specified."""
-        if len(self.job_deque) == 0:
+        if len(self.jobs_pending_inference) == 0:
             return
 
         # 1 thread, 1 model, no need to unload as it should always be in use (or at least available)
@@ -2917,10 +2919,10 @@ class HordeWorkerProcessManager:
     @logger.catch(reraise=True)
     async def api_submit_job(self) -> None:
         """Submit a job result to the API, if any are completed (safety checked too) and ready to be submitted."""
-        if len(self.completed_jobs) == 0:
+        if len(self.jobs_pending_submit) == 0:
             return
 
-        completed_job_info = self.completed_jobs[0]
+        completed_job_info = self.jobs_pending_submit[0]
         job_info = completed_job_info.sdk_api_job_info
 
         if completed_job_info.state is None:
@@ -3150,8 +3152,8 @@ class HordeWorkerProcessManager:
                             f"{type(e)}: {e}",
                         )
 
-                if completed_job_info in self.completed_jobs:
-                    self.completed_jobs.remove(completed_job_info)
+                if completed_job_info in self.jobs_pending_submit:
+                    self.jobs_pending_submit.remove(completed_job_info)
                 else:
                     logger.warning(f"Job {completed_job_info.sdk_api_job_info.id_} not found in completed_jobs")
 
@@ -3230,8 +3232,8 @@ class HordeWorkerProcessManager:
         if job_info is None:
             logger.error(f"Job {faulted_job.id_} not found in jobs_lookup")
         else:
-            if faulted_job in self.job_deque:
-                self.job_deque.remove(faulted_job)
+            if faulted_job in self.jobs_pending_inference:
+                self.jobs_pending_inference.remove(faulted_job)
 
             job_info.fault_job()
             job_info.time_to_generate = self.bridge_data.process_timeout
@@ -3250,8 +3252,8 @@ class HordeWorkerProcessManager:
                         self.jobs_pending_safety_check.remove(horde_job_info)
                         break
 
-            if job_info not in self.completed_jobs:
-                self.completed_jobs.append(job_info)
+            if job_info not in self.jobs_pending_submit:
+                self.jobs_pending_submit.append(job_info)
             else:
                 logger.warning(f"Job {faulted_job.id_} already in completed_jobs")
 
@@ -3309,11 +3311,11 @@ class HordeWorkerProcessManager:
     def get_pending_megapixelsteps(self) -> int:
         """Return the number of megapixelsteps that are pending in the job deque."""
         job_deque_megapixelsteps = 0
-        for job in self.job_deque:
+        for job in self.jobs_pending_inference:
             job_megapixelsteps = self.get_single_job_effective_megapixelsteps(job)
             job_deque_megapixelsteps += job_megapixelsteps
 
-        for _ in self.completed_jobs:
+        for _ in self.jobs_pending_submit:
             job_deque_megapixelsteps += 4
 
         return job_deque_megapixelsteps
@@ -3510,12 +3512,12 @@ class HordeWorkerProcessManager:
         if self.bridge_data.max_threads > 1:
             max_jobs_in_queue += self.bridge_data.max_threads - 1
 
-        if len(self.job_deque) >= max_jobs_in_queue:
+        if len(self.jobs_pending_inference) >= max_jobs_in_queue:
             return
 
         # We let the first job run through to make sure things are working
         # (if we're doomed to fail with 1 job, we're doomed to fail with 2 jobs)
-        if len(self.job_deque) != 0 and self.completed_jobs == 0:
+        if len(self.jobs_pending_inference) != 0 and self.jobs_pending_submit == 0:
             return
 
         # if self._testing_jobs_added >= self._testing_max_jobs:
@@ -3632,7 +3634,9 @@ class HordeWorkerProcessManager:
 
         # We'll only allow one running plus one queued for a given model.
         models_to_remove = {
-            model for model, count in collections.Counter([job.model for job in self.job_deque]).items() if count >= 2
+            model
+            for model, count in collections.Counter([job.model for job in self.jobs_pending_inference]).items()
+            if count >= 2
         }
         if len(models_to_remove) > 0:
             models = models.difference(models_to_remove)
@@ -3709,8 +3713,8 @@ class HordeWorkerProcessManager:
         self._job_pop_frequency = self._default_job_pop_frequency
 
         info_string = "No job available. "
-        if len(self.job_deque) > 0:
-            info_string += f"Current number of popped jobs: {len(self.job_deque)}. "
+        if len(self.jobs_pending_inference) > 0:
+            info_string += f"Current number of popped jobs: {len(self.jobs_pending_inference)}. "
 
         skipped_reasons = job_pop_response.skipped.model_dump(exclude_defaults=True)
         # Include the extra fields as well
@@ -3725,7 +3729,7 @@ class HordeWorkerProcessManager:
         if job_pop_response.id_ is None:
             self._last_pop_no_jobs_available = True
             logger.info(info_string)
-            if len(self.job_deque) == 0:
+            if len(self.jobs_pending_inference) == 0:
                 if self._last_pop_no_jobs_available_time == 0.0:
                     self._last_pop_no_jobs_available_time = cur_time
 
@@ -3768,9 +3772,9 @@ class HordeWorkerProcessManager:
             logger.error("Job has no id!")
             return
 
-        async with self._job_deque_lock, self._job_pop_timestamps_lock:
-            self.job_deque.append(job_pop_response)
-            jobs = [f"<{x.id_}: {x.model}>" for x in self.job_deque]
+        async with self._jobs_pending_inference_lock, self._job_pop_timestamps_lock:
+            self.jobs_pending_inference.append(job_pop_response)
+            jobs = [f"<{x.id_}: {x.model}>" for x in self.jobs_pending_inference]
             logger.info(f'Job queue: {", ".join(jobs)}')
             # self._testing_jobs_added += 1
             self.job_pop_timestamps[job_pop_response] = time.time()
@@ -4011,7 +4015,7 @@ class HordeWorkerProcessManager:
                 with logger.catch(reraise=True):
                     async with (
                         self._jobs_lookup_lock,
-                        self._job_deque_lock,
+                        self._jobs_pending_inference_lock,
                         self._jobs_safety_check_lock,
                         self._completed_jobs_lock,
                     ):
@@ -4022,10 +4026,10 @@ class HordeWorkerProcessManager:
                         async with self._jobs_safety_check_lock:
                             self.start_evaluate_safety()
 
-                    if self.is_free_inference_process_available() and len(self.job_deque) > 0:
+                    if self.is_free_inference_process_available() and len(self.jobs_pending_inference) > 0:
                         async with (
                             self._jobs_lookup_lock,
-                            self._job_deque_lock,
+                            self._jobs_pending_inference_lock,
                             self._jobs_safety_check_lock,
                             self._completed_jobs_lock,
                             self._job_pop_timestamps_lock,
@@ -4086,7 +4090,7 @@ class HordeWorkerProcessManager:
 
                     async with (
                         self._jobs_lookup_lock,
-                        self._job_deque_lock,
+                        self._jobs_pending_inference_lock,
                         self._jobs_safety_check_lock,
                         self._completed_jobs_lock,
                     ):
@@ -4101,7 +4105,8 @@ class HordeWorkerProcessManager:
                     self.unload_models()
 
                     is_job_and_one_inference_process = (
-                        len(self.job_deque) >= 1 and self._process_map.num_loaded_inference_processes() == 1
+                        len(self.jobs_pending_inference) >= 1
+                        and self._process_map.num_loaded_inference_processes() == 1
                     )
 
                     if self._shutting_down and not self._last_pop_recently() and not is_job_and_one_inference_process:
@@ -4120,9 +4125,9 @@ class HordeWorkerProcessManager:
             except CancelledError:
                 self._shutting_down = True
 
-        while len(self.job_deque) > 0:
+        while len(self.jobs_pending_inference) > 0:
             await asyncio.sleep(0.2)
-            async with self._job_deque_lock, self._jobs_safety_check_lock, self._completed_jobs_lock:
+            async with self._jobs_pending_inference_lock, self._jobs_safety_check_lock, self._completed_jobs_lock:
                 self.receive_and_handle_process_messages()
                 self.detect_deadlock()
                 self.replace_hung_processes()  # Only checks for hung processes, doesn't replace them during shutdown
@@ -4160,11 +4165,11 @@ class HordeWorkerProcessManager:
         """Detect if there are jobs in the queue but no processes doing anything."""
 
         def _print_deadlock_info() -> None:
-            logger.debug(f"Jobs in queue: {len(self.job_deque)}")
+            logger.debug(f"Jobs in queue: {len(self.jobs_pending_inference)}")
             logger.debug(f"Jobs in progress: {len(self.jobs_in_progress)}")
             logger.debug(f"Jobs pending safety check: {len(self.jobs_pending_safety_check)}")
             logger.debug(f"Jobs being safety checked: {len(self.jobs_being_safety_checked)}")
-            logger.debug(f"Jobs completed: {len(self.completed_jobs)}")
+            logger.debug(f"Jobs completed: {len(self.jobs_pending_submit)}")
             logger.debug(f"Jobs faulted: {self._num_jobs_faulted}")
             logger.debug(f"horde_model_map: {self._horde_model_map}")
             logger.debug(f"process_map: {self._process_map}")
@@ -4177,7 +4182,11 @@ class HordeWorkerProcessManager:
         if self._shutting_down:
             return
 
-        if not self._in_queue_deadlock and self._process_map.all_waiting_for_job() and len(self.job_deque) > 0:
+        if (
+            not self._in_queue_deadlock
+            and self._process_map.all_waiting_for_job()
+            and len(self.jobs_pending_inference) > 0
+        ):
             currently_loaded_models = set()
             model_process_map: dict[str, int] = {}
             for process in self._process_map.values():
@@ -4185,7 +4194,7 @@ class HordeWorkerProcessManager:
                     currently_loaded_models.add(process.loaded_horde_model_name)
                     model_process_map[process.loaded_horde_model_name] = process.process_id
 
-            for job in self.job_deque:
+            for job in self.jobs_pending_inference:
                 if job.model in currently_loaded_models:
                     self._in_queue_deadlock = True
                     self._last_queue_deadlock_detected_time = time.time()
@@ -4198,7 +4207,7 @@ class HordeWorkerProcessManager:
                 self._in_queue_deadlock = True
                 self._last_queue_deadlock_detected_time = time.time()
                 # we're going to fall back to the next model in the deque
-                self._queue_deadlock_model = self.job_deque[0].model
+                self._queue_deadlock_model = self.jobs_pending_inference[0].model
 
         elif self._in_queue_deadlock and (self._last_queue_deadlock_detected_time + 30) < time.time():
             if self._process_map.num_starting_processes() > 0:
@@ -4220,7 +4229,7 @@ class HordeWorkerProcessManager:
 
         if (
             (not self._in_deadlock)
-            and (len(self.job_deque) > 0 or len(self.jobs_in_progress) > 0 or len(self.jobs_lookup) > 0)
+            and (len(self.jobs_pending_inference) > 0 or len(self.jobs_in_progress) > 0 or len(self.jobs_lookup) > 0)
             and self._process_map.num_busy_processes() == 0
         ):
             self._last_deadlock_detected_time = time.time()
@@ -4307,7 +4316,7 @@ class HordeWorkerProcessManager:
                 ),
             )
 
-            jobs = [f"<{x.id_}: {x.model}>" for x in self.job_deque]
+            jobs = [f"<{x.id_}: {x.model}>" for x in self.jobs_pending_inference]
             logger.info(f'Jobs: {", ".join(jobs)}')
 
             active_models = {
@@ -4323,7 +4332,7 @@ class HordeWorkerProcessManager:
 
             job_info_message = "Session job info: " + " | ".join(
                 [
-                    f"currently popped: {len(self.job_deque)} (eMPS: {self.get_pending_megapixelsteps()})",
+                    f"pending start: {len(self.jobs_pending_inference)} (eMPS: {self.get_pending_megapixelsteps()})",
                     f"submitted: {self.total_num_completed_jobs}",
                     f"faulted: {self._num_jobs_faulted}",
                     f"slow_jobs: {self._num_job_slowdowns}",
@@ -4539,7 +4548,7 @@ class HordeWorkerProcessManager:
 
         def shutdown() -> None:
             # Just in case the process manager gets stuck on shutdown
-            time.sleep((len(self.completed_jobs) * 4) + 2)
+            time.sleep((len(self.jobs_pending_submit) * 4) + 2)
 
             for process in self._process_map.values():
                 try:
@@ -4564,10 +4573,10 @@ class HordeWorkerProcessManager:
         responding, they will spend much longer in the queue than they should while the server waits for the worker
         to respond (and ultimately times out).
         """
-        if len(self.job_deque) > 0:
-            self.job_deque.clear()
+        if len(self.jobs_pending_inference) > 0:
+            self.jobs_pending_inference.clear()
             self._last_job_submitted_time = time.time()
-            logger.error("Cleared job deque")
+            logger.error("Cleared jobs pending inference")
 
         if len(self.jobs_being_safety_checked) > 0:
             self.jobs_being_safety_checked.clear()
@@ -4585,8 +4594,8 @@ class HordeWorkerProcessManager:
             self.jobs_in_progress.clear()
             logger.error("Cleared jobs in progress")
 
-        if len(self.completed_jobs) > 0:
-            self.completed_jobs.clear()
+        if len(self.jobs_pending_submit) > 0:
+            self.jobs_pending_submit.clear()
             logger.error("Cleared completed jobs")
 
     def _hard_kill_processes(

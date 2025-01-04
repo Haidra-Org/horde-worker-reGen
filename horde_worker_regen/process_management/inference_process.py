@@ -67,6 +67,8 @@ class HordeInferenceProcess(HordeProcess):
     _inference_semaphore: Semaphore
     """A semaphore used to limit the number of concurrent inference jobs."""
 
+    _vae_decode_semaphore: Semaphore
+
     _horde: HordeLib
     """The HordeLib instance used by this process. It is not shared between processes."""
     _shared_model_manager: SharedModelManager
@@ -85,6 +87,7 @@ class HordeInferenceProcess(HordeProcess):
         process_message_queue: ProcessQueue,
         pipe_connection: Connection,
         inference_semaphore: Semaphore,
+        vae_decode_semaphore: Semaphore,
         aux_model_lock: Lock,
         disk_lock: Lock,
         process_launch_identifier: int,
@@ -99,6 +102,7 @@ class HordeInferenceProcess(HordeProcess):
                 processes.
             pipe_connection (Connection): Receives `HordeControlMessage`s from the main process.
             inference_semaphore (Semaphore): A semaphore used to limit the number of concurrent inference jobs.
+            vae_decode_semaphore (Semaphore): A semaphore used to limit the number of concurrent VAE decode jobs.
             aux_model_lock (Lock): A lock used to prevent multiple processes from downloading auxiliary models at the \
             disk_lock (Lock): A lock used to prevent multiple processes from accessing disk at the same time.
             process_launch_identifier (int): The identifier for the process launch.
@@ -127,6 +131,7 @@ class HordeInferenceProcess(HordeProcess):
             sys.exit(1)
 
         self._inference_semaphore = inference_semaphore
+        self._vae_decode_semaphore = vae_decode_semaphore
 
         from hordelib.nodes.node_model_loader import HordeCheckpointLoader
 
@@ -432,6 +437,7 @@ class HordeInferenceProcess(HordeProcess):
     _in_post_processing: bool = False
 
     _current_job_inference_steps_complete: bool = False
+    _vae_lock_was_acquired: bool = False
 
     def progress_callback(
         self,
@@ -460,11 +466,16 @@ class HordeInferenceProcess(HordeProcess):
                 logger.error(f"Failed to release inference semaphore: {type(e).__name__} {e}")
 
         if self._current_job_inference_steps_complete:
+            if not self._vae_lock_was_acquired:
+                self._vae_lock_was_acquired = True
+                self._vae_decode_semaphore.acquire()
+                logger.debug("Acquired VAE decode semaphore")
+
             self.send_heartbeat_message(heartbeat_type=HordeHeartbeatType.PIPELINE_STATE_CHANGE)
             return
 
         if progress_report.comfyui_progress is not None and progress_report.comfyui_progress.current_step == (
-            progress_report.comfyui_progress.total_steps - 1
+            progress_report.comfyui_progress.total_steps
         ):
             self.send_heartbeat_message(heartbeat_type=HordeHeartbeatType.PIPELINE_STATE_CHANGE)
             self._current_job_inference_steps_complete = True
@@ -509,8 +520,10 @@ class HordeInferenceProcess(HordeProcess):
             self._is_busy = False
             self._in_post_processing = False
             self._current_job_inference_steps_complete = False
+            self._vae_lock_was_acquired = False
             with contextlib.suppress(Exception):
                 self._inference_semaphore.release()
+                self._vae_decode_semaphore.release()
         return results
 
     @staticmethod

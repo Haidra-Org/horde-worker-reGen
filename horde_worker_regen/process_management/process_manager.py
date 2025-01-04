@@ -4799,16 +4799,9 @@ class HordeWorkerProcessManager:
             ((now - process_info.last_received_timestamp) > self.bridge_data.process_timeout)
             for process_info in self._process_map.values()
         )
-
-        # If we haven't submitted a job for a while
-        no_jobs_submitted_when_expected = (now - self._last_job_submitted_time) > self.bridge_data.process_timeout
-
-        # If all processes are unresponsive or there are no jobs submitted when expected
-        # we should replace all processes *except* if we've already done so recently
-        # or the last job pop was a "no jobs available" response
-        if (all_processes_timed_out or no_jobs_submitted_when_expected) and not (
-            self._last_pop_no_jobs_available or self._recently_recovered
-        ):
+        # If all processes are unresponsive o we should replace all processes
+        # *except* if we've already done so recently or the last job pop was a "no jobs available" response
+        if all_processes_timed_out and not (self._last_pop_no_jobs_available or self._recently_recovered):
             self._purge_jobs()
 
             if self.bridge_data.exit_on_unhandled_faults:

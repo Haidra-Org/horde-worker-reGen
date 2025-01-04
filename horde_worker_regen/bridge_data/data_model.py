@@ -129,9 +129,9 @@ class reGenBridgeData(CombinedHordeBridgeData):
             default_process_timeout = self.model_fields["process_timeout"].default
 
             if self.process_timeout == default_process_timeout:
-                logger.debug(*process_timeout_changed_message)
+                logger.debug(process_timeout_changed_message)
             else:
-                logger.warning(*process_timeout_changed_message)
+                logger.warning(process_timeout_changed_message)
 
             self.process_timeout = default_process_timeout // 3
         elif self.moderate_performance_mode:

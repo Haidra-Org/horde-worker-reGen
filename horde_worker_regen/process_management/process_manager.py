@@ -37,7 +37,6 @@ from horde_sdk import RequestErrorResponse
 from horde_sdk.ai_horde_api import GENERATION_STATE
 from horde_sdk.ai_horde_api.ai_horde_clients import (
     AIHordeAPIAsyncClientSession,
-    AIHordeAPIAsyncSimpleClient,
     AIHordeAPISimpleClient,
 )
 from horde_sdk.ai_horde_api.apimodels import (

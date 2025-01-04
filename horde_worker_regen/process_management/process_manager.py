@@ -579,22 +579,29 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         self,
         *,
         stable_diffusion_model_reference: StableDiffusion_ModelReference,
-    ) -> bool:
+        post_process_job_overlap: bool,
+    ) -> tuple[bool, str]:
         """Return true if we should keep only a single inference process running.
 
         This is used to prevent overloading the system with inference processes, such as with batched jobs.
         """
         for p in self.values():
             # We only parallelizing if we have a currently running inference with n_iter > 1
+            if p.batch_amount > 1:
+                return True, "Batched job"
+
             if (
                 (
                     p.last_process_state == HordeProcessState.INFERENCE_STARTING
-                    or p.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING
+                    or (
+                        p.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING
+                        and not post_process_job_overlap
+                    )
                 )
                 and p.last_job_referenced is not None
                 and p.last_job_referenced.model in VRAM_HEAVY_MODELS
             ):
-                return True
+                return True, "VRAM heavy model"
 
             if (
                 p.last_job_referenced is not None
@@ -618,18 +625,19 @@ class ProcessMap(dict[int, HordeProcessInfo]):
                     or p.last_process_state == HordeProcessState.PRELOADING_MODEL
                     or p.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING
                 ):
-                    return True
+                    return True, "ControlNet XL"
 
-            if p.batch_amount == 1:
-                continue
             if (
                 p.can_accept_job()
                 or p.last_process_state == HordeProcessState.PRELOADING_MODEL
-                or p.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING
+                or (
+                    p.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING
+                    and not post_process_job_overlap
+                )
             ):
                 continue
-            return True
-        return False
+
+        return False, "None"
 
     def get_inference_processes(self) -> list[HordeProcessInfo]:
         """Return a list of all inference processes."""
@@ -1146,7 +1154,7 @@ class HordeWorkerProcessManager:
 
     _loop_interval: float = 0.20
     """The number of seconds to wait between each loop of the main process (inter process management) loop."""
-    _api_call_loop_interval = 0.05
+    _api_call_loop_interval = 1
     """The number of seconds to wait between each loop of the main API call loop."""
 
     _api_get_user_info_interval = 15
@@ -2736,6 +2744,9 @@ class HordeWorkerProcessManager:
         if not safety_message_sent_succeeded:
             logger.error(f"Failed to start safety evaluation for job {completed_job_info.sdk_api_job_info.id_}")
             self._safety_processes_should_be_replaced = True
+            if len(self.jobs_being_safety_checked) > 0:
+                for job_info in self.jobs_being_safety_checked:
+                    self.jobs_pending_safety_check.append(job_info)
         else:
             self.jobs_pending_safety_check.remove(completed_job_info)
             self.jobs_being_safety_checked.append(completed_job_info)
@@ -4132,21 +4143,21 @@ class HordeWorkerProcessManager:
                                             == STABLE_DIFFUSION_BASELINE_CATEGORY.stable_diffusion_xl
                                             and next_workflow in KNOWN_SLOW_WORKFLOWS
                                         )
+                                keep_single_inference, single_inf_reason = self._process_map.keep_single_inference(
+                                    stable_diffusion_model_reference=self.stable_diffusion_reference,
+                                    post_process_job_overlap=self.bridge_data.post_process_job_overlap,
+                                )
 
                                 if (
-                                    self._process_map.keep_single_inference(
-                                        stable_diffusion_model_reference=self.stable_diffusion_reference,
-                                    )
+                                    keep_single_inference
+                                    and len(self.jobs_pending_inference) > 0
                                     and len(self.jobs_in_progress) > 0
                                 ):
                                     if (
-                                        self.has_queued_jobs()
-                                        and (time.time() - self._batch_wait_log_time > 10)
-                                        and self.bridge_data.max_threads > 1
-                                    ):
+                                        time.time() - self._batch_wait_log_time > 10
+                                    ) and self.bridge_data.max_threads > 1:
                                         logger.info(
-                                            "Blocking further inference because batch or slow_model inference "
-                                            "in process.",
+                                            f"Blocking further inference due to {single_inf_reason}.",
                                         )
                                         self._batch_wait_log_time = time.time()
 
@@ -4157,13 +4168,13 @@ class HordeWorkerProcessManager:
                                         or next_job_heavy_model_and_workflow
                                     )
                                     and self._process_map.num_busy_with_inference() > 0
-                                    and (time.time() - self._batch_wait_log_time > 10)
                                 ):
-                                    logger.info(
-                                        f"Blocking starting batch job {next_job_and_process.next_job.id_} because "
-                                        "a thread is already busy",
-                                    )
-                                    self._batch_wait_log_time = time.time()
+                                    if time.time() - self._batch_wait_log_time > 10:
+                                        logger.info(
+                                            f"Blocking starting batch job {next_job_and_process.next_job.id_} because "
+                                            "a thread is already busy with a heavy model/workflow or batch job.",
+                                        )
+                                        self._batch_wait_log_time = time.time()
                                 else:
                                     self.start_inference()
 

@@ -516,6 +516,14 @@ class ProcessMap(dict[int, HordeProcessInfo]):
             return False
         if self[process_id].heartbeats_inference_steps == 0:
             return False
+
+        if (
+            self[process_id].last_heartbeat_type == HordeHeartbeatType.PIPELINE_STATE_CHANGE
+            and self[process_id].last_heartbeat_delta > (inference_step_timeout * 2)
+            and self[process_id].last_process_state != HordeProcessState.INFERENCE_POST_PROCESSING
+        ):
+            return True
+
         return bool(
             self[process_id].last_heartbeat_type == HordeHeartbeatType.INFERENCE_STEP
             and self[process_id].last_heartbeat_delta > inference_step_timeout,
@@ -1157,6 +1165,9 @@ class HordeWorkerProcessManager:
 
     _inference_semaphore: Semaphore
     """A semaphore that limits the number of inference processes that can run at once."""
+
+    _vae_decode_semaphore: Semaphore
+
     _disk_lock: Lock_MultiProcessing
     """A lock to prevent multiple processes from accessing the disk at once."""
 
@@ -1229,6 +1240,14 @@ class HordeWorkerProcessManager:
         self._aux_model_lock = Lock_MultiProcessing(ctx=ctx)
 
         self.max_inference_processes = self.bridge_data.queue_size + self.bridge_data.max_threads
+
+        vae_decode_semaphore_max = 1
+
+        if self.bridge_data.high_memory_mode:
+            vae_decode_semaphore_max = self.max_inference_processes
+
+        self._vae_decode_semaphore = Semaphore(vae_decode_semaphore_max, ctx=ctx)
+
         self._lru = LRUCache(self.max_inference_processes)
 
         self._amd_gpu = amd_gpu
@@ -1549,6 +1568,7 @@ class HordeWorkerProcessManager:
                 self._inference_semaphore,
                 self._disk_lock,
                 self._aux_model_lock,
+                self._vae_decode_semaphore,
                 self.num_processes_launched,
             ),
             kwargs={

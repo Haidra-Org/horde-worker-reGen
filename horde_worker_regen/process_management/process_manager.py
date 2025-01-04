@@ -4584,6 +4584,9 @@ class HordeWorkerProcessManager:
         api_call_loop = asyncio.create_task(self._api_call_loop(), name="api_call_loop")
         api_call_loop.add_done_callback(self._handle_exception)
 
+        api_get_user_info_loop = asyncio.create_task(self._api_get_user_info_loop(), name="api_get_user_info_loop")
+        api_get_user_info_loop.add_done_callback(self._handle_exception)
+
         job_submit_loop = asyncio.create_task(self._job_submit_loop(), name="job_submit_loop")
         job_submit_loop.add_done_callback(self._handle_exception)
 
@@ -4592,7 +4595,7 @@ class HordeWorkerProcessManager:
             bridge_data_loop = asyncio.create_task(self._bridge_data_loop(), name="bridge_data_loop")
             bridge_data_loop.add_done_callback(self._handle_exception)
 
-        tasks = [process_control_loop, api_call_loop, job_submit_loop]
+        tasks = [process_control_loop, api_call_loop, api_get_user_info_loop, job_submit_loop]
 
         if bridge_data_loop is not None:
             tasks.append(bridge_data_loop)

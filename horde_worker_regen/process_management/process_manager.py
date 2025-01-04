@@ -2621,13 +2621,11 @@ class HordeWorkerProcessManager:
         if self._max_concurrent_inference_processes == 1 and len(self.bridge_data.image_models_to_load) == 1:
             return
 
-        next_n_models: set[str] = set(self.get_next_n_models(self.max_inference_processes))
-
         for process_info in self._process_map.values():
             if process_info.process_type != HordeProcessType.INFERENCE:
                 continue
 
-            if process_info.is_process_busy():
+            if process_info.is_process_busy() or process_info.last_process_state == HordeProcessState.PRELOADED_MODEL:
                 continue
 
             if process_info.loaded_horde_model_name is not None:
@@ -2640,7 +2638,7 @@ class HordeWorkerProcessManager:
                 ):
                     continue
 
-                if process_info.loaded_horde_model_name in next_n_models:
+                if process_info.loaded_horde_model_name in self.jobs_pending_inference:
                     # logger.debug(
                     # f"Model {process_info.loaded_horde_model_name} is in use by another process, not unloading",
                     # )

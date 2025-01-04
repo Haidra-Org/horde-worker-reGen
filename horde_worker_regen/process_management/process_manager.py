@@ -1626,9 +1626,8 @@ class HordeWorkerProcessManager:
         processes_with_model_for_queued_job: list[int] = self.get_processes_with_model_for_queued_job()
 
         # if we're shutting down and the job queue is empty, we can end all inference processes
-        if self._shutting_down:
-            if len(self.jobs_pending_inference) == 0 and len(self.jobs_in_progress) == 0:
-                processes_with_model_for_queued_job = []
+        if self._shutting_down and len(self.jobs_pending_inference) == 0 and len(self.jobs_in_progress) == 0:
+            processes_with_model_for_queued_job = []
 
         # Get the process to end
         process_info = self._process_map._get_first_inference_process_to_kill(

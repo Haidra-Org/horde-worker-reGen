@@ -4734,11 +4734,6 @@ class HordeWorkerProcessManager:
             else:
                 conditions: list[tuple[float, HordeProcessState, str]] = [
                     (
-                        self.bridge_data.process_timeout,
-                        HordeProcessState.PRELOADED_MODEL,
-                        "has exceeded its timeout",
-                    ),
-                    (
                         self.bridge_data.preload_timeout,
                         HordeProcessState.PRELOADING_MODEL,
                         "seems to be stuck preloading a model",

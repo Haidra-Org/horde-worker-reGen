@@ -4603,7 +4603,7 @@ class HordeWorkerProcessManager:
         self._aiohttp_client_session = ClientSession(requote_redirect_url=False)
         self.horde_client_session = AIHordeAPIAsyncClientSession(aiohttp_session=self._aiohttp_client_session)
 
-        async with self.horde_client_session, self._aiohttp_client_session:
+        async with self._aiohttp_client_session, self.horde_client_session:
             await asyncio.gather(*tasks)
 
     _caught_sigints = 0

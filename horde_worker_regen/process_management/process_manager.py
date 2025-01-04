@@ -1397,7 +1397,7 @@ class HordeWorkerProcessManager:
 
         logger.debug(
             f"Ensured worker with name {self.bridge_data.dreamer_worker_name} "
-            "({worker_details.id_}) is removed from maintenance.",
+            f"({worker_details.id_}) is removed from maintenance.",
         )
 
     def enable_performance_mode(self) -> None:

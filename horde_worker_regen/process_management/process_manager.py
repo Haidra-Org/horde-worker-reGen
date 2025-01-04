@@ -149,6 +149,8 @@ class HordeProcessInfo:
     """Last time we updated the process info. If we're regularly working, then this value should change frequently."""
     loaded_horde_model_name: str | None
     """The name of the horde model that is (supposedly) currently loaded in this process."""
+    loaded_horde_model_baseline: STABLE_DIFFUSION_BASELINE_CATEGORY | None
+    """The baseline of the horde model that is (supposedly) currently loaded in this process."""
     last_control_flag: HordeControlFlag | None
     """The last control flag sent, to avoid duplication."""
 
@@ -198,6 +200,7 @@ class HordeProcessInfo:
         self.last_process_state = last_process_state
         self.last_received_timestamp = time.time()
         self.loaded_horde_model_name = None
+        self.loaded_horde_model_baseline = None
         self.last_control_flag = None
 
         self.last_heartbeat_timestamp = time.time()
@@ -351,6 +354,7 @@ class ProcessMap(dict[int, HordeProcessInfo]):
             heartbeat_type (HordeHeartbeatType): The type of the heartbeat.
         """
         self[process_id].last_heartbeat_delta = time.time() - self[process_id].last_heartbeat_timestamp
+        self[process_id].last_received_timestamp = time.time()
         self[process_id].last_heartbeat_timestamp = time.time()
         self[process_id].last_heartbeat_type = heartbeat_type
         if heartbeat_type == HordeHeartbeatType.INFERENCE_STEP:
@@ -366,6 +370,7 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         """
         self[process_id].last_process_state = HordeProcessState.PROCESS_ENDING
         self[process_id].loaded_horde_model_name = None
+        self[process_id].loaded_horde_model_baseline = None
         self[process_id].last_job_referenced = None
         self[process_id].batch_amount = 1
 
@@ -441,6 +446,7 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         self,
         process_id: int,
         horde_model_name: str | None,
+        horde_model_baseline: STABLE_DIFFUSION_BASELINE_CATEGORY | None = None,
         last_job_referenced: ImageGenerateJobPopResponse | None = None,
     ) -> None:
         """Update the model load state for the given process ID.
@@ -448,6 +454,7 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         Args:
             process_id (int): The ID of the process to update.
             horde_model_name (str): The name of the horde model to update.
+            horde_model_baseline (STABLE_DIFFUSION_BASELINE_CATEGORY): The baseline of the horde model to update.
             load_state (ModelLoadState): The load state of the model.
             last_job_referenced (ImageGenerateJobPopResponse | None, optional): The last job referenced by this \
                  process. Defaults to None.
@@ -456,6 +463,8 @@ class ProcessMap(dict[int, HordeProcessInfo]):
             self[process_id].recently_unloaded_from_ram = False
 
         self[process_id].loaded_horde_model_name = horde_model_name
+        self[process_id].loaded_horde_model_baseline = horde_model_baseline
+
         self[process_id].last_received_timestamp = time.time()
         if last_job_referenced is not None:
             if (
@@ -478,6 +487,7 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         self.on_model_load_state_change(
             process_id=process_id,
             horde_model_name=None,
+            horde_model_baseline=None,
             last_job_referenced=None,
         )
 
@@ -788,8 +798,8 @@ class ProcessMap(dict[int, HordeProcessInfo]):
                     process_info.last_control_flag.name if process_info.last_control_flag is not None else None
                 )
                 info_strings.append(
-                    f"Process {process_id} ({process_info.last_process_state.name}): "
-                    f" ({process_info.loaded_horde_model_name} "
+                    f"Process {process_id} ({process_info.last_process_state.name}) "
+                    f"({process_info.loaded_horde_model_name} - {process_info.loaded_horde_model_baseline} "
                     f"[last event: {time_passed_seconds} secs ago: {safe_last_control_flag}]",
                     # f"ram: {process_info.ram_usage_bytes} vram: {process_info.vram_usage_bytes} ",
                 )
@@ -1880,9 +1890,14 @@ class HordeWorkerProcessManager:
                     process_id=message.process_id,
                 )
 
+                model_baseline: STABLE_DIFFUSION_BASELINE_CATEGORY | None = None
+                if message.horde_model_name in self.stable_diffusion_reference.root:
+                    model_baseline = self.stable_diffusion_reference.root[message.horde_model_name].baseline
+
                 self._process_map.on_model_load_state_change(
                     process_id=message.process_id,
                     horde_model_name=message.horde_model_name,
+                    horde_model_baseline=model_baseline,
                 )
 
                 if message.horde_model_state == ModelLoadState.LOADING:
@@ -2218,9 +2233,14 @@ class HordeWorkerProcessManager:
                     process_id=available_process.process_id,
                 )
 
+                model_baseline: STABLE_DIFFUSION_BASELINE_CATEGORY | None = None
+                if job.model in self.stable_diffusion_reference.root:
+                    model_baseline = self.stable_diffusion_reference.root[job.model].baseline
+
                 self._process_map.on_model_load_state_change(
                     process_id=available_process.process_id,
                     horde_model_name=job.model,
+                    horde_model_baseline=model_baseline,
                     last_job_referenced=job,
                 )
 
@@ -2290,9 +2310,15 @@ class HordeWorkerProcessManager:
 
                 if process_with_model is not None:
                     logger.debug(f"Clearing process {process_with_model.process_id} of model {job.model}")
+
+                    horde_model_baseline: STABLE_DIFFUSION_BASELINE_CATEGORY | None = None
+                    if job.model in self.stable_diffusion_reference.root:
+                        horde_model_baseline = self.stable_diffusion_reference.root[job.model].baseline
+
                     self._process_map.on_model_load_state_change(
                         process_id=process_with_model.process_id,
                         horde_model_name=job.model,
+                        horde_model_baseline=horde_model_baseline,
                     )
 
                 logger.debug(f"Horde model map: {self._horde_model_map}")
@@ -3784,10 +3810,19 @@ class HordeWorkerProcessManager:
         self._last_pop_no_jobs_available = False
         self._last_pop_no_jobs_available_time = 0.0
 
+        has_loras = job_pop_response.payload.loras is not None and len(job_pop_response.payload.loras) > 0
+        has_post_processing = (
+            job_pop_response.payload.post_processing is not None
+            and len(
+                job_pop_response.payload.post_processing,
+            )
+            > 0
+        )
         logger.info(
             f"Popped job {job_pop_response.id_} "
             f"({self.get_single_job_effective_megapixelsteps(job_pop_response)} eMPS) "
-            f"(model: {job_pop_response.model})",
+            f"(model: {job_pop_response.model}, batch: {job_pop_response.payload.n_iter}, ",
+            f"loras: {has_loras}, post_processing: {has_post_processing})",
         )
 
         # region TODO: move to horde_sdk

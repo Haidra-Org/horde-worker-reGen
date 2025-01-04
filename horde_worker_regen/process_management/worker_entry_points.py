@@ -19,6 +19,7 @@ def start_inference_process(
     inference_semaphore: Semaphore,
     disk_lock: Lock,
     aux_model_lock: Lock,
+    vae_decode_semaphore: Semaphore,
     process_launch_identifier: int,
     *,
     low_memory_mode: bool = False,
@@ -36,6 +37,7 @@ def start_inference_process(
         inference_semaphore (Semaphore): The semaphore to use to limit concurrent inference.
         disk_lock (Lock): The lock to use for disk access.
         aux_model_lock (Lock): The lock to use for auxiliary model downloading.
+        vae_decode_semaphore (Semaphore): The semaphore to use to limit concurrent VAE decoding.
         process_launch_identifier (int): The unique identifier for this launch.
         low_memory_mode (bool, optional): If true, the process will attempt to use less memory. Defaults to True.
         high_memory_mode (bool, optional): If true, the process will attempt to use more memory. Defaults to False.
@@ -117,6 +119,7 @@ def start_inference_process(
             inference_semaphore=inference_semaphore,
             disk_lock=disk_lock,
             aux_model_lock=aux_model_lock,
+            vae_decode_semaphore=vae_decode_semaphore,
             process_launch_identifier=process_launch_identifier,
         )
 

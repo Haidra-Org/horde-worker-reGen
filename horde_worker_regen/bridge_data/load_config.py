@@ -172,6 +172,8 @@ class BridgeDataLoader:
             horde_model_reference_manager,
         )
 
+        reGenBridgeData.load_custom_models()
+
         return bridge_data
 
     @staticmethod

@@ -268,7 +268,8 @@ class reGenBridgeData(CombinedHordeBridgeData):
                 os.remove(f"{cwd}/custom_models.json")
         os.environ["HORDELIB_CUSTOM_MODELS"] = f"{cwd}/custom_models.json"
 
-    def load_custom_models(self) -> None:
+    @staticmethod
+    def load_custom_models() -> None:
         """Load the custom models from the `custom_models.json` file."""
         cwd = os.getcwd()
         if not os.getenv("HORDELIB_CUSTOM_MODELS") and os.path.exists(f"{cwd}/custom_models.json"):

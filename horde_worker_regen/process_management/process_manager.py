@@ -3641,6 +3641,11 @@ class HordeWorkerProcessManager:
         if len(models_to_remove) > 0:
             models = models.difference(models_to_remove)
 
+        if self.bridge_data.custom_models is not None and len(self.bridge_data.custom_models) > 0:
+            logger.debug("Custom models are enabled, adding them to the list of models to pop")
+            custom_model_names = {model["name"] for model in self.bridge_data.custom_models}
+            models.update(custom_model_names)
+
         if len(models) == 0:
             logger.debug("Not eligible to pop a job yet")
             return

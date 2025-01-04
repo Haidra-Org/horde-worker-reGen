@@ -4210,19 +4210,8 @@ class HordeWorkerProcessManager:
 
             if self._queue_deadlock_model is not None:
                 logger.debug(f"Model causing deadlock: {self._queue_deadlock_model}")
-                if self._queue_deadlock_process_id is not None:
-                    self._horde_model_map.expire_entry(self._queue_deadlock_model)
-                    self._replace_inference_process(self._process_map[self._queue_deadlock_process_id])
             else:
                 logger.warning("Queue deadlock detected but no model causing it.")
-                num_processes_replaced = 0
-                # We're going to replace up to two process which aren't busy
-                for process in self._process_map.values():
-                    if not process.is_process_busy():
-                        self._replace_inference_process(process)
-                        num_processes_replaced += 1
-                    if num_processes_replaced >= 2:
-                        break
 
             self._in_queue_deadlock = False
             self._queue_deadlock_model = None
@@ -4242,12 +4231,7 @@ class HordeWorkerProcessManager:
             and (self._last_deadlock_detected_time + 10) < time.time()
             and self._process_map.num_busy_processes() == 0
         ):
-            if self.bridge_data.exit_on_unhandled_faults:
-                logger.error("Exiting due to exit_on_unhandled_faults being enabled")
-                self._abort()
-            else:
-                logger.debug("Deadlock still detected after 10 seconds. Attempting to recover.")
-                self._purge_jobs()
+            logger.debug("Deadlock still detected after 10 seconds.")
 
             self._in_deadlock = False
         elif (
@@ -4255,7 +4239,7 @@ class HordeWorkerProcessManager:
             and (self._last_deadlock_detected_time + 5) < time.time()
             and self._process_map.num_busy_processes() > 0
         ):
-            logger.debug("Deadlock was likely false-alarm. Ignoring.")
+            logger.debug("Deadlock was likely false-alarm.")
             self._in_deadlock = False
 
     def print_status_method(self) -> None:
@@ -4728,16 +4712,21 @@ class HordeWorkerProcessManager:
             time.sleep(self.bridge_data.preload_timeout)
             self._recently_recovered = False
 
-        # If every process hasn't done anything for a while or if we haven't submitted a job for a while,
-        # AND the last job pop returned a job, we're in a black hole and we need to exit because none of the ways to
-        # recover worked
-        if (
-            all(
-                ((now - process_info.last_received_timestamp) > self.bridge_data.process_timeout)
-                for process_info in self._process_map.values()
-            )
-            or ((now - self._last_job_submitted_time) > self.bridge_data.process_timeout)
-        ) and not (self._last_pop_no_jobs_available or self._recently_recovered):
+        # If all processes haven't done sent a message for a while
+        all_processes_timed_out = all(
+            ((now - process_info.last_received_timestamp) > self.bridge_data.process_timeout)
+            for process_info in self._process_map.values()
+        )
+
+        # If we haven't submitted a job for a while
+        no_jobs_submitted_when_expected = (now - self._last_job_submitted_time) > self.bridge_data.process_timeout
+
+        # If all processes are unresponsive or there are no jobs submitted when expected
+        # we should replace all processes *except* if we've already done so recently
+        # or the last job pop was a "no jobs available" response
+        if (all_processes_timed_out or no_jobs_submitted_when_expected) and not (
+            self._last_pop_no_jobs_available or self._recently_recovered
+        ):
             self._purge_jobs()
 
             if self.bridge_data.exit_on_unhandled_faults:

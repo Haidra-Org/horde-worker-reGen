@@ -50,7 +50,7 @@ class reGenBridgeData(CombinedHordeBridgeData):
     unload_models_from_vram_often: bool = Field(default=True)
     """If true, models will be unloaded from VRAM more often."""
 
-    process_timeout: int = Field(default=900)
+    process_timeout: int = Field(default=300)
     """The maximum amount of time to allow a job to run before it is killed"""
 
     post_process_timeout: int = Field(default=60, ge=15)
@@ -120,6 +120,33 @@ class reGenBridgeData(CombinedHordeBridgeData):
             logger.warning(
                 "The queue_size value has been set to 3 because the max_threads value is 2.",
             )
+
+        if self.high_performance_mode:
+            process_timeout_changed_message = (
+                "High performance mode is enabled, so the process_timeout value has "
+                f"been set to 1/3 of the default value. The new value is {self.process_timeout}."
+            )
+            default_process_timeout = self.model_fields["process_timeout"].default
+
+            if self.process_timeout == default_process_timeout:
+                logger.debug(*process_timeout_changed_message)
+            else:
+                logger.warning(*process_timeout_changed_message)
+
+            self.process_timeout = default_process_timeout // 3
+        elif self.moderate_performance_mode:
+            process_timeout_changed_message = (
+                "Moderate performance mode is enabled, so the process_timeout value has "
+                f"been set to 1/2 of the default value. The new value is {self.process_timeout}."
+            )
+            default_process_timeout = self.model_fields["process_timeout"].default
+
+            if self.process_timeout == default_process_timeout:
+                logger.debug(*process_timeout_changed_message)
+            else:
+                logger.warning(*process_timeout_changed_message)
+
+            self.process_timeout = default_process_timeout // 2
 
         if self.extra_slow_worker:
             if self.high_performance_mode:

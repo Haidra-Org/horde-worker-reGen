@@ -1075,6 +1075,17 @@ class HordeWorkerProcessManager:
     _completed_jobs_lock: Lock_Asyncio
     """The asyncio lock for the completed jobs queue."""
 
+    @property
+    def num_jobs_total(self) -> int:
+        """The total number of jobs that have been processed."""
+        return (
+            len(self.jobs_pending_inference)
+            + len(self.jobs_in_progress)
+            + len(self.jobs_pending_safety_check)
+            + len(self.jobs_being_safety_checked)
+            + len(self.jobs_pending_submit)
+        )
+
     kudos_generated_this_session: float = 0
     """The amount of kudos generated this entire session."""
     kudos_events: list[tuple[float, float]]
@@ -4327,12 +4338,10 @@ class HordeWorkerProcessManager:
 
             logger.info(f"Active models: {active_models}")
 
-            num_jobs_safety_checking = len(self.jobs_pending_safety_check)
-            num_jobs_safety_checking += len(self.jobs_being_safety_checked)
-
             job_info_message = "Session job info: " + " | ".join(
                 [
                     f"pending start: {len(self.jobs_pending_inference)} (eMPS: {self.get_pending_megapixelsteps()})",
+                    f"total jobs: {self.num_jobs_total}",
                     f"submitted: {self.total_num_completed_jobs}",
                     f"faulted: {self._num_jobs_faulted}",
                     f"slow_jobs: {self._num_job_slowdowns}",

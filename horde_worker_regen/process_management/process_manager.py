@@ -148,7 +148,7 @@ class HordeProcessInfo:
     """Last time we updated the process info. If we're regularly working, then this value should change frequently."""
     loaded_horde_model_name: str | None
     """The name of the horde model that is (supposedly) currently loaded in this process."""
-    loaded_horde_model_baseline: STABLE_DIFFUSION_BASELINE_CATEGORY | None
+    loaded_horde_model_baseline: STABLE_DIFFUSION_BASELINE_CATEGORY | str | None
     """The baseline of the horde model that is (supposedly) currently loaded in this process."""
     last_control_flag: HordeControlFlag | None
     """The last control flag sent, to avoid duplication."""
@@ -445,7 +445,7 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         self,
         process_id: int,
         horde_model_name: str | None,
-        horde_model_baseline: STABLE_DIFFUSION_BASELINE_CATEGORY | None = None,
+        horde_model_baseline: STABLE_DIFFUSION_BASELINE_CATEGORY | str | None = None,
         last_job_referenced: ImageGenerateJobPopResponse | None = None,
     ) -> None:
         """Update the model load state for the given process ID.
@@ -1132,6 +1132,16 @@ class HordeWorkerProcessManager:
 
     stable_diffusion_reference: StableDiffusion_ModelReference | None
     """The class which contains the list of models from horde_model_reference."""
+
+    def get_model_baseline(self, model_name: str) -> STABLE_DIFFUSION_BASELINE_CATEGORY | str | None:
+        """Return the baseline of the model."""
+        if self.stable_diffusion_reference is None:
+            return None
+
+        if model_name not in self.stable_diffusion_reference.root:
+            return None
+
+        return self.stable_diffusion_reference.root[model_name].baseline
 
     horde_client_session: AIHordeAPIAsyncClientSession
     """The context manager for the horde sdk client."""
@@ -1896,9 +1906,7 @@ class HordeWorkerProcessManager:
                     process_id=message.process_id,
                 )
 
-                model_baseline: STABLE_DIFFUSION_BASELINE_CATEGORY | None = None
-                if message.horde_model_name in self.stable_diffusion_reference.root:
-                    model_baseline = self.stable_diffusion_reference.root[message.horde_model_name].baseline
+                model_baseline = self.get_model_baseline(message.horde_model_name)
 
                 self._process_map.on_model_load_state_change(
                     process_id=message.process_id,
@@ -2235,9 +2243,7 @@ class HordeWorkerProcessManager:
                     process_id=available_process.process_id,
                 )
 
-                model_baseline: STABLE_DIFFUSION_BASELINE_CATEGORY | None = None
-                if job.model in self.stable_diffusion_reference.root:
-                    model_baseline = self.stable_diffusion_reference.root[job.model].baseline
+                model_baseline = self.get_model_baseline(job.model)
 
                 self._process_map.on_model_load_state_change(
                     process_id=available_process.process_id,
@@ -2313,9 +2319,7 @@ class HordeWorkerProcessManager:
                 if process_with_model is not None:
                     logger.debug(f"Clearing process {process_with_model.process_id} of model {job.model}")
 
-                    horde_model_baseline: STABLE_DIFFUSION_BASELINE_CATEGORY | None = None
-                    if job.model in self.stable_diffusion_reference.root:
-                        horde_model_baseline = self.stable_diffusion_reference.root[job.model].baseline
+                    horde_model_baseline = self.get_model_baseline(job.model)
 
                     self._process_map.on_model_load_state_change(
                         process_id=process_with_model.process_id,

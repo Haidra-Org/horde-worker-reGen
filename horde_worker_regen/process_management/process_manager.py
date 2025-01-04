@@ -1133,8 +1133,7 @@ class HordeWorkerProcessManager:
 
     stable_diffusion_reference: StableDiffusion_ModelReference | None
     """The class which contains the list of models from horde_model_reference."""
-    horde_client: AIHordeAPIAsyncSimpleClient
-    """The horde sdk client to make api calls."""
+
     horde_client_session: AIHordeAPIAsyncClientSession
     """The context manager for the horde sdk client."""
 
@@ -3259,8 +3258,6 @@ class HordeWorkerProcessManager:
                 self.jobs_lookup.pop(completed_job_info.sdk_api_job_info)
                 logger.debug(f"Removed {completed_job_info.sdk_api_job_info.id_} from jobs_lookup")
 
-        await asyncio.sleep(self._api_call_loop_interval)
-
     # _testing_max_jobs = 10000
     # _testing_jobs_added = 0
     # _testing_job_queue_length = 1
@@ -4021,6 +4018,7 @@ class HordeWorkerProcessManager:
         finally:
             if self._user_info_failed:
                 logger.debug(f"Failed to get user info: {self._user_info_failed_reason}")
+                logger.error("The server failed to respond. Is the horde or your internet down?")
             await logger.complete()
 
     _job_submit_loop_interval = 0.02
@@ -4043,45 +4041,32 @@ class HordeWorkerProcessManager:
     async def _api_call_loop(self) -> None:
         """Run the API call loop for popping jobs and doing miscellaneous API calls."""
         logger.debug("In _api_call_loop")
-        self._aiohttp_client_session = ClientSession(requote_redirect_url=False)
-        async with self._aiohttp_client_session as aiohttp_session:
-            self.horde_client_session = AIHordeAPIAsyncClientSession(aiohttp_session=aiohttp_session)
-            self.horde_client = AIHordeAPIAsyncSimpleClient(
-                aiohttp_session=None,
-                horde_client_session=self.horde_client_session,
-            )
-            async with self.horde_client_session:
-                while True:
-                    with logger.catch():
-                        try:
-                            if self._user_info_failed:
-                                await asyncio.sleep(5)
 
-                            tasks = [
-                                asyncio.create_task(self.api_job_pop()),
-                            ]
+        while True:
+            with logger.catch():
+                try:
+                    await self.api_job_pop()
 
-                            if self._last_get_user_info_time + self._api_get_user_info_interval < time.time():
-                                self._last_get_user_info_time = time.time()
-                                tasks.append(asyncio.create_task(self.api_get_user_info()))
+                    if self.is_time_for_shutdown():
+                        break
+                except CancelledError:
+                    self._shutting_down = True
 
-                            if len(tasks) > 0:
-                                results = await asyncio.gather(*tasks, return_exceptions=True)
+            await asyncio.sleep(self._api_call_loop_interval)
 
-                                # Print all exceptions
-                                for result in results:
-                                    if isinstance(result, Exception):
-                                        logger.exception(f"Exception in api call loop: {result}")
+    async def _api_get_user_info_loop(self) -> None:
+        """Run the API get user info loop."""
+        logger.debug("In _api_get_user_info_loop")
+        while True:
+            with logger.catch():
+                try:
+                    await self.api_get_user_info()
+                    if self.is_time_for_shutdown():
+                        break
+                except CancelledError:
+                    self._shutting_down = True
 
-                                if self._user_info_failed:
-                                    logger.error("The server failed to respond. Is the horde or your internet down?")
-
-                            if self.is_time_for_shutdown():
-                                break
-                        except CancelledError:
-                            self._shutting_down = True
-
-                    await asyncio.sleep(self._api_call_loop_interval)
+            await asyncio.sleep(self._api_get_user_info_interval)
 
     _status_message_frequency = 20.0
     """The rate in seconds at which to print status messages with details about the current state of the worker."""
@@ -4605,7 +4590,11 @@ class HordeWorkerProcessManager:
         if bridge_data_loop is not None:
             tasks.append(bridge_data_loop)
 
-        await asyncio.gather(*tasks)
+        self._aiohttp_client_session = ClientSession(requote_redirect_url=False)
+        self.horde_client_session = AIHordeAPIAsyncClientSession(aiohttp_session=self._aiohttp_client_session)
+
+        async with self.horde_client_session, self._aiohttp_client_session:
+            await asyncio.gather(*tasks)
 
     _caught_sigints = 0
     """The number of SIGINTs or SIGTERMs caught."""

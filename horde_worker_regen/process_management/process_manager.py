@@ -1902,10 +1902,6 @@ class HordeWorkerProcessManager:
 
                 if message.horde_model_state == ModelLoadState.LOADING:
                     logger.debug(f"Process {message.process_id} is loading model {message.horde_model_name}")
-                    self._process_map.on_model_load_state_change(
-                        process_id=message.process_id,
-                        horde_model_name=message.horde_model_name,
-                    )
 
                 # If the model was just loaded, so update the process map and log a message with the time it took
                 if (

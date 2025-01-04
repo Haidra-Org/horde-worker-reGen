@@ -228,6 +228,7 @@ class HordeProcessInfo:
             or self.last_process_state == HordeProcessState.DOWNLOADING_MODEL
             or self.last_process_state == HordeProcessState.DOWNLOADING_AUX_MODEL
             or self.last_process_state == HordeProcessState.PRELOADING_MODEL
+            or self.last_process_state == HordeProcessState.PRELOADED_MODEL
             or self.last_process_state == HordeProcessState.JOB_RECEIVED
             or self.last_process_state == HordeProcessState.EVALUATING_SAFETY
             or self.last_process_state == HordeProcessState.PROCESS_STARTING
@@ -749,6 +750,14 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         count = 0
         for p in self.values():
             if p.last_process_state == HordeProcessState.PRELOADING_MODEL:
+                count += 1
+        return count
+
+    def num_preloaded_processes(self) -> int:
+        """Return the number of processes that have preloaded models."""
+        count = 0
+        for p in self.values():
+            if p.last_process_state == HordeProcessState.PRELOADED_MODEL:
                 count += 1
         return count
 
@@ -1411,6 +1420,10 @@ class HordeWorkerProcessManager:
     def is_free_inference_process_available(self) -> bool:
         """Return true if there is an inference process available which can accept a job."""
         return self._process_map.num_available_inference_processes() > 0
+
+    def is_any_model_preloaded(self) -> bool:
+        """Return true if any model is preloaded."""
+        return self._process_map.num_preloaded_processes() > 0
 
     def has_queued_jobs(self) -> bool:
         """Return true if there are any jobs not already in progress but are popped."""
@@ -4037,7 +4050,13 @@ class HordeWorkerProcessManager:
                         async with self._jobs_safety_check_lock:
                             self.start_evaluate_safety()
 
-                    if self.is_free_inference_process_available() and len(self.jobs_pending_inference) > 0:
+                    free_process_or_model_loaded = (
+                        self.is_free_inference_process_available() or self.is_any_model_preloaded()
+                    )
+
+                    if free_process_or_model_loaded and len(self.jobs_pending_inference) > 0:
+                        # Theres a job pending inference and a process available to
+                        # preload the model or start inference
                         async with (
                             self._jobs_lookup_lock,
                             self._jobs_pending_inference_lock,

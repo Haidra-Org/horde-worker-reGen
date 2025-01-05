@@ -2140,6 +2140,21 @@ class HordeWorkerProcessManager:
             if model.horde_model_load_state.is_loaded() or model.horde_model_load_state == ModelLoadState.LOADING
         )
 
+        pending_models = {job.model for job in self.jobs_pending_inference}
+        for process in self._process_map.values():
+            if (
+                process.last_process_state == HordeProcessState.PRELOADED_MODEL
+                and process.loaded_horde_model_name not in pending_models
+            ):
+                logger.debug(
+                    f"Clearing preloaded model {process.loaded_horde_model_name} "
+                    f"from process {process.process_id} as it is no longer needed",
+                )
+                self._process_map.on_process_state_change(
+                    process_id=process.process_id,
+                    new_state=HordeProcessState.WAITING_FOR_JOB,
+                )
+
         # logger.debug(f"Loaded models: {loaded_models}, queued: {queued_models}")
         # Starting from the left of the deque, preload models that are not yet loaded up to the
         # number of inference processes that are available

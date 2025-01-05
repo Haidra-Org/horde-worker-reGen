@@ -483,13 +483,9 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         Args:
             process_id (int): The ID of the process to update.
         """
-        self.on_model_load_state_change(
-            process_id=process_id,
-            horde_model_name=None,
-            horde_model_baseline=None,
-            last_job_referenced=None,
-        )
-
+        self[process_id].loaded_horde_model_name = None
+        self[process_id].loaded_horde_model_baseline = None
+        self[process_id].last_job_referenced = None
         self[process_id].recently_unloaded_from_ram = True
         self[process_id].last_received_timestamp = time.time()
 
@@ -4210,11 +4206,8 @@ class HordeWorkerProcessManager:
                         self.receive_and_handle_process_messages()
                         self.replace_hung_processes()
                         self._replace_all_safety_process()
-                        if self._safety_processes_should_be_replaced:
-                            await asyncio.sleep(self._loop_interval / 2)
-                            self._replace_all_safety_process()
 
-                    self.unload_models()
+                        self.unload_models()
 
                     is_job_and_one_inference_process = (
                         len(self.jobs_pending_inference) >= 1

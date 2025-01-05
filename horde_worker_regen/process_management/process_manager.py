@@ -4093,6 +4093,8 @@ class HordeWorkerProcessManager:
                 if self.stable_diffusion_reference is None:
                     return
                 with logger.catch(reraise=True):
+                    await asyncio.sleep(self._loop_interval / 2)
+
                     async with (
                         self._jobs_lookup_lock,
                         self._jobs_pending_inference_lock,

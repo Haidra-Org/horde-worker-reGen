@@ -4178,6 +4178,10 @@ class HordeWorkerProcessManager:
                                             == STABLE_DIFFUSION_BASELINE_CATEGORY.stable_diffusion_xl
                                             and next_workflow in KNOWN_SLOW_WORKFLOWS
                                         )
+
+                                        if next_model in VRAM_HEAVY_MODELS:
+                                            next_job_heavy_model_and_workflow = True
+
                                 keep_single_inference, single_inf_reason = self._process_map.keep_single_inference(
                                     stable_diffusion_model_reference=self.stable_diffusion_reference,
                                     post_process_job_overlap=self.bridge_data.post_process_job_overlap,

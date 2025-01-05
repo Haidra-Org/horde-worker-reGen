@@ -138,10 +138,10 @@ class LogConsoleRewriter(io.StringIO):
         for old, new in replacements:
             message = message.replace(old, new)
 
-        # pattern = r"\[36m(\d+)"
-        # replacement = ""
+        pattern = r"\[36m(\d+)"
+        replacement = ""
 
-        # message = re.sub(pattern, replacement, message)
+        message = re.sub(pattern, replacement, message)
 
         if sys.__stdout__ is None:
             raise ValueError("sys.__stdout__ is None!")

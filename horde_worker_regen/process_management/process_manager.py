@@ -616,20 +616,14 @@ class ProcessMap(dict[int, HordeProcessInfo]):
                     continue
 
                 if model_info.baseline == STABLE_DIFFUSION_BASELINE_CATEGORY.stable_diffusion_xl and (
-                    p.can_accept_job()
-                    or p.last_process_state == HordeProcessState.PRELOADING_MODEL
-                    or p.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING
+                    p.can_accept_job() or p.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING
                 ):
                     return True, "ControlNet XL"
 
-            if (
-                p.can_accept_job()
-                or p.last_process_state == HordeProcessState.PRELOADING_MODEL
-                or (
-                    p.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING
-                    and not post_process_job_overlap
-                )
-            ):
+            if p.last_process_state == HordeProcessState.INFERENCE_POST_PROCESSING and not post_process_job_overlap:
+                return True, "Post processing overlap"
+
+            if p.can_accept_job():
                 continue
 
         return False, "None"

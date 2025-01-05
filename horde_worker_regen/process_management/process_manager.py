@@ -586,7 +586,7 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         """
         for p in self.values():
             # We only parallelizing if we have a currently running inference with n_iter > 1
-            if p.batch_amount > 1:
+            if p.batch_amount > 1 and p.last_process_state == HordeProcessState.INFERENCE_STARTING:
                 return True, "Batched job"
 
             if (

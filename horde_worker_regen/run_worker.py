@@ -13,9 +13,9 @@ import io
 import multiprocessing
 import os
 import time
-import regex as re
 from multiprocessing.context import BaseContext
 
+import regex as re
 from loguru import logger
 
 

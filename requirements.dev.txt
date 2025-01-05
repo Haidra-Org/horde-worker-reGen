@@ -25,3 +25,4 @@ types-psutil
 types-pywin32
 types-tabulate
 types-tqdm
+types-regex

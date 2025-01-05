@@ -139,7 +139,7 @@ class LogConsoleRewriter(io.StringIO):
             message = message.replace(old, new)
 
         pattern = r"\[36m(\d+)"
-        replacement = r"\[36m"
+        replacement = ""
 
         message = re.sub(pattern, replacement, message)
 

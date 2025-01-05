@@ -33,6 +33,7 @@ repos:
         - types-pywin32
         - types-tabulate
         - types-tqdm
+        - types-regex
         - pytest
         - loguru
         - python-dotenv

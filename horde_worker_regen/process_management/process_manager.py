@@ -4777,6 +4777,9 @@ class HordeWorkerProcessManager:
         self._hard_kill_processes()
         self._start_timed_shutdown()
 
+    _hung_processes_detected = False
+    _hung_processes_detected_time = 0.0
+
     def replace_hung_processes(self) -> bool:
         """Replaces processes that haven't checked in since `process_timeout` seconds in bridgeData."""
         if self._shutting_down:
@@ -4836,9 +4839,19 @@ class HordeWorkerProcessManager:
             ((now - process_info.last_received_timestamp) > self.bridge_data.process_timeout)
             for process_info in self._process_map.values()
         )
+
         # If all processes are unresponsive o we should replace all processes
         # *except* if we've already done so recently or the last job pop was a "no jobs available" response
         if all_processes_timed_out and not (self._last_pop_no_jobs_available or self._recently_recovered):
+            if not self._hung_processes_detected:
+                self._hung_processes_detected = True
+                self._hung_processes_detected_time = now
+
+            last_detected_delta = now - self._hung_processes_detected_time
+
+            if last_detected_delta < 20:
+                return False
+
             self._purge_jobs()
 
             if self.bridge_data.exit_on_unhandled_faults:
@@ -4857,6 +4870,8 @@ class HordeWorkerProcessManager:
                     self._replace_inference_process(process_info)
 
             threading.Thread(target=timed_unset_recently_recovered).start()
+        else:
+            self._hung_processes_detected = False
 
         if any_replaced:
             threading.Thread(target=timed_unset_recently_recovered).start()

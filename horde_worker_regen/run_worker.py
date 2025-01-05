@@ -13,6 +13,7 @@ import io
 import multiprocessing
 import os
 import time
+import regex as re
 from multiprocessing.context import BaseContext
 
 from loguru import logger
@@ -120,12 +121,27 @@ class LogConsoleRewriter(io.StringIO):
     def write(self, message: str) -> int:
         """Rewrite the message to make it more readable where possible."""
         replacements = [
-            ("horde_worker_regen.process_management.process_manager", "[HWRPM]"),
+            ("horde_worker_regen.process_management.process_manager", "*"),
             ("horde_worker_regen.", "[HWR]"),
+            ("print_status_method", ""),
+            ("receive_and_handle_process_messages", "[ % ]"),
+            ("print_status_method", "[ i ]"),
+            ("start_inference_process", "[SIP]"),
+            ("start_safety_process", "[SSP]"),
+            ("start_inference", "[ % ]   "),
+            ("log_kudos_info", "[ i ]"),
+            ("submit_single_generation", "[ - ]"),
+            ("preload_models", "[ % ] "),
+            ("api_job_pop", "[ + ]"),
         ]
 
         for old, new in replacements:
             message = message.replace(old, new)
+
+        pattern = r"\[36m(\d+)"
+        replacement = ""
+
+        message = re.sub(pattern, replacement, message)
 
         if sys.__stdout__ is None:
             raise ValueError("sys.__stdout__ is None!")

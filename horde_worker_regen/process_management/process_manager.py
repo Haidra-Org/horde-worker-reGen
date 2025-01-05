@@ -2772,7 +2772,17 @@ class HordeWorkerProcessManager:
             ),
         )
 
+        safety_process = self._process_map.get_safety_process()
         if not safety_message_sent_succeeded:
+            if safety_process is None:
+                return
+
+            if (
+                not safety_process.is_process_alive()
+                or safety_process.last_process_state == HordeProcessState.PROCESS_STARTING
+            ):
+                return
+
             logger.error(f"Failed to start safety evaluation for job {completed_job_info.sdk_api_job_info.id_}")
             self._safety_processes_should_be_replaced = True
             if len(self.jobs_being_safety_checked) > 0:

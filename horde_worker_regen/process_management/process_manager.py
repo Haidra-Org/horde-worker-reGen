@@ -2269,6 +2269,8 @@ class HordeWorkerProcessManager:
     _model_recently_missing = False
     _model_recently_missing_time = 0.0
 
+    _skipped_line_next_job_and_process: NextJobAndProcess | None = None
+
     def get_next_job_and_process(
         self,
         information_only: bool = False,
@@ -2278,6 +2280,9 @@ class HordeWorkerProcessManager:
         Returns:
             NextJobAndProcess if a job can be started, None otherwise.
         """
+        if self._skipped_line_next_job_and_process is not None:
+            return self._skipped_line_next_job_and_process
+
         next_job: ImageGenerateJobPopResponse | None = None
         next_n_jobs: list[ImageGenerateJobPopResponse] = []
         for job in self.jobs_pending_inference:
@@ -2389,11 +2394,13 @@ class HordeWorkerProcessManager:
                         if (
                             candidate_process_with_model is not None
                             and self.get_single_job_effective_megapixelsteps(candidate_small_job) <= candidate_job_size
+                            and candidate_process_with_model.can_accept_job()
                         ):
                             skipped_line = True
                             skipped_line_for = next_job
 
                             next_job = candidate_small_job
+                            self._skipped_line_job = next_job
                             process_with_model = candidate_process_with_model
                             break
                 else:
@@ -2403,12 +2410,17 @@ class HordeWorkerProcessManager:
 
         self._model_recently_missing = False
 
-        return NextJobAndProcess(
+        next_job_and_process = NextJobAndProcess(
             next_job=next_job,
             process_with_model=process_with_model,
             skipped_line=skipped_line,
             skipped_line_for=skipped_line_for,
         )
+
+        if skipped_line:
+            self._skipped_line_next_job_and_process = next_job_and_process
+
+        return next_job_and_process
 
     def start_inference(self) -> None:
         """Start inference for the next job in jobs_pending_inference, if possible."""
@@ -2505,6 +2517,8 @@ class HordeWorkerProcessManager:
                 f"Failed to start inference for job {next_job.id_} on process {process_with_model.process_id}",
             )
             self.handle_job_fault(faulted_job=next_job, process_info=process_with_model)
+
+        self._skipped_line_next_job_and_process = None
 
     def unload_models_from_vram(
         self,
@@ -3317,6 +3331,12 @@ class HordeWorkerProcessManager:
         else:
             if faulted_job in self.jobs_pending_inference:
                 self.jobs_pending_inference.remove(faulted_job)
+
+            if (
+                self._skipped_line_next_job_and_process is not None
+                and faulted_job.model == self._skipped_line_next_job_and_process.next_job.model
+            ):
+                self._skipped_line_next_job_and_process = None
 
             job_info.fault_job()
             job_info.time_to_generate = self.bridge_data.process_timeout
@@ -4690,6 +4710,10 @@ class HordeWorkerProcessManager:
         if len(self.jobs_pending_submit) > 0:
             self.jobs_pending_submit.clear()
             logger.error("Cleared completed jobs")
+
+        if self._skipped_line_next_job_and_process is not None:
+            self._skipped_line_next_job_and_process = None
+            logger.error("Cleared skipped line next job and process")
 
     def _hard_kill_processes(
         self,

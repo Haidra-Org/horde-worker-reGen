@@ -2457,9 +2457,9 @@ class HordeWorkerProcessManager:
         if next_job.model is None:
             raise ValueError(f"next_job.model is None ({next_job})")
 
-        logger.info(f"Model: {next_job.model}")
+        logger.info(f"  Model: {next_job.model}")
         if next_job.source_image is not None:
-            logger.info(f"Using {next_job.source_processing}")
+            logger.info(f"  Using {next_job.source_processing}")
 
         extra_info = ""
         if next_job.payload.control_type is not None:
@@ -2487,10 +2487,10 @@ class HordeWorkerProcessManager:
             extra_info += f"Workflow: {next_job.payload.workflow}"
 
         if extra_info:
-            logger.info(extra_info)
+            logger.info("  " + extra_info)
 
         logger.info(
-            f"{next_job.payload.width}x{next_job.payload.height} for {next_job.payload.ddim_steps} steps "
+            f"  {next_job.payload.width}x{next_job.payload.height} for {next_job.payload.ddim_steps} steps "
             f"with sampler {next_job.payload.sampler_name} "
             f"for a batch of {next_job.payload.n_iter}",
         )
@@ -4369,6 +4369,7 @@ class HordeWorkerProcessManager:
         cur_time = time.time()
         if cur_time - self._last_status_message_time > self._status_message_frequency:
             process_info_strings = self._process_map.get_process_info_strings()
+            logger.info("-" * 80)
             logger.info("Process info:")
             for process_info_string in process_info_strings:
                 logger.info(process_info_string)
@@ -4538,6 +4539,7 @@ class HordeWorkerProcessManager:
                 self._status_message_frequency = 5.0
 
             self._last_status_message_time = cur_time
+            logger.info("-" * 80)
 
     _bridge_data_loop_interval = 1.0
     """The interval between bridge data loop iterations."""

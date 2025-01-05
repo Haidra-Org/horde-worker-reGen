@@ -2692,10 +2692,10 @@ class HordeWorkerProcessManager:
                 ):
                     continue
 
-                if process_info.loaded_horde_model_name in self.jobs_pending_inference:
-                    # logger.debug(
-                    # f"Model {process_info.loaded_horde_model_name} is in use by another process, not unloading",
-                    # )
+                if (
+                    process_info.loaded_horde_model_name in self.jobs_pending_inference
+                    or process_info.loaded_horde_model_name in self.jobs_in_progress
+                ):
                     continue
 
             self.unload_from_ram(process_info.process_id)

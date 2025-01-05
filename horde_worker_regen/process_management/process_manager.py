@@ -1242,6 +1242,9 @@ class HordeWorkerProcessManager:
         self.session_start_time = time.time()
 
         self.bridge_data = bridge_data
+        logger.debug(f"Models to load: {bridge_data.image_models_to_load}")
+        logger.debug(f"Custom Models to load: {bridge_data.custom_models}")
+
         self.horde_model_reference_manager = horde_model_reference_manager
 
         self._process_map = ProcessMap({})
@@ -4571,6 +4574,8 @@ class HordeWorkerProcessManager:
                 logger.warning(
                     f"max_threads in {BRIDGE_CONFIG_FILENAME} cannot be changed while the worker is running.",
                 )
+            logger.debug(f"Models to load: {self.bridge_data.image_models_to_load}")
+            logger.debug(f"Custom models: {self.bridge_data.custom_models}")
         except Exception as e:
             logger.debug(e)
 

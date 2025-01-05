@@ -4184,10 +4184,8 @@ class HordeWorkerProcessManager:
                                     post_process_job_overlap=self.bridge_data.post_process_job_overlap,
                                 )
 
-                                if (
-                                    keep_single_inference
-                                    and len(self.jobs_pending_inference) > 0
-                                    and len(self.jobs_in_progress) > 0
+                                if keep_single_inference and (
+                                    (len(self.jobs_pending_inference) + len(self.jobs_in_progress)) > 1
                                 ):
                                     if (
                                         time.time() - self._batch_wait_log_time > 10

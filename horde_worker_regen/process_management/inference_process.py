@@ -705,7 +705,13 @@ class HordeInferenceProcess(HordeProcess):
             )
         elif isinstance(message, HordeInferenceControlMessage):
             if message.control_flag == HordeControlFlag.START_INFERENCE:
-                if self._active_model_name is None:
+                if self._active_model_name is None or message.horde_model_name != self._active_model_name:
+                    if message.horde_model_name != self._active_model_name:
+                        logger.warning(
+                            f"Received START_INFERENCE control message for model {message.horde_model_name} "
+                            f"but currently active model is {self._active_model_name}",
+                        )
+
                     self.preload_model(
                         horde_model_name=message.horde_model_name,
                         will_load_loras=message.sdk_api_job_info.payload.loras is not None

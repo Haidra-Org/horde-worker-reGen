@@ -1831,6 +1831,9 @@ class HordeWorkerProcessManager:
 
             # If the process state has changed, update the process map
             if isinstance(message, HordeProcessStateChangeMessage):
+                if self._process_map[message.process_id].last_process_state == message.process_state:
+                    continue
+
                 self._process_map.on_process_state_change(
                     process_id=message.process_id,
                     new_state=message.process_state,

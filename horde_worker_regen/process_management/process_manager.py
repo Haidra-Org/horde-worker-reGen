@@ -2702,7 +2702,7 @@ class HordeWorkerProcessManager:
                 ):
                     continue
 
-            self.unload_from_ram(process_info.process_id)
+                self.unload_from_ram(process_info.process_id)
 
     def start_evaluate_safety(self) -> None:
         """Start evaluating the safety of the next job pending a safety check, if any."""

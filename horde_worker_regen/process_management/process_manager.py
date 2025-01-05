@@ -2610,6 +2610,7 @@ class HordeWorkerProcessManager:
         if process_info.loaded_horde_model_name is not None and self._horde_model_map.is_model_loaded(
             process_info.loaded_horde_model_name,
         ):
+            logger.debug(f"Unloading model {process_info.loaded_horde_model_name} from RAM on process {process_id}")
             process_info.safe_send_message(
                 HordeControlModelMessage(
                     control_flag=HordeControlFlag.UNLOAD_MODELS_FROM_RAM,
@@ -2632,11 +2633,14 @@ class HordeWorkerProcessManager:
                 or process_info.last_process_state == HordeProcessState.PROCESS_ENDED
             ):
                 return
+
+            logger.debug(f"Unloading all models from RAM on process {process_id}")
             process_info.safe_send_message(
                 HordeControlMessage(
                     control_flag=HordeControlFlag.UNLOAD_MODELS_FROM_RAM,
                 ),
             )
+        logger.debug(f"Clearing process {process_id} of model {process_info.loaded_horde_model_name}")
         self._process_map.on_model_ram_clear(process_id=process_id)
 
     def get_next_n_models(self, n: int) -> list[str]:

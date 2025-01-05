@@ -2512,6 +2512,10 @@ class HordeWorkerProcessManager:
 
             process_with_model.last_control_flag = HordeControlFlag.START_INFERENCE
             process_with_model.last_job_referenced = next_job
+            process_with_model.loaded_horde_model_name = next_job.model
+            horde_model_baseline = self.get_model_baseline(next_job.model)
+            process_with_model.loaded_horde_model_baseline = horde_model_baseline
+
         else:
             logger.error(
                 f"Failed to start inference for job {next_job.id_} on process {process_with_model.process_id}",

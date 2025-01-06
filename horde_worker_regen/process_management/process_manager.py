@@ -1434,6 +1434,7 @@ class HordeWorkerProcessManager:
         if all(
             inference_process.last_process_state == HordeProcessState.PROCESS_ENDING
             or inference_process.last_process_state == HordeProcessState.PROCESS_ENDED
+            or inference_process.last_process_state == HordeProcessState.PROCESS_STARTING
             for inference_process in self._process_map.get_inference_processes()
         ):
             return True

@@ -4154,7 +4154,7 @@ class HordeWorkerProcessManager:
                 if self.stable_diffusion_reference is None:
                     return
                 with logger.catch(reraise=True):
-                    await asyncio.sleep(self._loop_interval / 2)
+                    await asyncio.sleep(self._loop_interval)
 
                     async with (
                         self._jobs_lookup_lock,
@@ -4246,7 +4246,7 @@ class HordeWorkerProcessManager:
                         self._jobs_safety_check_lock,
                         self._completed_jobs_lock,
                     ):
-                        await asyncio.sleep(self._loop_interval / 2)
+                        await asyncio.sleep(self._loop_interval)
                         self.receive_and_handle_process_messages()
                         self.replace_hung_processes()
                         self._replace_all_safety_process()

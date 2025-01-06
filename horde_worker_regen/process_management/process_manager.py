@@ -3672,21 +3672,23 @@ class HordeWorkerProcessManager:
         # If there are long running jobs, don't start any more even if there is space in the deque
         if self.should_wait_for_pending_megapixelsteps():
             if self.get_pending_megapixelsteps() < 40:
-                seconds_to_wait = self.get_pending_megapixelsteps() * 0.6
+                seconds_to_wait = self.get_pending_megapixelsteps() * 0.5
             elif self.get_pending_megapixelsteps() < 80:
-                seconds_to_wait = self.get_pending_megapixelsteps() * 0.8
+                seconds_to_wait = self.get_pending_megapixelsteps() * 0.7
             else:
-                seconds_to_wait = self.get_pending_megapixelsteps() * 0.9
+                seconds_to_wait = self.get_pending_megapixelsteps() * 0.8
 
             if self.bridge_data.max_threads > 1:
                 seconds_to_wait *= 0.75
 
             if self.bridge_data.high_performance_mode:
-                seconds_to_wait *= 0.35
-                if seconds_to_wait < 25:
+                seconds_to_wait *= 0.2
+                if seconds_to_wait < 35:
                     seconds_to_wait = 1
             elif self.bridge_data.moderate_performance_mode:
-                seconds_to_wait *= 0.5
+                seconds_to_wait *= 0.4
+                if seconds_to_wait < 20:
+                    seconds_to_wait = 1
 
             if self._triggered_max_pending_megapixelsteps is False:
                 self._triggered_max_pending_megapixelsteps = True

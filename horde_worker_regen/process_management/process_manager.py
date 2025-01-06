@@ -4241,15 +4241,7 @@ class HordeWorkerProcessManager:
                         self.replace_hung_processes()
                         self._replace_all_safety_process()
 
-                    is_job_and_one_inference_process = (
-                        len(self.jobs_pending_inference) >= 1
-                        and self._process_map.num_loaded_inference_processes() == 1
-                    )
-
-                    if self._shutting_down and not self._last_pop_recently() and not is_job_and_one_inference_process:
-                        # We want to avoid too aggressively killing inference processes
-                        # while we still have jobs to process, so we'll make sure at least 1 process stays up
-                        # while we have jobs to process
+                    if self._shutting_down and not self._last_pop_recently():
                         self.end_inference_processes()
 
                     if self.is_time_for_shutdown():

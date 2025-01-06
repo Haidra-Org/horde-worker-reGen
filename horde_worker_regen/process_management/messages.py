@@ -156,6 +156,8 @@ class HordeProcessHeartbeatMessage(HordeProcessMessage):
 
     heartbeat_type: HordeHeartbeatType
     """The type of the heartbeat."""
+    process_warning: str | None = None
+    """A warning message from the process."""
 
 
 class HordeProcessStateChangeMessage(HordeProcessMessage):

@@ -143,6 +143,9 @@ class HordeProcessInfo:
     last_heartbeat_type: HordeHeartbeatType
     """The type of the last heartbeat received from this process."""
     heartbeats_inference_steps: int
+    """The number of inference steps that have been completed since the last heartbeat."""
+    last_heartbeat_percent_complete: int | None
+    """The last percentage reported by the process."""
 
     last_received_timestamp: float
     """Last time we updated the process info. If we're regularly working, then this value should change frequently."""
@@ -206,6 +209,7 @@ class HordeProcessInfo:
         self.last_heartbeat_delta = 0
         self.last_heartbeat_type = HordeHeartbeatType.OTHER
         self.heartbeats_inference_steps = 0
+        self.last_heartbeat_percent_complete = None
 
         self.last_job_referenced = None
 
@@ -345,12 +349,20 @@ class ProcessMap(dict[int, HordeProcessInfo]):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def on_heartbeat(self, process_id: int, heartbeat_type: HordeHeartbeatType) -> None:
+    def on_heartbeat(
+        self,
+        process_id: int,
+        heartbeat_type: HordeHeartbeatType,
+        *,
+        percent_complete: int | None = None,
+    ) -> None:
         """Update the heartbeat for the given process ID.
 
         Args:
             process_id (int): The ID of the process to update.
             heartbeat_type (HordeHeartbeatType): The type of the heartbeat.
+            percent_complete (int | None, optional): The percentage of the job that has been completed, \
+                if applicable. Defaults to None.
         """
         self[process_id].last_heartbeat_delta = time.time() - self[process_id].last_heartbeat_timestamp
         self[process_id].last_received_timestamp = time.time()
@@ -360,6 +372,8 @@ class ProcessMap(dict[int, HordeProcessInfo]):
             self[process_id].heartbeats_inference_steps += 1
         else:
             self[process_id].heartbeats_inference_steps = 0
+
+        self[process_id].last_heartbeat_percent_complete = percent_complete
 
     def on_process_ending(self, process_id: int) -> None:
         """Update the process map when a process has ended.
@@ -499,6 +513,7 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         self[process_id].last_heartbeat_delta = 0
         self[process_id].last_heartbeat_timestamp = time.time()
         self[process_id].heartbeats_inference_steps = 0
+        self[process_id].last_heartbeat_percent_complete = None
 
     def delete_safety_processes(self) -> None:
         """Clear all safety processes."""
@@ -789,12 +804,35 @@ class ProcessMap(dict[int, HordeProcessInfo]):
                 safe_last_control_flag = (
                     process_info.last_control_flag.name if process_info.last_control_flag is not None else None
                 )
+
+                process_state_detail = process_info.last_process_state.name
+
+                if (
+                    process_info.last_heartbeat_percent_complete is not None
+                    and process_info.last_job_referenced is not None
+                ):
+                    process_state_detail = (
+                        f"{process_info.last_heartbeat_percent_complete}% of "
+                        f"{process_info.last_job_referenced.payload.ddim_steps} steps "
+                        f"using {process_info.last_job_referenced.payload.sampler_name}"
+                    )
+                    if process_info.last_job_referenced.payload.n_iter > 1:
+                        process_state_detail += f" ({process_info.last_job_referenced.payload.n_iter}x batch)"
+
+                horde_model_name_and_baseline = (
+                    f"<u>{process_info.loaded_horde_model_name}</u> {process_info.loaded_horde_model_baseline})"
+                    if process_info.loaded_horde_model_name is not None
+                    else "No model loaded"
+                )
                 info_strings.append(
-                    f"Process {process_id} ({process_info.last_process_state.name}) "
-                    f"({process_info.loaded_horde_model_name} - {process_info.loaded_horde_model_baseline} "
-                    f"[last event: {time_passed_seconds} secs ago: {safe_last_control_flag}]",
+                    (
+                        f"Process {process_id} ({process_state_detail}) "
+                        f"({horde_model_name_and_baseline}) "
+                        f"<fg #7b7d7d>[last command: {time_passed_seconds} secs ago: {safe_last_control_flag}]</>"
+                    ),
                     # f"ram: {process_info.ram_usage_bytes} vram: {process_info.vram_usage_bytes} ",
                 )
+
             else:
                 info_strings.append(
                     f"Process {process_id}: ({process_info.process_type.name}) "
@@ -1791,10 +1829,17 @@ class HordeWorkerProcessManager:
                 self._process_map.on_heartbeat(
                     message.process_id,
                     heartbeat_type=message.heartbeat_type,
+                    percent_complete=message.percent_complete,
                 )
 
                 if message.process_warning is not None:
                     logger.warning(f"Process {message.process_id} warning: {message.process_warning}")
+
+                    model_name = self._process_map[message.process_id].loaded_horde_model_name
+                    model_baseline = self.get_model_baseline(model_name) if model_name is not None else None
+
+                    if model_baseline is not None:
+                        logger.warning(f"Model baseline triggering warning: {model_baseline}")
 
             else:
                 logger.debug(
@@ -1881,20 +1926,26 @@ class HordeWorkerProcessManager:
                     and self._process_map[message.process_id].last_process_state
                     != HordeProcessState.UNLOADED_MODEL_FROM_RAM
                 ):
-                    logger.info(f"Process {message.process_id} cleared RAM: {message.info}")
+                    logger.opt(ansi=True).info(
+                        "<fg #7b7d7d>" f"Process {message.process_id} cleared RAM: {message.info}" "</>",
+                    )
                     self._process_map.on_model_ram_clear(process_id=message.process_id)
 
             if isinstance(message, HordeAuxModelStateChangeMessage):
                 if message.process_state == HordeProcessState.DOWNLOADING_AUX_MODEL:
-                    logger.info(f"Process {message.process_id} is downloading extra models (LoRas, etc.)")
+                    logger.opt(ansi=True).info(
+                        "<fg #7b7d7d>" f"Process {message.process_id} is downloading extra models (LoRas, etc.)" "</>",
+                    )
                     self._process_map.on_last_job_reference_change(
                         process_id=message.process_id,
                         last_job_referenced=message.sdk_api_job_info,
                     )
 
                 if message.process_state == HordeProcessState.DOWNLOAD_AUX_COMPLETE:
-                    logger.info(
-                        f"Process {message.process_id} finished downloading extra models in {message.time_elapsed}",
+                    logger.opt(ansi=True).info(
+                        "<fg #7b7d7d>"
+                        f"Process {message.process_id} finished downloading extra models in {message.time_elapsed}"
+                        "</>",
                     )
                     if message.sdk_api_job_info not in self.jobs_lookup:
                         if message.sdk_api_job_info is not None:
@@ -1946,13 +1997,15 @@ class HordeWorkerProcessManager:
                             )
 
                             if message.time_elapsed is not None:
-                                # round to 2 decimal places
                                 loaded_message += f"Loading took {message.time_elapsed:.2f} seconds."
 
-                            logger.info(loaded_message)
+                            logger.opt(ansi=True).info(f"<fg #7b7d7d>{loaded_message}</>")
+
                 else:
                     # FIXME this message is wrong for download processes
-                    logger.info(f"Process {message.process_id} unloaded model {message.horde_model_name}")
+                    logger.opt(ansi=True).info(
+                        "<fg #7b7d7d>" f"Process {message.process_id} unloaded model {message.horde_model_name}" "</>",
+                    )
 
             # If the process is sending us an inference job result:
             # - if its a faulted job, log an error and add it to the list of completed jobs to be sent to the API
@@ -1996,12 +2049,17 @@ class HordeWorkerProcessManager:
                     self.unload_models_from_vram(process_with_model=self._process_map[message.process_id])
 
                 if message.time_elapsed is not None:
-                    logger.info(
-                        f"Inference finished for job {message.sdk_api_job_info.id_} ({message.sdk_api_job_info.model}) "
-                        f"on process {message.process_id}. "
+                    inference_finished_string = (
+                        "\0<fg #da9dff>"
+                        f"Inference finished for job {str(message.sdk_api_job_info.id_)[:8]} "
+                        f"<u>({message.sdk_api_job_info.model})</u> on process {message.process_id}. "
                         f"It took {round(message.time_elapsed, 2)} seconds, finishing at {message.info} "
-                        f"and reported {message.faults_count} faults.",
+                        f"and reported {message.faults_count} faults."
+                        "</>"
                     )
+
+                    logger.opt(ansi=True).info(inference_finished_string)
+
                 else:
                     logger.info(f"Inference finished for job {message.sdk_api_job_info.id_}")
                     logger.debug(f"Job didn't include time_elapsed: {message.sdk_api_job_info}")
@@ -2218,9 +2276,11 @@ class HordeWorkerProcessManager:
                 very_fast_disk_mode_enabled and max_concurrent_inference_processes_reached
             ):
                 if not self._preload_delay_notified:
-                    logger.info(
+                    logger.opt(ansi=True).info(
+                        "<fg #7b7d7d>"
                         f"Already preloading {num_preloading_processes} models, waiting for one to finish before "
-                        f"preloading {job.model}",
+                        f"preloading {job.model}"
+                        "</>",
                     )
                     self._preload_delay_notified = True
                 return False
@@ -2461,14 +2521,30 @@ class HordeWorkerProcessManager:
         if self.bridge_data.unload_models_from_vram_often:
             self.unload_models_from_vram(process_with_model)
 
-        logger.info(f"Starting inference for job {next_job.id_} on process {process_with_model.process_id}")
+        color_format_string = "<fg #f0beff>{message}</>"
+
+        logger.opt(ansi=True).info(
+            color_format_string.format(
+                message=f"Starting inference for job {str(next_job.id_)[:8]} "
+                f"on process {process_with_model.process_id}",
+            ),
+        )
+
         # region Log job info
         if next_job.model is None:
             raise ValueError(f"next_job.model is None ({next_job})")
 
-        logger.info(f"  Model: {next_job.model}")
+        logger.opt(ansi=True).info(
+            color_format_string.format(
+                message=f"  Model: {next_job.model}",
+            ),
+        )
         if next_job.source_image is not None:
-            logger.info(f"  Using {next_job.source_processing}")
+            logger.opt(ansi=True).info(
+                color_format_string.format(
+                    message="  Using source image",
+                ),
+            )
 
         extra_info = ""
         if next_job.payload.control_type is not None:
@@ -2496,13 +2572,21 @@ class HordeWorkerProcessManager:
             extra_info += f"Workflow: {next_job.payload.workflow}"
 
         if extra_info:
-            logger.info("  " + extra_info)
+            # logger.info("  " + extra_info)
+            logger.opt(ansi=True).info(
+                color_format_string.format(
+                    message=f"  {extra_info}",
+                ),
+            )
 
-        logger.info(
-            f"  {next_job.payload.width}x{next_job.payload.height} for {next_job.payload.ddim_steps} steps "
-            f"with sampler {next_job.payload.sampler_name} "
-            f"for a batch of {next_job.payload.n_iter}",
+        logger.opt(ansi=True).info(
+            color_format_string.format(
+                message=f"  {next_job.payload.width}x{next_job.payload.height} for "
+                f"{next_job.payload.ddim_steps} steps "
+                f"with sampler {next_job.payload.sampler_name} for a batch of {next_job.payload.n_iter}",
+            ),
         )
+
         logger.debug(f"All Batch IDs: {next_job.ids}")
         # endregion
 
@@ -3024,9 +3108,10 @@ class HordeWorkerProcessManager:
 
         # If the job was not faulted, log the job submission as a success
         if new_submit.completed_job_info.state != GENERATION_STATE.faulted:
-            logger.success(
-                f"Submitted job {new_submit.job_id} (model: "
-                f"{new_submit.completed_job_info.sdk_api_job_info.model}) for {job_submit_response.reward:,.2f} "
+            logger.opt(ansi=True).success(
+                f"Submitted generation {str(new_submit.job_id)[:8]} (model: "
+                f"<u>{new_submit.completed_job_info.sdk_api_job_info.model})</u> "
+                f"for {job_submit_response.reward:,.2f} "
                 f"kudos. Job popped {time_taken} seconds ago "
                 f"and took {new_submit.completed_job_info.time_to_generate:.2f} "
                 f"to generate. ({kudos_per_second * new_submit.batch_count:.2f} "
@@ -3622,6 +3707,7 @@ class HordeWorkerProcessManager:
     async def api_job_pop(self) -> None:
         """If the job deque is not full, add any jobs that are available to the job deque."""
         if self._shutting_down:
+            self._last_pop_no_jobs_available = False
             return
 
         cur_time = time.time()
@@ -3702,10 +3788,11 @@ class HordeWorkerProcessManager:
             if self._triggered_max_pending_megapixelsteps is False:
                 self._triggered_max_pending_megapixelsteps = True
                 self._triggered_max_pending_megapixelsteps_time = time.time()
-                logger.info(
-                    f"Pausing job pops for {round(seconds_to_wait, 2)} seconds so some long running jobs can make "
-                    "some progress.",
-                )
+                if seconds_to_wait > 2:
+                    logger.opt(ansi=True).info(
+                        f"<fg #7dcea0><i>Pausing job pops for {round(seconds_to_wait, 2)} seconds "
+                        "so some long running jobs can make some progress.</i></>",
+                    )
                 logger.debug(
                     f"Paused job pops for pending megapixelsteps to decrease below {self._max_pending_megapixelsteps}",
                 )
@@ -3894,11 +3981,13 @@ class HordeWorkerProcessManager:
             )
             > 0
         )
-        logger.info(
+        logger.opt(ansi=True).info(
+            "<fg #a200ff>"
             f"Popped job {job_pop_response.id_} "
             f"({self.get_single_job_effective_megapixelsteps(job_pop_response)} eMPS) "
-            f"(model: {job_pop_response.model}, batch: {job_pop_response.payload.n_iter}, ",
-            f"loras: {has_loras}, post_processing: {has_post_processing})",
+            f"(model: {job_pop_response.model}, batch: {job_pop_response.payload.n_iter}, "
+            f"loras: {has_loras}, post_processing: {has_post_processing})"
+            "</>",
         )
 
         # region TODO: move to horde_sdk
@@ -3927,7 +4016,12 @@ class HordeWorkerProcessManager:
 
         async with self._jobs_pending_inference_lock, self._job_pop_timestamps_lock:
             self.jobs_pending_inference.append(job_pop_response)
-            jobs = [f"<{x.id_}: {x.model}>" for x in self.jobs_pending_inference]
+            jobs = []
+            for job in self.jobs_pending_inference:
+                if job.id_ is not None:
+                    jobs.append(f"<{str(job.id_)[:8]}: {job.model}>")
+                else:
+                    jobs.append(f"<{job.model}>")
             logger.info(f'Job queue: {", ".join(jobs)}')
             # self._testing_jobs_added += 1
             self.job_pop_timestamps[job_pop_response] = time.time()
@@ -4046,16 +4140,24 @@ class HordeWorkerProcessManager:
             kudos_info_string (str): The kudos information string to log.
         """
         if self.kudos_generated_this_session > 0:
-            logger.success(kudos_info_string)
+            logger.opt(ansi=True).info(
+                f"<fg #7dcea0>{kudos_info_string}</>",
+            )
 
         logger.debug(f"len(kudos_events): {len(self.kudos_events)}")
         if self.user_info is not None and self.user_info.kudos_details is not None:
-            logger.info(
+            logger.opt(ansi=True).info(
+                "<fg #7dcea0>"
                 f"Total Kudos Accumulated: {self.user_info.kudos_details.accumulated:,.2f} "
-                f"(all workers for {self.user_info.username})",
+                f"(all workers for {self.user_info.username})"
+                "</>",
             )
             if self.user_info.kudos_details.accumulated is not None and self.user_info.kudos_details.accumulated < 0:
-                logger.info("Negative kudos means you've requested more than you've earned. This can be normal.")
+                logger.opt(ansi=True).info(
+                    "<fg #7dcea0>"
+                    "Negative kudos means you've requested more than you've earned. This can be normal."
+                    "</>",
+                )
 
     async def api_get_user_info(self) -> None:
         """Get the information associated with this API key from the API."""
@@ -4217,8 +4319,10 @@ class HordeWorkerProcessManager:
                                     if (
                                         time.time() - self._batch_wait_log_time > 10
                                     ) and self.bridge_data.max_threads > 1:
-                                        logger.info(
-                                            f"Blocking further inference due to {single_inf_reason}.",
+                                        logger.opt(ansi=True).info(
+                                            "<fg #7b7d7d>"
+                                            f"<i>Blocking further inference due to {single_inf_reason}.</i>"
+                                            "</>",
                                         )
                                         self._batch_wait_log_time = time.time()
 
@@ -4231,9 +4335,12 @@ class HordeWorkerProcessManager:
                                     and self._process_map.num_busy_with_inference() > 0
                                 ):
                                     if time.time() - self._batch_wait_log_time > 10:
-                                        logger.info(
-                                            f"Blocking starting batch job {next_job_and_process.next_job.id_} because "
-                                            "a thread is already busy with a heavy model/workflow or batch job.",
+                                        logger.opt(ansi=True).info(
+                                            "<fg #7b7d7d>"
+                                            f"<i>Blocking starting batch job {next_job_and_process.next_job.id_} "
+                                            "because a thread is already busy with a heavy model/workflow or batch job"
+                                            ".</i>"
+                                            "</>",
                                         )
                                         self._batch_wait_log_time = time.time()
                                 else:
@@ -4397,68 +4504,20 @@ class HordeWorkerProcessManager:
         cur_time = time.time()
         if cur_time - self._last_status_message_time > self._status_message_frequency:
             process_info_strings = self._process_map.get_process_info_strings()
-            logger.info("-" * 80)
-            logger.info("Process info:")
+            logger.opt(ansi=True).info("<fg #dddddd>" + str("^" * 80) + "</>")
+            logger.opt(ansi=True).info("<b>Process info:</b>")
             for process_info_string in process_info_strings:
-                logger.info(process_info_string)
+                logger.opt(ansi=True).info("  " + process_info_string)
 
-            max_power_dimension = int(math.sqrt(self.bridge_data.max_power * 8 * 64 * 64))
-            logger.info(
-                " | ".join(
-                    [
-                        f"dreamer_name: {self.bridge_data.dreamer_worker_name}",
-                        f"(v{horde_worker_regen.__version__})",
-                        f"horde user: {self.user_info.username if self.user_info is not None else 'Unknown'}",
-                        f"num_models: {len(self.bridge_data.image_models_to_load)}",
-                        f"max_power: {self.bridge_data.max_power} ({max_power_dimension}x{max_power_dimension})",
-                        f"max_threads: {self.max_concurrent_inference_processes}",
-                        f"queue_size: {self.bridge_data.queue_size}",
-                        f"safety_on_gpu: {self.bridge_data.safety_on_gpu}",
-                    ],
-                ),
-            )
-            logger.debug(
-                " | ".join(
-                    [
-                        f"allow_img2img: {self.bridge_data.allow_img2img}",
-                        f"allow_lora: {self.bridge_data.allow_lora}",
-                        f"allow_controlnet: {self.bridge_data.allow_controlnet}",
-                        f"allow_sdxl_controlnet: {self.bridge_data.allow_sdxl_controlnet}",
-                        f"allow_post_processing: {self.bridge_data.allow_post_processing}",
-                        f"custom_models: {bool(self.bridge_data.custom_models)}",
-                        f"jobs_pending_safety_check: {len(self.jobs_pending_safety_check)}",
-                        f"jobs_being_safety_checked: {len(self.jobs_being_safety_checked)}",
-                        f"jobs_in_progress: {len(self.jobs_in_progress)}",
-                    ],
-                ),
-            )
-            logger.debug(
-                " | ".join(
-                    [
-                        f"high_performance_mode: {self.bridge_data.high_performance_mode}",
-                        f"moderate_performance_mode: {self.bridge_data.moderate_performance_mode}",
-                        f"high_memory_mode: {self.bridge_data.high_memory_mode}",
-                        f"very_high_memory_mode: {self.bridge_data.very_high_memory_mode}",
-                        f"unload_models_from_vram_often: {self.bridge_data.unload_models_from_vram_often}",
-                    ],
-                ),
-            )
+            logger.opt(ansi=True).info("<fg #7b7d7d>" + str("-" * 40) + "</>")
 
-            logger.debug(
-                " | ".join(
-                    [
-                        f"post_process_job_overlap: {self.bridge_data.post_process_job_overlap}",
-                        f"preload_timeout: {self.bridge_data.preload_timeout}",
-                        f"download_timeout: {self.bridge_data.download_timeout}",
-                        f"post_process_timeout: {self.bridge_data.post_process_timeout}",
-                        f"cycle_process_on_model_change: {self.bridge_data.cycle_process_on_model_change}",
-                        f"exit_on_unhandled_faults: {self.bridge_data.exit_on_unhandled_faults}",
-                    ],
-                ),
-            )
+            logger.opt(ansi=True).info("<b>Job Info:</b>")
+            jobs = []
+            for x in self.jobs_pending_inference:
+                shortened_id = str(x.id_.root)[:8] if x.id_ is not None else "None?"
+                jobs.append(f"<{shortened_id}: <u>{x.model}></u>")
 
-            jobs = [f"<{x.id_}: {x.model}>" for x in self.jobs_pending_inference]
-            logger.info(f'Jobs: {", ".join(jobs)}')
+            logger.opt(ansi=True).info(f'  Jobs: {", ".join(jobs)}')
 
             active_models = {
                 process.loaded_horde_model_name
@@ -4466,12 +4525,12 @@ class HordeWorkerProcessManager:
                 if process.loaded_horde_model_name is not None
             }
 
-            logger.info(f"Active models: {active_models}")
+            logger.debug(f"Active models: {active_models}")
 
-            job_info_message = "Session job info: " + " | ".join(
+            job_info_message = "  Session job info: " + " | ".join(
                 [
                     f"pending start: {len(self.jobs_pending_inference)} (eMPS: {self.get_pending_megapixelsteps()})",
-                    f"total jobs: {self.num_jobs_total}",
+                    f"jobs popped: {self.num_jobs_total}",
                     f"submitted: {self.total_num_completed_jobs}",
                     f"faulted: {self._num_jobs_faulted}",
                     f"slow_jobs: {self._num_job_slowdowns}",
@@ -4480,7 +4539,71 @@ class HordeWorkerProcessManager:
                 ],
             )
 
-            logger.success(job_info_message)
+            logger.opt(ansi=True).info(
+                f"<fg #7dcea0>{job_info_message}</>",
+            )
+            logger.opt(ansi=True).info("<fg #7b7d7d>" + str("-" * 40) + "</>")
+
+            logger.opt(ansi=True).info("<b>Worker Info:</b>")
+
+            max_power_dimension = int(math.sqrt(self.bridge_data.max_power * 8 * 64 * 64))
+            logger.info(
+                "  "
+                + " | ".join(
+                    [
+                        f"dreamer_name: {self.bridge_data.dreamer_worker_name}",
+                        f"(v{horde_worker_regen.__version__})",
+                        f"horde user: {self.user_info.username if self.user_info is not None else 'Unknown'}",
+                        f"num_models: {len(self.bridge_data.image_models_to_load)}",
+                        f"custom_models: {bool(self.bridge_data.custom_models)}",
+                        f"max_power: {self.bridge_data.max_power} ({max_power_dimension}x{max_power_dimension})",
+                        f"max_threads: {self.max_concurrent_inference_processes}",
+                        f"queue_size: {self.bridge_data.queue_size}",
+                        f"safety_on_gpu: {self.bridge_data.safety_on_gpu}",
+                    ],
+                ),
+            )
+            logger.info(
+                "  "
+                + " | ".join(
+                    [
+                        f"allow_img2img: {self.bridge_data.allow_img2img}",
+                        f"allow_lora: {self.bridge_data.allow_lora}",
+                        f"allow_controlnet: {self.bridge_data.allow_controlnet}",
+                        f"allow_sdxl_controlnet: {self.bridge_data.allow_sdxl_controlnet}",
+                        f"allow_post_processing: {self.bridge_data.allow_post_processing}",
+                        f"post_process_job_overlap: {self.bridge_data.post_process_job_overlap}",
+                    ],
+                ),
+            )
+
+            logger.info(
+                "  "
+                + " | ".join(
+                    [
+                        f"unload_models_from_vram_often: {self.bridge_data.unload_models_from_vram_often}",
+                        f"high_performance_mode: {self.bridge_data.high_performance_mode}",
+                        f"moderate_performance_mode: {self.bridge_data.moderate_performance_mode}",
+                        f"high_memory_mode: {self.bridge_data.high_memory_mode}",
+                    ],
+                ),
+            )
+
+            logger.debug(
+                " | ".join(
+                    [
+                        f"preload_timeout: {self.bridge_data.preload_timeout}",
+                        f"download_timeout: {self.bridge_data.download_timeout}",
+                        f"post_process_timeout: {self.bridge_data.post_process_timeout}",
+                        f"very_high_memory_mode: {self.bridge_data.very_high_memory_mode}",
+                        f"cycle_process_on_model_change: {self.bridge_data.cycle_process_on_model_change}",
+                        f"exit_on_unhandled_faults: {self.bridge_data.exit_on_unhandled_faults}",
+                        f"jobs_pending_safety_check: {len(self.jobs_pending_safety_check)}",
+                        f"jobs_being_safety_checked: {len(self.jobs_being_safety_checked)}",
+                        f"jobs_in_progress: {len(self.jobs_in_progress)}",
+                    ],
+                ),
+            )
 
             if os.getenv("AIWORKER_NOT_REQUIRED_VERSION"):
                 logger.warning(
@@ -4567,7 +4690,7 @@ class HordeWorkerProcessManager:
                 self._status_message_frequency = 5.0
 
             self._last_status_message_time = cur_time
-            logger.info("-" * 80)
+            logger.opt(ansi=True).info("<fg #dddddd>" + str("v" * 80) + "</>")
 
     _bridge_data_loop_interval = 1.0
     """The interval between bridge data loop iterations."""

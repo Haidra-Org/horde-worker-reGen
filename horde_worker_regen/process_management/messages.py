@@ -159,6 +159,9 @@ class HordeProcessHeartbeatMessage(HordeProcessMessage):
     process_warning: str | None = None
     """A warning message from the process."""
 
+    percent_complete: int | None = None
+    """The percentage (int) of the current operation that is complete, if applicable."""
+
 
 class HordeProcessStateChangeMessage(HordeProcessMessage):
     """State change messages that are sent from the child processes to the main process."""

@@ -208,7 +208,7 @@ max_models_to_download: 10 # Currently unused in reGen
 
 # Frequency (in seconds) to output worker summary stats, such as kudos per hour.
 # Set to zero to disable stats output completely.
-stats_output_frequency: 30
+stats_output_frequency: 20
 
 # Location where models are stored.
 cache_home: "./models/"

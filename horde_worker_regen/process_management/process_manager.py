@@ -1908,23 +1908,19 @@ class HordeWorkerProcessManager:
 
                 model_baseline = self.get_model_baseline(message.horde_model_name)
 
-                self._process_map.on_model_load_state_change(
-                    process_id=message.process_id,
-                    horde_model_name=message.horde_model_name,
-                    horde_model_baseline=model_baseline,
-                )
+                if message.horde_model_state != ModelLoadState.ON_DISK:
+                    self._process_map.on_model_load_state_change(
+                        process_id=message.process_id,
+                        horde_model_name=message.horde_model_name,
+                        horde_model_baseline=model_baseline,
+                    )
 
-                if message.horde_model_state == ModelLoadState.LOADING:
-                    logger.debug(f"Process {message.process_id} is loading model {message.horde_model_name}")
+                    if message.horde_model_state == ModelLoadState.LOADING:
+                        logger.debug(f"Process {message.process_id} is loading model {message.horde_model_name}")
 
-                # If the model was just loaded, so update the process map and log a message with the time it took
-                if (
-                    message.horde_model_state == ModelLoadState.LOADED_IN_VRAM
-                    or message.horde_model_state == ModelLoadState.LOADED_IN_RAM
-                ):
                     if (
-                        message.process_id in self._process_map
-                        and message.horde_model_state != self._process_map[message.process_id].loaded_horde_model_name
+                        message.horde_model_state == ModelLoadState.LOADED_IN_VRAM
+                        or message.horde_model_state == ModelLoadState.LOADED_IN_RAM
                     ):
                         if message.horde_model_state == ModelLoadState.LOADED_IN_VRAM:
                             loaded_message = (
@@ -1942,8 +1938,7 @@ class HordeWorkerProcessManager:
                                 loaded_message += f"Loading took {message.time_elapsed:.2f} seconds."
 
                             logger.info(loaded_message)
-
-                elif message.horde_model_state == ModelLoadState.ON_DISK:
+                else:
                     # FIXME this message is wrong for download processes
                     logger.info(f"Process {message.process_id} unloaded model {message.horde_model_name}")
 
@@ -2624,14 +2619,18 @@ class HordeWorkerProcessManager:
                 ),
             )
 
-            process_info.last_job_referenced = None
-            process_info.last_control_flag = HordeControlFlag.UNLOAD_MODELS_FROM_RAM
-
             self._horde_model_map.update_entry(
                 horde_model_name=process_info.loaded_horde_model_name,
                 load_state=ModelLoadState.ON_DISK,
                 process_id=process_id,
             )
+
+            process_info.last_job_referenced = None
+            process_info.loaded_horde_model_name = None
+            process_info.loaded_horde_model_baseline = None
+            process_info.recently_unloaded_from_ram = True
+            process_info.last_control_flag = HordeControlFlag.UNLOAD_MODELS_FROM_RAM
+
         else:
             # Check the process is not ending
             if (

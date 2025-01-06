@@ -1415,6 +1415,9 @@ class HordeWorkerProcessManager:
 
     def is_time_for_shutdown(self) -> bool:
         """Return true if it is time to shut down."""
+        if not self._shutting_down:
+            return False
+
         if self._recently_recovered:
             return False
 

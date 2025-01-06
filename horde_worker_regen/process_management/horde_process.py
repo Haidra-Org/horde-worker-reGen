@@ -154,6 +154,7 @@ class HordeProcess(abc.ABC):
         heartbeat_type: HordeHeartbeatType,
         *,
         process_warning: str | None = None,
+        percent_complete: int | None = None,
     ) -> None:
         """Send a heartbeat message to the main process, indicating that the process is still alive.
 
@@ -172,6 +173,7 @@ class HordeProcess(abc.ABC):
             time_elapsed=None,
             heartbeat_type=heartbeat_type,
             process_warning=process_warning,
+            percent_complete=percent_complete,
         )
         self.process_message_queue.put(message)
 

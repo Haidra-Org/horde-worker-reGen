@@ -678,15 +678,10 @@ class ProcessMap(dict[int, HordeProcessInfo]):
             if p.process_id in disallowed_processes:
                 continue
 
-            if (
-                p.last_process_state == HordeProcessState.WAITING_FOR_JOB
-                or p.last_process_state == HordeProcessState.PROCESS_STARTING
-                or p.last_process_state == HordeProcessState.INFERENCE_COMPLETE
-            ):
-                return p
-
             if p.is_process_busy():
                 continue
+
+            return p
 
         return None
 

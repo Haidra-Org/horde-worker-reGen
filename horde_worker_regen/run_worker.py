@@ -128,11 +128,12 @@ class LogConsoleRewriter(io.StringIO):
             ("print_status_method", "[ i ]"),
             ("start_inference_process", "[SIP]"),
             ("start_safety_process", "[SSP]"),
-            ("start_inference", "[ % ]   "),
+            ("start_inference", "[ % ]"),
             ("log_kudos_info", "[ i ]"),
             ("submit_single_generation", "[ - ]"),
-            ("preload_models", "[ % ] "),
+            ("preload_models", "[ % ]"),
             ("api_job_pop", "[ + ]"),
+            ("_process_control_loop", "[ # ]"),
         ]
 
         for old, new in replacements:

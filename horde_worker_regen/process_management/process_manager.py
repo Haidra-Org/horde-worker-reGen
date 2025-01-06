@@ -4810,10 +4810,7 @@ class HordeWorkerProcessManager:
 
     def replace_hung_processes(self) -> bool:
         """Replaces processes that haven't checked in since `process_timeout` seconds in bridgeData."""
-        if self._shutting_down:
-            return False
-
-        if self._last_pop_no_jobs_available or self._recently_recovered:
+        if self._recently_recovered:
             return False
 
         now = time.time()
@@ -4851,15 +4848,21 @@ class HordeWorkerProcessManager:
                         "seems to be stuck post processing",
                     ),
                 ]
+                if self._last_pop_no_jobs_available:
+                    continue
+
                 for timeout, state, error_message in conditions:
                     if self._check_and_replace_process(process_info, timeout, state, error_message):
                         any_replaced = True
                         self._recently_recovered = True
 
+        if self._last_pop_no_jobs_available:
+            return any_replaced
+
         import threading
 
         def timed_unset_recently_recovered() -> None:
-            time.sleep(self.bridge_data.preload_timeout)
+            time.sleep(self.bridge_data.inference_step_timeout)
             self._recently_recovered = False
 
         # If all processes haven't done sent a message for a while
@@ -4882,11 +4885,12 @@ class HordeWorkerProcessManager:
 
             self._purge_jobs()
 
-            if self.bridge_data.exit_on_unhandled_faults:
+            if self.bridge_data.exit_on_unhandled_faults or self._shutting_down:
                 logger.error("All processes have been unresponsive for too long, exiting.")
 
                 self._abort()
-                logger.error("Exiting due to exit_on_unhandled_faults being enabled")
+                if self.bridge_data.exit_on_unhandled_faults:
+                    logger.error("Exiting due to exit_on_unhandled_faults being enabled")
 
                 return True
 

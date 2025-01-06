@@ -1784,6 +1784,10 @@ class HordeWorkerProcessManager:
                     message.process_id,
                     heartbeat_type=message.heartbeat_type,
                 )
+
+                if message.process_warning is not None:
+                    logger.warning(f"Process {message.process_id} warning: {message.process_warning}")
+
             else:
                 logger.debug(
                     f"Received {type(message).__name__} from process {message.process_id}: {message.info}",
@@ -1985,8 +1989,9 @@ class HordeWorkerProcessManager:
 
                 if message.time_elapsed is not None:
                     logger.info(
-                        f"Inference finished for job {message.sdk_api_job_info.id_} on process {message.process_id}. "
-                        f"It took {round(message.time_elapsed, 2)} seconds "
+                        f"Inference finished for job {message.sdk_api_job_info.id_} ({message.sdk_api_job_info.model}) "
+                        f"on process {message.process_id}. "
+                        f"It took {round(message.time_elapsed, 2)} seconds at {message.info} "
                         f"and reported {message.faults_count} faults.",
                     )
                 else:

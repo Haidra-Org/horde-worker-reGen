@@ -2418,12 +2418,16 @@ class HordeWorkerProcessManager:
 
         return next_job_and_process
 
-    def start_inference(self) -> None:
-        """Start inference for the next job in jobs_pending_inference, if possible."""
+    def start_inference(self) -> bool:
+        """Start inference for the next job in jobs_pending_inference, if possible.
+
+        Returns:
+            True if inference was started, False otherwise.
+        """
         next_job_and_process = self.get_next_job_and_process()
 
         if next_job_and_process is None:
-            return
+            return False
 
         process_with_model = next_job_and_process.process_with_model
         next_job = next_job_and_process.next_job
@@ -2519,6 +2523,8 @@ class HordeWorkerProcessManager:
             self.handle_job_fault(faulted_job=next_job, process_info=process_with_model)
 
         self._skipped_line_next_job_and_process = None
+
+        return True
 
     def unload_models_from_vram(
         self,
@@ -2670,14 +2676,18 @@ class HordeWorkerProcessManager:
 
         return next_n_models
 
-    def unload_models(self) -> None:
-        """Unload models that are no longer needed and would use above the limit specified."""
+    def unload_models(self) -> bool:
+        """Unload models that are no longer needed and would use above the limit specified.
+
+        Returns:
+            True if a model was unloaded, False otherwise.
+        """
         if len(self.jobs_pending_inference) == 0:
-            return
+            return False
 
         # 1 thread, 1 model, no need to unload as it should always be in use (or at least available)
         if self._max_concurrent_inference_processes == 1 and len(self.bridge_data.image_models_to_load) == 1:
-            return
+            return False
 
         for process_info in self._process_map.values():
             if process_info.process_type != HordeProcessType.INFERENCE:
@@ -2703,6 +2713,9 @@ class HordeWorkerProcessManager:
                     continue
 
                 self.unload_from_ram(process_info.process_id)
+                return True
+
+        return False
 
     def start_evaluate_safety(self) -> None:
         """Start evaluating the safety of the next job pending a safety check, if any."""
@@ -4210,7 +4223,8 @@ class HordeWorkerProcessManager:
                                         )
                                         self._batch_wait_log_time = time.time()
                                 else:
-                                    self.start_inference()
+                                    if not self.start_inference():
+                                        self.unload_models()
 
                     async with (
                         self._jobs_lookup_lock,
@@ -4222,8 +4236,6 @@ class HordeWorkerProcessManager:
                         self.receive_and_handle_process_messages()
                         self.replace_hung_processes()
                         self._replace_all_safety_process()
-
-                        self.unload_models()
 
                     is_job_and_one_inference_process = (
                         len(self.jobs_pending_inference) >= 1

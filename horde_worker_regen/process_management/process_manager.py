@@ -1609,8 +1609,18 @@ class HordeWorkerProcessManager:
         self.num_processes_launched += 1
         return process_info
 
-    def end_inference_processes(self) -> None:
+    def end_inference_processes(
+        self,
+        force: bool = False,
+    ) -> None:
         """End any inference processes above the configured limit, or all of them if shutting down."""
+        if force:
+            if not self._shutting_down:
+                logger.error("Forcing inference processes to end without shutting down")
+
+            for process in self._process_map.get_inference_processes():
+                self._end_inference_process(process)
+
         if len(self.jobs_pending_inference) > 0 and len(self.jobs_pending_inference) != len(self.jobs_in_progress):
             return
 
@@ -4262,6 +4272,7 @@ class HordeWorkerProcessManager:
                 self.replace_hung_processes()  # Only checks for hung processes, doesn't replace them during shutdown
             await asyncio.sleep(0.2)
 
+        self.end_inference_processes(force=True)
         self.end_safety_processes()
 
         logger.info("Shutting down process manager")

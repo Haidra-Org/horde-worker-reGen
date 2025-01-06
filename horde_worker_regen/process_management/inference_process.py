@@ -217,8 +217,6 @@ class HordeInferenceProcess(HordeProcess):
             time_elapsed (float | None, optional): The time elapsed during the last operation, if applicable. \
                 Defaults to None.
         """
-        self.send_memory_report_message(include_vram=True)
-
         model_update_message = HordeModelStateChangeMessage(
             process_state=process_state,
             process_id=self.process_id,
@@ -230,10 +228,6 @@ class HordeInferenceProcess(HordeProcess):
         )
         self.process_message_queue.put(model_update_message)
 
-        self.send_process_state_change_message(
-            process_state=process_state,
-            info=f"Model {horde_model_name} {horde_model_state.name}",
-        )
         self.send_memory_report_message(include_vram=True)
 
     def download_callback(

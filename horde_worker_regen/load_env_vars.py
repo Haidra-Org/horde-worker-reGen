@@ -102,6 +102,11 @@ def load_env_vars_from_config() -> None:  # FIXME: there is a dynamic way to do 
         if config_value is True:
             os.environ["AI_HORDE_MODEL_META_LARGE_MODELS"] = "1"
 
+    if "limited_console_messages" in config and os.getenv("AIWORKER_LIMITED_CONSOLE_MESSAGES") is None:
+        config_value = config["limited_console_messages"]
+        if config_value is True:
+            os.environ["AIWORKER_LIMITED_CONSOLE_MESSAGES"] = "1"
+
 
 if __name__ == "__main__":
     load_env_vars_from_config()

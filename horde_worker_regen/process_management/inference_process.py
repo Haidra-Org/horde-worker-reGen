@@ -433,6 +433,8 @@ class HordeInferenceProcess(HordeProcess):
     _current_job_inference_steps_complete: bool = False
     _vae_lock_was_acquired: bool = False
 
+    _last_job_inference_rate: str | None = None
+
     def progress_callback(
         self,
         progress_report: ProgressReport,
@@ -443,6 +445,7 @@ class HordeInferenceProcess(HordeProcess):
             progress_report (ProgressReport): The progress report from the HordeLib instance.
         """
         from hordelib.horde import ProgressState
+        from hordelib.utils.ioredirect import ComfyUIProgressUnit
 
         if progress_report.hordelib_progress_state == ProgressState.post_processing or (
             self._in_post_processing and progress_report.hordelib_progress_state == ProgressState.progress
@@ -475,7 +478,25 @@ class HordeInferenceProcess(HordeProcess):
             self._current_job_inference_steps_complete = True
             logger.debug("Current job inference steps complete")
         elif progress_report.comfyui_progress is not None and progress_report.comfyui_progress.current_step > 0:
-            self.send_heartbeat_message(heartbeat_type=HordeHeartbeatType.INFERENCE_STEP)
+            warning = None
+
+            if progress_report.comfyui_progress.rate_unit == ComfyUIProgressUnit.SECONDS_PER_ITERATION and (
+                progress_report.comfyui_progress.rate > 2.0
+            ):
+                warning = (
+                    f"{progress_report.comfyui_progress.rate} seconds *per iteration* for step "
+                    f"{progress_report.comfyui_progress.current_step}/{progress_report.comfyui_progress.total_steps} "
+                    f"for model {self._active_model_name}. "
+                    "SD1.5 models should be above 3 iterations per second, SDXL models should be above 1.5 iterations "
+                    "per second, and Flux/Cascade models should be less than 2 seconds per iteration "
+                    "(0.5 iterations per second). Consider using less threads, adjusting the batch size, "
+                    "removing this type of model or turning off other features."
+                )
+
+            self._last_job_inference_rate = (
+                f"{progress_report.comfyui_progress.rate:.2f} {progress_report.comfyui_progress.rate_unit}"
+            )
+            self.send_heartbeat_message(heartbeat_type=HordeHeartbeatType.INFERENCE_STEP, process_warning=warning)
         else:
             self.send_heartbeat_message(heartbeat_type=HordeHeartbeatType.PIPELINE_STATE_CHANGE)
 
@@ -493,6 +514,7 @@ class HordeInferenceProcess(HordeProcess):
         logger.info("Acquired inference semaphore.")
         self._is_busy = True
         self._current_job_inference_steps_complete = False
+        self._last_job_inference_rate = None
 
         try:
             logger.info(f"Starting inference for job(s) {job_info.ids}")
@@ -515,6 +537,7 @@ class HordeInferenceProcess(HordeProcess):
             self._in_post_processing = False
             self._current_job_inference_steps_complete = False
             self._vae_lock_was_acquired = False
+
             with contextlib.suppress(Exception):
                 self._inference_semaphore.release()
                 self._vae_decode_semaphore.release()
@@ -657,7 +680,7 @@ class HordeInferenceProcess(HordeProcess):
         message = HordeInferenceResultMessage(
             process_id=self.process_id,
             process_launch_identifier=self.process_launch_identifier,
-            info="Inference result",
+            info=self._last_job_inference_rate if self._last_job_inference_rate is not None else "",
             state=GENERATION_STATE.ok if results is not None and len(results) > 0 else GENERATION_STATE.faulted,
             time_elapsed=time_elapsed,
             job_image_results=all_image_results,

@@ -1990,7 +1990,7 @@ class HordeWorkerProcessManager:
                     logger.info(
                         f"Inference finished for job {message.sdk_api_job_info.id_} ({message.sdk_api_job_info.model}) "
                         f"on process {message.process_id}. "
-                        f"It took {round(message.time_elapsed, 2)} seconds at {message.info} "
+                        f"It took {round(message.time_elapsed, 2)} seconds, finishing at {message.info} "
                         f"and reported {message.faults_count} faults.",
                     )
                 else:

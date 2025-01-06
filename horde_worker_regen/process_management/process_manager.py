@@ -4503,21 +4503,29 @@ class HordeWorkerProcessManager:
         """Print the status of the worker if it's time to do so."""
         cur_time = time.time()
         if cur_time - self._last_status_message_time > self._status_message_frequency:
+            AIWORKER_LIMITED_CONSOLE_MESSAGES = os.getenv("AIWORKER_LIMITED_CONSOLE_MESSAGES", False)
+
+            logging_function = logger.opt(ansi=True).info
+
+            if AIWORKER_LIMITED_CONSOLE_MESSAGES:
+                logging_function = logger.opt(ansi=True).success
+
             process_info_strings = self._process_map.get_process_info_strings()
-            logger.opt(ansi=True).info("<fg #dddddd>" + str("^" * 80) + "</>")
-            logger.opt(ansi=True).info("<b>Process info:</b>")
+
+            logging_function("<fg #dddddd>" + str("^" * 80) + "</>")
+            logging_function("<b>Process info:</b>")
             for process_info_string in process_info_strings:
-                logger.opt(ansi=True).info("  " + process_info_string)
+                logging_function("  " + process_info_string)
 
-            logger.opt(ansi=True).info("<fg #7b7d7d>" + str("-" * 40) + "</>")
+            logging_function("<fg #7b7d7d>" + str("-" * 40) + "</>")
 
-            logger.opt(ansi=True).info("<b>Job Info:</b>")
+            logging_function("<b>Job Info:</b>")
             jobs = []
             for x in self.jobs_pending_inference:
                 shortened_id = str(x.id_.root)[:8] if x.id_ is not None else "None?"
                 jobs.append(f"<{shortened_id}: <u>{x.model}></u>")
 
-            logger.opt(ansi=True).info(f'  Jobs: {", ".join(jobs)}')
+            logging_function(f'  Jobs: {", ".join(jobs)}')
 
             active_models = {
                 process.loaded_horde_model_name
@@ -4539,12 +4547,12 @@ class HordeWorkerProcessManager:
                 ],
             )
 
-            logger.opt(ansi=True).info(
+            logging_function(
                 f"<fg #7dcea0>{job_info_message}</>",
             )
-            logger.opt(ansi=True).info("<fg #7b7d7d>" + str("-" * 40) + "</>")
+            logging_function("<fg #7b7d7d>" + str("-" * 40) + "</>")
 
-            logger.opt(ansi=True).info("<b>Worker Info:</b>")
+            logging_function("<b>Worker Info:</b>")
 
             max_power_dimension = int(math.sqrt(self.bridge_data.max_power * 8 * 64 * 64))
             logger.info(
@@ -4690,7 +4698,7 @@ class HordeWorkerProcessManager:
                 self._status_message_frequency = 5.0
 
             self._last_status_message_time = cur_time
-            logger.opt(ansi=True).info("<fg #dddddd>" + str("v" * 80) + "</>")
+            logging_function("<fg #dddddd>" + str("v" * 80) + "</>")
 
     _bridge_data_loop_interval = 1.0
     """The interval between bridge data loop iterations."""

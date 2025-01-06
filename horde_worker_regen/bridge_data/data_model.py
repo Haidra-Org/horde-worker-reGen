@@ -108,6 +108,12 @@ class reGenBridgeData(CombinedHordeBridgeData):
         default_factory=list,
     )
 
+    limited_console_messages: bool = Field(default=False)
+    """If true, the worker will only log for submit and the status message.
+
+    Set stats_output_frequency (in seconds) for control over the status message.
+    """
+
     @model_validator(mode="after")
     def validate_performance_modes(self) -> reGenBridgeData:
         """Validate the performance modes and set the appropriate values.

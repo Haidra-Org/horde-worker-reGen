@@ -494,7 +494,8 @@ class HordeInferenceProcess(HordeProcess):
                 )
 
             self._last_job_inference_rate = (
-                f"{progress_report.comfyui_progress.rate:.2f} {progress_report.comfyui_progress.rate_unit}"
+                f"{progress_report.comfyui_progress.rate:.2f} "
+                f"{progress_report.comfyui_progress.rate_unit.name.lower().replace('_', ' ')}"
             )
             self.send_heartbeat_message(heartbeat_type=HordeHeartbeatType.INFERENCE_STEP, process_warning=warning)
         else:

@@ -481,7 +481,7 @@ class HordeInferenceProcess(HordeProcess):
             warning = None
 
             if progress_report.comfyui_progress.rate_unit == ComfyUIProgressUnit.SECONDS_PER_ITERATION and (
-                progress_report.comfyui_progress.rate > 2.0
+                progress_report.comfyui_progress.rate > 2.0 and progress_report.comfyui_progress.current_step > 1
             ):
                 warning = (
                     f"{progress_report.comfyui_progress.rate} seconds *per iteration* for step "

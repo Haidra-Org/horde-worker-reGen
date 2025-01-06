@@ -219,12 +219,22 @@ def init() -> None:
     rewriter = LogConsoleRewriter(sys.stdout)  # type: ignore
     sys.stdout = rewriter
 
+    AIWORKER_LIMITED_CONSOLE_MESSAGES = os.getenv("AIWORKER_LIMITED_CONSOLE_MESSAGES")
+
     logger.remove()
     from hordelib.utils.logger import HordeLog
 
     target_verbosity = args.v
 
-    if args.no_logging:
+    if AIWORKER_LIMITED_CONSOLE_MESSAGES:
+        if target_verbosity > 2:
+            print(
+                "Warning: AIWORKER_LIMITED_CONSOLE_MESSAGES is set"
+                " but verbosity is set to 3 or higher. Setting verbosity to 2.",
+            )
+
+        target_verbosity = 2
+    elif args.no_logging:
         target_verbosity = 0  # Disable logging to the console
     elif args.v == 0:
         target_verbosity = 3  # Default to INFO or higher (Warning, Error, Critical)

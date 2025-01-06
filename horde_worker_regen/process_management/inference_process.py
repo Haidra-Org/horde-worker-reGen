@@ -487,10 +487,10 @@ class HordeInferenceProcess(HordeProcess):
                     f"{progress_report.comfyui_progress.rate} seconds *per iteration* for step "
                     f"{progress_report.comfyui_progress.current_step}/{progress_report.comfyui_progress.total_steps} "
                     f"for model {self._active_model_name}. "
-                    "SD1.5 models should be above 3 iterations per second, SDXL models should be above 1.5 iterations "
-                    "per second, and Flux/Cascade models should be less than 2 seconds per iteration "
-                    "(0.5 iterations per second). Consider using less threads, adjusting the batch size, "
-                    "removing this type of model or turning off other features."
+                    "These are the typical expected speeds: "
+                    "SD15: >4 it/s, SDXL >2 it/s, Flux >0.5 it/s. "
+                    "If you see this message for most jobs, consider using fewer threads, adjusting the batch size, "
+                    "removing the model type triggering this message or turning off other features."
                 )
 
             self._last_job_inference_rate = (

@@ -1828,7 +1828,11 @@ class HordeWorkerProcessManager:
                     percent_complete=message.percent_complete,
                 )
 
-                if message.process_warning is not None:
+                in_progress_job_info = self._process_map[message.process_id].last_job_referenced
+
+                if message.process_warning is not None and (
+                    in_progress_job_info is not None and in_progress_job_info.payload.n_iter < 4
+                ):
                     logger.warning(f"Process {message.process_id} warning: {message.process_warning}")
 
                     model_name = self._process_map[message.process_id].loaded_horde_model_name
@@ -1837,6 +1841,9 @@ class HordeWorkerProcessManager:
                     if model_baseline is not None:
                         logger.warning(f"Model baseline triggering warning: {model_baseline}")
 
+                    if in_progress_job_info.payload.n_iter != 1:
+                        logger.warning(f"Batched job triggering warning: {in_progress_job_info.payload.n_iter} images")
+                        logger.warning("If you think this is in error, please contact the devs on github or discord.")
             else:
                 logger.debug(
                     f"Received {type(message).__name__} from process {message.process_id}: {message.info}",

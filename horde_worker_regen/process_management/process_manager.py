@@ -824,8 +824,8 @@ class ProcessMap(dict[int, HordeProcessInfo]):
                     (
                         f"Process {process_id} ({process_state_detail}) "
                         f"({horde_model_name_and_baseline}) "
-                        f"<fg #7b7d7d>[last command: {time_passed_seconds} secs ago: {safe_last_control_flag}"
-                        f"{last_heartbeat_delta_now}]</>"
+                        f"<fg #7b7d7d>[last message: {time_passed_seconds} secs ago: {safe_last_control_flag} "
+                        f"heartbeat delta: {last_heartbeat_delta_now}]</>"
                     ),
                     # f"ram: {process_info.ram_usage_bytes} vram: {process_info.vram_usage_bytes} ",
                 )

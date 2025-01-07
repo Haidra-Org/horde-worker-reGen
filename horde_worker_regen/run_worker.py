@@ -114,9 +114,13 @@ def main(
 class LogConsoleRewriter(io.StringIO):
     """Makes the console output more readable by shortening certain strings."""
 
-    def __init__(self, original_stdout: io.TextIOBase) -> None:
+    def __init__(self, original_iostream: io.TextIOBase) -> None:
         """Initialise the rewriter."""
-        self.original_stdout = original_stdout
+        self.original_iostream = original_iostream
+
+        pattern = r"\[36m(\d+)"
+
+        self.line_number_pattern = re.compile(pattern)
 
     def write(self, message: str) -> int:
         """Rewrite the message to make it more readable where possible."""
@@ -126,6 +130,8 @@ class LogConsoleRewriter(io.StringIO):
             ("print_status_method", ""),
             ("receive_and_handle_process_messages", "[ % ]"),
             ("print_status_method", "[ i ]"),
+            ("start_inference_processes", "[SIP]"),
+            ("_start_inference_process", "[SIP]"),
             ("start_inference_process", "[SIP]"),
             ("start_safety_process", "[SSP]"),
             ("start_inference", "[ % ]"),
@@ -134,24 +140,25 @@ class LogConsoleRewriter(io.StringIO):
             ("preload_models", "[ % ]"),
             ("api_job_pop", "[ + ]"),
             ("_process_control_loop", "[ # ]"),
+            ("_bridge_data_loop", "[ C ]"),
+            ("enable_performance_mode", "[ C ]"),
         ]
 
         for old, new in replacements:
             message = message.replace(old, new)
 
-        pattern = r"\[36m(\d+)"
         replacement = ""
 
-        message = re.sub(pattern, replacement, message)
+        message = self.line_number_pattern.sub(replacement, message)
 
-        if sys.__stdout__ is None:
-            raise ValueError("sys.__stdout__ is None!")
+        if self.original_iostream is None:
+            raise ValueError("self.original_iostream. is None!")
 
-        return sys.__stdout__.write(message)
+        return self.original_iostream.write(message)
 
     def flush(self) -> None:
         """Flush the buffer to the original stdout."""
-        self.original_stdout.flush()
+        self.original_iostream.flush()
 
 
 def init() -> None:
@@ -216,8 +223,11 @@ def init() -> None:
 
     do_version_check()
 
-    rewriter = LogConsoleRewriter(sys.stdout)  # type: ignore
-    sys.stdout = rewriter
+    rewriter_stdout = LogConsoleRewriter(sys.stdout)  # type: ignore
+    sys.stdout = rewriter_stdout
+
+    rewriter_stderr = LogConsoleRewriter(sys.stderr)  # type: ignore
+    sys.stderr = rewriter_stderr
 
     AIWORKER_LIMITED_CONSOLE_MESSAGES = os.getenv("AIWORKER_LIMITED_CONSOLE_MESSAGES")
 

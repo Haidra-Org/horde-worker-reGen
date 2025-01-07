@@ -172,13 +172,6 @@ def start_safety_process(
             if directml is not None:
                 extra_comfyui_args.append(f"--directml={directml}")
 
-            with logger.catch(reraise=True):
-                hordelib.initialise(
-                    setup_logging=None,
-                    process_id=process_id,
-                    logging_verbosity=0,
-                    extra_comfyui_args=extra_comfyui_args,
-                )
         except Exception as e:
             logger.critical(f"Failed to initialise: {type(e).__name__} {e}")
             sys.exit(1)

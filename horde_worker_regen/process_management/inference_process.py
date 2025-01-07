@@ -373,10 +373,7 @@ class HordeInferenceProcess(HordeProcess):
         if self._is_busy:
             logger.warning("Cannot preload model while busy")
 
-        from hordelib.comfy_horde import unload_all_models_ram
-
-        unload_all_models_ram()
-        gc.collect()
+        self.clear_gc_and_torch_cache()
 
         logger.debug(f"Preloading model {horde_model_name}")
 

@@ -3,7 +3,7 @@ qrcode==7.4.2 # >8 breaks horde-engine 2.18.1 via the qr code generation nodes
 
 certifi # Required for SSL cert resolution
 
-horde_sdk~=0.16.4
+horde_sdk~=0.17.0
 horde_safety~=0.2.3
 horde_engine~=2.18.1
 horde_model_reference>=0.9.1

@@ -67,6 +67,11 @@ require_upfront_kudos: false
 # your logs to determine the cause.
 remove_maintenance_on_init: false
 
+# If true, fewer log messages will be printed to the console.
+# This is intended for workers running on the cloud or other headless environments.
+# We *do not* recommend this setting for most users.
+limited_console_messages: false
+
 #######################################
 ## Dreamer (Stable Diffusion Worker) ##
 #######################################

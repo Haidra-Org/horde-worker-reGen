@@ -1220,9 +1220,6 @@ class HordeWorkerProcessManager:
     _aux_model_lock: Lock_MultiProcessing
     """A lock to prevent multiple processes from accessing the auxiliary models at once (such as LoRas)."""
 
-    _shutting_down = False
-    """Whether or not the worker is shutting down."""
-
     _lru: LRUCache
     """A simple LRU cache. This is used to keep track of the most recently used models."""
 
@@ -3768,7 +3765,7 @@ class HordeWorkerProcessManager:
             )
             if self.bridge_data.exit_on_unhandled_faults:
                 logger.error("Exiting due to exit_on_unhandled_faults being enabled")
-                self._abort()
+                self._shutdown()
             self._too_many_consecutive_failed_jobs = True
             self._too_many_consecutive_failed_jobs_time = cur_time
             return
@@ -4252,8 +4249,9 @@ class HordeWorkerProcessManager:
                     await self.api_submit_job()
                     if self.is_time_for_shutdown():
                         break
-                except CancelledError:
-                    self._shutting_down = True
+                except CancelledError as e:
+                    self._shutdown()
+                    logger.debug(f"CancelledError: {e}")
 
             await asyncio.sleep(self._job_submit_loop_interval)
 
@@ -4268,8 +4266,9 @@ class HordeWorkerProcessManager:
 
                     if self.is_time_for_shutdown():
                         break
-                except CancelledError:
-                    self._shutting_down = True
+                except CancelledError as e:
+                    self._shutdown()
+                    logger.debug(f"CancelledError: {e}")
 
             await asyncio.sleep(self._api_call_loop_interval)
 
@@ -4282,8 +4281,9 @@ class HordeWorkerProcessManager:
                     await self.api_get_user_info()
                     if self.is_time_for_shutdown():
                         break
-                except CancelledError:
-                    self._shutting_down = True
+                except CancelledError as e:
+                    self._shutdown()
+                    logger.debug(f"CancelledError: {e}")
 
             await asyncio.sleep(self._api_get_user_info_interval)
 
@@ -4434,8 +4434,9 @@ class HordeWorkerProcessManager:
                 self.print_status_method()
 
                 await asyncio.sleep(self._loop_interval / 2)
-            except CancelledError:
-                self._shutting_down = True
+            except CancelledError as e:
+                self._shutdown()
+                logger.debug(f"CancelledError: {e}")
 
         while len(self.jobs_pending_inference) > 0:
             await asyncio.sleep(0.2)
@@ -4763,6 +4764,7 @@ class HordeWorkerProcessManager:
                 logger.warning("*" * 80)
                 logger.warning("Shutting down after current jobs are finished...")
                 self._status_message_frequency = 5.0
+                logger.warning("*" * 80)
 
             self._last_status_message_time = cur_time
             logging_function("<fg #dddddd>" + str("v" * 80) + "</>")
@@ -4820,8 +4822,9 @@ class HordeWorkerProcessManager:
                     logger.success(f"Reloaded {BRIDGE_CONFIG_FILENAME}")
                     self.enable_performance_mode()
                 await asyncio.sleep(self._bridge_data_loop_interval)
-            except CancelledError:
-                self._shutting_down = True
+            except CancelledError as e:
+                self._shutdown()
+                logger.debug(f"CancelledError: {e}")
 
     def _handle_exception(self, future: asyncio.Future) -> None:
         """Logs exceptions from asyncio tasks.
@@ -4885,7 +4888,7 @@ class HordeWorkerProcessManager:
 
         self._caught_sigints += 1
         logger.warning("Shutting down after current jobs are finished...")
-        self._shutting_down = True
+        self._shutdown()
 
         global _caught_signal
         _caught_signal = True
@@ -4893,7 +4896,7 @@ class HordeWorkerProcessManager:
     def _start_timed_shutdown(self) -> None:
         import threading
 
-        def shutdown() -> None:
+        def hard_shutdown() -> None:
             # Just in case the process manager gets stuck on shutdown
             time.sleep((len(self.jobs_pending_submit) * 4) + 2)
 
@@ -4908,7 +4911,7 @@ class HordeWorkerProcessManager:
 
             sys.exit(1)
 
-        threading.Thread(target=shutdown).start()
+        threading.Thread(target=hard_shutdown).start()
 
     _recently_recovered = False
 
@@ -5003,6 +5006,16 @@ class HordeWorkerProcessManager:
             return True
         return False
 
+    _shutting_down = False
+    """If true, the worker is scheduled to shut down."""
+    _shutting_down_time = 0.0
+    """The epoch time of when the worker started shutting down."""
+
+    def _shutdown(self) -> None:
+        if not self._shutting_down:
+            self._shutting_down = True
+            self._shutting_down_time = time.time()
+
     def _abort(self) -> None:
         """Exit as soon as possible, aborting all processes and jobs immediately."""
         with logger.catch(), open(".abort", "w") as f:
@@ -5010,7 +5023,7 @@ class HordeWorkerProcessManager:
 
         self._purge_jobs()
 
-        self._shutting_down = True
+        self._shutdown()
         self._hard_kill_processes()
         self._start_timed_shutdown()
 
@@ -5081,9 +5094,13 @@ class HordeWorkerProcessManager:
             for process_info in self._process_map.values()
         )
 
+        shutdown_timed_out = self._shutting_down and (now - self._shutting_down_time) > (60 * 5)
+
         # If all processes are unresponsive o we should replace all processes
         # *except* if we've already done so recently or the last job pop was a "no jobs available" response
-        if all_processes_timed_out and not (self._last_pop_no_jobs_available or self._recently_recovered):
+        if (all_processes_timed_out and not (self._last_pop_no_jobs_available or self._recently_recovered)) or (
+            shutdown_timed_out
+        ):
             if not self._hung_processes_detected:
                 self._hung_processes_detected = True
                 self._hung_processes_detected_time = now

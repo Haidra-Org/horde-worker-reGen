@@ -4760,6 +4760,7 @@ class HordeWorkerProcessManager:
                     )
 
             if self._shutting_down:
+                logger.warning("*" * 80)
                 logger.warning("Shutting down after current jobs are finished...")
                 self._status_message_frequency = 5.0
 

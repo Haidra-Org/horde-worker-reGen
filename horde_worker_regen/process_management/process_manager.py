@@ -1302,6 +1302,8 @@ class HordeWorkerProcessManager:
         self._amd_gpu = amd_gpu
         self._directml = directml
 
+        self._replaced_due_to_maintenance = False
+
         # If there is only one model to load and only one inference process, then we can only run one job at a time
         # and there is no point in having more than one inference process
         if len(self.bridge_data.image_models_to_load) == 1 and self.max_concurrent_inference_processes == 1:
@@ -2090,7 +2092,7 @@ class HordeWorkerProcessManager:
 
                 if completed_job_info is None or completed_job_info.job_image_results is None:
                     logger.error(
-                        f"Expected to find a completed job with ID {message.job_id} but none was found"
+                        f"Expected to find a completed job with ID {message.job_id} but none was found. "
                         "This should only happen when certain process crashes occur.",
                     )
                     continue
@@ -3688,6 +3690,8 @@ class HordeWorkerProcessManager:
 
         return job_pop_response
 
+    _last_pop_maintenance_mode: bool = False
+    """Whether the last job pop showed the worker was in maintenance mode."""
     _last_pop_no_jobs_available: bool = False
     """Whether the last job pop attempt had a no jobs available response."""
     _last_pop_no_jobs_available_time: float = 0.0
@@ -3702,6 +3706,40 @@ class HordeWorkerProcessManager:
     """The time at which too many consecutive failed jobs occurred."""
     _too_many_consecutive_failed_jobs_wait_time = 180
     """The time to wait after too many consecutive failed jobs before resuming job pops."""
+
+    def print_maint_mode_messages(self) -> None:
+        """Print the information about maintenance mode to the user."""
+
+        def warning_function_no_format(x):  # noqa: ANN001, ANN202
+            return logger.opt(ansi=True, raw=True).warning(
+                "<fg #f1c40f>" + x + "</>\n",
+            )
+
+        warning_function_no_format(
+            "Your worker is in maintenance mode. Set your API key at https://tinybots.net/artbot/settings, "
+            "click save, then click unpause on https://tinybots.net/artbot/settings?panel=workers while the worker "
+            "is running to clear this message.",
+        )
+        warning_function_no_format(
+            "If you didn't expect seeing this message, its probable that the worker "
+            "dropped too many jobs, and the server stepped in to prevent further jobs from being "
+            "dropped. Please check the logs above, and possibly your logs/ folder as well.",
+        )
+        warning_function_no_format("Common reasons for forced maintenance mode are: ")
+        warning_function_no_format("  - `max_threads` is too high.")
+        warning_function_no_format("  - `queue_size` is too high.")
+        warning_function_no_format("  - `max_batch` is too high.")
+        warning_function_no_format("  - `max_power` is too high.")
+        warning_function_no_format("  - The worker can't handle, SDXL, Cascade, or Flux models.")
+        warning_function_no_format(
+            "  - If you have the equivalent GPU of a 1070 or less, set"
+            " limit_max_steps or extra_slow_worker. "
+            "This should only be done as a last resort.",
+        )
+
+        warning_function_no_format(
+            "If you continue to see this message, come to the official discord (https://discord.gg/3DxrhksKzn).",
+        )
 
     @logger.catch(reraise=True)
     async def api_job_pop(self) -> None:
@@ -3912,7 +3950,11 @@ class HordeWorkerProcessManager:
             # TODO: horde_sdk should handle this and return a field with a enum(?) of the reason
             if isinstance(job_pop_response, RequestErrorResponse):
                 if "maintenance mode" in job_pop_response.message.lower():
-                    logger.warning(f"Failed to pop job (Maintenance Mode): {job_pop_response}")
+                    if not self._last_pop_maintenance_mode:
+                        logger.warning(f"Failed to pop job (Maintenance Mode): {job_pop_response}")
+                        self.print_maint_mode_messages()
+                        self._last_pop_maintenance_mode = True
+
                 elif "we cannot accept workers serving" in job_pop_response.message.lower():
                     logger.warning(f"Failed to pop job (Unrecognized Model): {job_pop_response}")
                     logger.error(
@@ -3940,6 +3982,9 @@ class HordeWorkerProcessManager:
 
             self._job_pop_frequency = self._error_job_pop_frequency
             return
+
+        self._last_pop_maintenance_mode = False
+        self._replaced_due_to_maintenance = False
 
         self._job_pop_frequency = self._default_job_pop_frequency
 
@@ -4161,7 +4206,7 @@ class HordeWorkerProcessManager:
 
     async def api_get_user_info(self) -> None:
         """Get the information associated with this API key from the API."""
-        if self._shutting_down:
+        if self._shutting_down or self._last_pop_maintenance_mode:
             return
 
         request = FindUserRequest(apikey=self.bridge_data.api_key)
@@ -4246,6 +4291,7 @@ class HordeWorkerProcessManager:
     """The rate in seconds at which to print status messages with details about the current state of the worker."""
     _last_status_message_time = 0.0
     """The epoch time of the last status message."""
+    _replaced_due_to_maintenance = False
 
     async def _process_control_loop(self) -> None:
         self.start_safety_processes()
@@ -4274,6 +4320,23 @@ class HordeWorkerProcessManager:
                     free_process_or_model_loaded = (
                         self.is_free_inference_process_available() or self.is_any_model_preloaded()
                     )
+
+                    if (
+                        self._last_pop_maintenance_mode
+                        and len(self.jobs_pending_inference) == 0
+                        and len(self.jobs_in_progress) == 0
+                        and len(self.jobs_pending_safety_check) == 0
+                        and len(self.jobs_being_safety_checked) == 0
+                        and len(self.jobs_pending_submit) == 0
+                        and not self._replaced_due_to_maintenance
+                    ):
+                        # We're in maintenance mode and there are no jobs to run, so we're going to unload all models
+                        logger.warning("Reloading all process due to maintenance mode")
+                        for process_info in self._process_map.values():
+                            if process_info.process_type == HordeProcessType.INFERENCE:
+                                self._replace_inference_process(process_info)
+                            self._replaced_due_to_maintenance = True
+                            self.print_maint_mode_messages()
 
                     if free_process_or_model_loaded and len(self.jobs_pending_inference) > 0:
                         # Theres a job pending inference and a process available to
@@ -4501,6 +4564,9 @@ class HordeWorkerProcessManager:
 
     def print_status_method(self) -> None:
         """Print the status of the worker if it's time to do so."""
+        if self._last_pop_maintenance_mode:
+            return
+
         cur_time = time.time()
         if cur_time - self._last_status_message_time > self._status_message_frequency:
             AIWORKER_LIMITED_CONSOLE_MESSAGES = os.getenv("AIWORKER_LIMITED_CONSOLE_MESSAGES", False)

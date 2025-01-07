@@ -4264,7 +4264,7 @@ class HordeWorkerProcessManager:
                 try:
                     await self.api_job_pop()
 
-                    if self.is_time_for_shutdown():
+                    if self.is_time_for_shutdown() or self._shut_down:
                         break
                 except CancelledError as e:
                     self._shutdown()
@@ -4279,7 +4279,7 @@ class HordeWorkerProcessManager:
             with logger.catch():
                 try:
                     await self.api_get_user_info()
-                    if self.is_time_for_shutdown():
+                    if self.is_time_for_shutdown() or self._shut_down:
                         break
                 except CancelledError as e:
                     self._shutdown()
@@ -4450,7 +4450,7 @@ class HordeWorkerProcessManager:
         self.end_safety_processes()
 
         logger.info("Shutting down process manager")
-
+        self._shut_down = True
         for process in self._process_map.values():
             process.mp_process.terminate()
             process.mp_process.terminate()
@@ -5010,6 +5010,8 @@ class HordeWorkerProcessManager:
     """If true, the worker is scheduled to shut down."""
     _shutting_down_time = 0.0
     """The epoch time of when the worker started shutting down."""
+    _shut_down = False
+    """If true, the worker is out of the process control loop and should halt."""
 
     def _shutdown(self) -> None:
         if not self._shutting_down:

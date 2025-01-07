@@ -109,9 +109,7 @@ def start_inference_process(
                     models_not_to_force_load=models_not_to_force_load,
                     extra_comfyui_args=extra_comfyui_args,
                 )
-                import comfy.model_management  # noqa # type: ignore
 
-                logger.debug(f"EXTRA_RESERVED_VRAM: {comfy.model_management.EXTRA_RESERVED_VRAM}")
         except Exception as e:
             logger.critical(f"Failed to initialise hordelib: {type(e).__name__} {e}")
             sys.exit(1)

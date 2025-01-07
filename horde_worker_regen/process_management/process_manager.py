@@ -1843,7 +1843,7 @@ class HordeWorkerProcessManager:
 
                     if in_progress_job_info.payload.n_iter != 1:
                         logger.warning(f"Batched job triggering warning: {in_progress_job_info.payload.n_iter} images")
-                        logger.warning("If you think this is in error, please contact the devs on github or")
+                        logger.warning("If you think this is in error, please contact the devs on github or discord.")
             else:
                 logger.debug(
                     f"Received {type(message).__name__} from process {message.process_id}: {message.info}",

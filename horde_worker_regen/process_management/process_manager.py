@@ -4336,7 +4336,7 @@ class HordeWorkerProcessManager:
                             if process_info.process_type == HordeProcessType.INFERENCE:
                                 self._replace_inference_process(process_info)
                             self._replaced_due_to_maintenance = True
-                            self.print_maint_mode_messages()
+                        self.print_maint_mode_messages()
 
                     if free_process_or_model_loaded and len(self.jobs_pending_inference) > 0:
                         # Theres a job pending inference and a process available to

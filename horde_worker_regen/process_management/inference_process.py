@@ -441,6 +441,7 @@ class HordeInferenceProcess(HordeProcess):
         Args:
             progress_report (ProgressReport): The progress report from the HordeLib instance.
         """
+        from hordelib.comfy_horde import log_free_ram
         from hordelib.horde import ProgressState
         from hordelib.utils.ioredirect import ComfyUIProgressUnit
 
@@ -463,6 +464,7 @@ class HordeInferenceProcess(HordeProcess):
             if not self._vae_lock_was_acquired:
                 self._vae_lock_was_acquired = True
                 self._vae_decode_semaphore.acquire()
+                log_free_ram()
                 logger.debug("Acquired VAE decode semaphore")
 
             self.send_heartbeat_message(heartbeat_type=HordeHeartbeatType.PIPELINE_STATE_CHANGE)

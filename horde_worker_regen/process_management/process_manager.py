@@ -4864,7 +4864,10 @@ class HordeWorkerProcessManager:
             tasks.append(bridge_data_loop)
 
         self._aiohttp_client_session = ClientSession(requote_redirect_url=False)
-        self.horde_client_session = AIHordeAPIAsyncClientSession(aiohttp_session=self._aiohttp_client_session)
+        self.horde_client_session = AIHordeAPIAsyncClientSession(
+            aiohttp_session=self._aiohttp_client_session,
+            apikey=self.bridge_data.api_key,
+        )
 
         async with self._aiohttp_client_session, self.horde_client_session:
             await asyncio.gather(*tasks)

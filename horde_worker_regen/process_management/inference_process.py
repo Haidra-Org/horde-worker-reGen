@@ -522,6 +522,7 @@ class HordeInferenceProcess(HordeProcess):
         self._last_job_inference_rate = None
 
         try:
+            self.send_heartbeat_message(heartbeat_type=HordeHeartbeatType.PIPELINE_STATE_CHANGE)
             logger.info(f"Starting inference for job(s) {job_info.ids}")
             esi_count = len(job_info.extra_source_images) if job_info.extra_source_images is not None else 0
             logger.debug(

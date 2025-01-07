@@ -534,15 +534,10 @@ class ProcessMap(dict[int, HordeProcessInfo]):
         """Return true if the process is actively doing inference but we haven't received a heartbeat in a while."""
         if self[process_id].last_process_state != HordeProcessState.INFERENCE_STARTING:
             return False
-        if self[process_id].heartbeats_inference_steps == 0:
-            return False
 
-        if (
-            self[process_id].last_heartbeat_type == HordeHeartbeatType.PIPELINE_STATE_CHANGE
-            and self[process_id].last_heartbeat_delta > (inference_step_timeout * 2)
-            and self[process_id].last_process_state != HordeProcessState.INFERENCE_POST_PROCESSING
-        ):
-            return True
+        last_heartbeat_percent_complete = self[process_id].last_heartbeat_percent_complete
+        if last_heartbeat_percent_complete is not None and last_heartbeat_percent_complete < 1:
+            return False
 
         return bool(
             self[process_id].last_heartbeat_type == HordeHeartbeatType.INFERENCE_STEP
@@ -824,11 +819,13 @@ class ProcessMap(dict[int, HordeProcessInfo]):
                     if process_info.loaded_horde_model_name is not None
                     else "No model loaded"
                 )
+                last_heartbeat_delta_now = round((current_time - process_info.last_heartbeat_timestamp), 2)
                 info_strings.append(
                     (
                         f"Process {process_id} ({process_state_detail}) "
                         f"({horde_model_name_and_baseline}) "
-                        f"<fg #7b7d7d>[last command: {time_passed_seconds} secs ago: {safe_last_control_flag}]</>"
+                        f"<fg #7b7d7d>[last command: {time_passed_seconds} secs ago: {safe_last_control_flag}"
+                        f"{last_heartbeat_delta_now}]</>"
                     ),
                     # f"ram: {process_info.ram_usage_bytes} vram: {process_info.vram_usage_bytes} ",
                 )
@@ -2216,6 +2213,9 @@ class HordeWorkerProcessManager:
                     process_id=process.process_id,
                     new_state=HordeProcessState.WAITING_FOR_JOB,
                 )
+
+        if loaded_models == pending_models:
+            return False
 
         # logger.debug(f"Loaded models: {loaded_models}, queued: {queued_models}")
         # Starting from the left of the deque, preload models that are not yet loaded up to the
@@ -4332,7 +4332,10 @@ class HordeWorkerProcessManager:
                                         next_job_and_process.next_job.payload.n_iter > 1
                                         or next_job_heavy_model_and_workflow
                                     )
-                                    and self._process_map.num_busy_with_inference() > 0
+                                    and (
+                                        self._process_map.num_busy_with_inference() > 0
+                                        or self._process_map.num_busy_with_post_processing() > 0
+                                    )
                                 ):
                                     if time.time() - self._batch_wait_log_time > 10:
                                         logger.opt(ansi=True).info(
@@ -4424,9 +4427,6 @@ class HordeWorkerProcessManager:
         if self._last_pop_recently():
             # We just popped a job, lets allow some time for gears to start turning
             # before we assume we're in a deadlock
-            return
-
-        if self._shutting_down:
             return
 
         if (
@@ -4955,6 +4955,12 @@ class HordeWorkerProcessManager:
         if self._recently_recovered:
             return False
 
+        import threading
+
+        def timed_unset_recently_recovered() -> None:
+            time.sleep(self.bridge_data.inference_step_timeout)
+            self._recently_recovered = False
+
         now = time.time()
 
         any_replaced = False
@@ -4967,6 +4973,7 @@ class HordeWorkerProcessManager:
                 self._replace_inference_process(process_info)
                 any_replaced = True
                 self._recently_recovered = True
+                threading.Thread(target=timed_unset_recently_recovered).start()
             else:
                 conditions: list[tuple[float, HordeProcessState, str]] = [
                     (
@@ -5000,12 +5007,6 @@ class HordeWorkerProcessManager:
 
         if self._last_pop_no_jobs_available:
             return any_replaced
-
-        import threading
-
-        def timed_unset_recently_recovered() -> None:
-            time.sleep(self.bridge_data.inference_step_timeout)
-            self._recently_recovered = False
 
         # If all processes haven't done sent a message for a while
         all_processes_timed_out = all(

@@ -255,19 +255,33 @@ disable_disk_cache: false # Currently unused in reGen
 # The model name must match the name in the model reference or be a magic constant.
 # If you use `TOP` or `ALL` load commands, you should set a `civitai_api_token`. See that configuration entry for more information.
 #
+# SD15 models are generally 1-2GB each, SD21 models are generally 5-37B each, and SDXL models are generally 7B each.
+# Flux.1-Schnell fp8 (Compact) is 17GB, and Cascade is 14gb total.
+#
+#
 # Important note: models_to_skip are only removed and other models are *not* added back in.
 #                 If you set `TOP 10`, and add `Flux.1-Schnell fp8 (Compact)` to `models_to_skip`, 
 #                 you will only have 9 models loaded.
 #
 models_to_load:
-  - "top 2"
-  #- "ALL MODELS"
-  #- "TOP 3"
-  #- "ALL SFW"
-  #- "Flux.1-Schnell fp8 (Compact)"
-  #- "stable_diffusion"
-  #- "Anything Diffusion"
-  #- "stable_diffusion_inpainting"
+    - "top 2"
+    #- "ALL MODELS"
+    #- "TOP 3"
+    #- "ALL SFW"
+    #- "Flux.1-Schnell fp8 (Compact)"
+    #- "stable_diffusion"
+    #- "Anything Diffusion"
+    #- "stable_diffusion_inpainting" # requires `allow_painting` to be true
+# <32gb RAM: 
+  # Only SD15 models (add SDXL, SD21, Flux, Cascade and all of the "Un-pruned" models to your `models_to_skip` below if using TOP/ALL commands)
+  # Be sure to set your queue_size to 0
+# 32gb+ RAM, 8GB VRAM: 
+  # SD15, SD21
+  # If running SDXL
+  # If running Flux, be sure to free up as much VRAM as possible before starting the worker.
+# 32gb+ RAM, 10GB+ VRAM: 
+  # All model types can be run.
+
 
 # If you use a meta command, such as ALL or TOP n, you can allow very large models, such as cascade or flux to be included.
 # By default, these models are excluded due to their large size.
@@ -285,8 +299,7 @@ models_to_skip:
   # - "Stable Cascade 1.0" # This a *very* VRAM intensive model
   # - ALL NSFW MODELS
   #- "stable_diffusion_inpainting"  # Inpainting is generally quite heavy along with other models for smaller GPUs.
-  #- "stable_diffusion_2.1"  # Stable diffusion 2.1 has bigger memory requirements than 1.5, so if your card cannot lift, it, disable it
-  #- "stable_diffusion_2.0"  # Same as Stable diffusion 2.1
+  #- "ALL SD21"  # Stable diffusion 2.1 has bigger memory requirements than 1.5, so if your card cannot lift, it, disable it
   # - HASDX # Un-pruned SD1.5 model (5gb+)
   # - Anygen # Un-pruned SD1.5 model (5gb+)
   # - PFG # Un-pruned SD1.5 model (5gb+)

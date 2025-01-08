@@ -250,9 +250,15 @@ disable_disk_cache: false # Currently unused in reGen
 #   "ALL INPAINTING MODELS" - All models marked for inpainting.
 #   "ALL SFW MODELS" - All models marked as SFW.
 #   "ALL NSFW MODELS" - All models marked as NSFW.
+#
 # The official model reference (in JSON format) is at https://github.com/Haidra-Org/AI-Horde-image-model-reference/blob/main/stable_diffusion.json.
 # The model name must match the name in the model reference or be a magic constant.
 # If you use `TOP` or `ALL` load commands, you should set a `civitai_api_token`. See that configuration entry for more information.
+#
+# Important note: models_to_skip are only removed and other models are *not* added back in.
+#                 If you set `TOP 10`, and add `Flux.1-Schnell fp8 (Compact)` to `models_to_skip`, 
+#                 you will only have 9 models loaded.
+#
 models_to_load:
   - "top 2"
   #- "ALL MODELS"
@@ -271,6 +277,7 @@ load_large_models: false
 
 # Models to skip when `dynamic_models` is true or TOP n models are selected in models_to_load.
 # Avoid loading models due to VRAM constraints, NSFW content, or other reasons.
+# Models skipped are not replaced by other models, meaning TOP n will load fewer models. See the note above models_to_load.
 models_to_skip:
   - "pix2pix" # Not currently supported
   - "SDXL_beta::stability.ai#6901" # Do not remove this, as this model would never work

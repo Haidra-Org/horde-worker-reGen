@@ -106,29 +106,35 @@ Tailor settings to your GPU, following these pointers:
 - **24GB+ VRAM** (e.g. 3090, 4090):
 
   ```yaml
+  - queue_size: 1 # <32GB RAM: 0, 32GB: 1, >32GB: 2
   - safety_on_gpu: true
+  - high_memory_mode: true
   - high_performance_mode: true
-  - post_process_job_overlap: true
   - unload_models_from_vram_often: false
-  - max_threads: 1 # If not using Flux/Cascade, otherwise 2 max
-  - queue_size: 2 # Or 3 if 64GB+ RAM
-  - max_batch: 8 # Or higher
+  - max_threads: 1 # 2 is often viable for xx90 cards
+  - post_process_job_overlap: true
+  - queue_size: 2 # Set to 1 if max_threads: 2
+  - max_power: 64 # Reduce if max_threads: 2
+  - max_batch: 8 # Increase if max_threads: 1, decrease if max_threads: 2
+  - allow_sdxl_controlnet: true
   ```
 
 - **12-16GB VRAM** (e.g. 3080 Ti, 4070 Ti, 4080):
 
-  ```yaml
+  ```yaml  
+  - queue_size: 1 # <32GB RAM: 0, 32GB: 1, >32GB: 2
   - safety_on_gpu: true # Consider false if using Cascade/Flux
   - moderate_performance_mode: true
   - unload_models_from_vram_often: false
   - max_threads: 1
+  - max_power: 50
   - max_batch: 4 # Or higher
   ```
 
 - **8-10GB VRAM** (e.g. 2080, 3060, 4060, 4060 Ti):
 
   ```yaml
-  - queue_size: 1 # Max, or only offer Flux
+  - queue_size: 1 # <32GB RAM: 0, 32GB: 1, >32GB: 2
   - safety_on_gpu: false
   - max_threads: 1
   - max_power: 32 # No higher
@@ -143,6 +149,11 @@ Tailor settings to your GPU, following these pointers:
   - `extra_slow_worker: true` gives more time per job, but users must opt-in. Only use if <0.3 MPS/S or <3000 kudos/hr consistently with correct config.
   - `limit_max_steps: true` caps total steps per job based on model.
   - `preload_timeout: 120` allows longer model load times. Avoid misusing to prevent kudos loss or maintenance mode.
+
+- **Systems with less than 32GB of System RAM**:
+  - Be sure to only run SD15 models and queue_size: 0.
+    - Set `load_large_models: false`
+    - To your `models_to_skip` add `ALL SDXL`, `ALL SD21`, and the 'unpruned' models (see config) to prevent running out of memory
 
 ### Important Notes
 

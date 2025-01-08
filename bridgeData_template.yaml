@@ -273,7 +273,7 @@ models_to_load:
     #- "Anything Diffusion"
     #- "stable_diffusion_inpainting" # requires `allow_painting` to be true
 # <32gb RAM: 
-  # Only SD15 models (add SDXL, SD21, Flux, Cascade and all of the "Un-pruned" models to your `models_to_skip` below if using TOP/ALL commands)
+  # Only SD15 models (set `load_large_models: false` and add SDXL, SD21, and all of the "Un-pruned" models to your `models_to_skip` below if using TOP/ALL commands)
   # Be sure to set your queue_size to 0
 # 32gb+ RAM, 8GB VRAM: 
   # SD15, SD21

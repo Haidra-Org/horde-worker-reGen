@@ -4195,21 +4195,26 @@ class HordeWorkerProcessManager:
         Args:
             kudos_info_string (str): The kudos information string to log.
         """
+        log_function = logger.opt(ansi=True).info
+
+        if self.bridge_data.limited_console_messages:
+            log_function = logger.opt(ansi=True).success
+
         if self.kudos_generated_this_session > 0:
-            logger.opt(ansi=True).info(
+            log_function(
                 f"<fg #7dcea0>{kudos_info_string}</>",
             )
 
         logger.debug(f"len(kudos_events): {len(self.kudos_events)}")
         if self.user_info is not None and self.user_info.kudos_details is not None:
-            logger.opt(ansi=True).info(
+            log_function(
                 "<fg #7dcea0>"
                 f"Total Kudos Accumulated: {self.user_info.kudos_details.accumulated:,.2f} "
                 f"(all workers for {self.user_info.username})"
                 "</>",
             )
             if self.user_info.kudos_details.accumulated is not None and self.user_info.kudos_details.accumulated < 0:
-                logger.opt(ansi=True).info(
+                log_function(
                     "<fg #7dcea0>"
                     "Negative kudos means you've requested more than you've earned. This can be normal."
                     "</>",

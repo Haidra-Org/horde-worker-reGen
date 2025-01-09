@@ -121,7 +121,7 @@ Tailor settings to your GPU, following these pointers:
 
 - **12-16GB VRAM** (e.g. 3080 Ti, 4070 Ti, 4080):
 
-  ```yaml  
+  ```yaml
   - queue_size: 1 # <32GB RAM: 0, 32GB: 1, >32GB: 2
   - safety_on_gpu: true # Consider false if using Cascade/Flux
   - moderate_performance_mode: true

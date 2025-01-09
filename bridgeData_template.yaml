@@ -260,7 +260,7 @@ disable_disk_cache: false # Currently unused in reGen
 #
 #
 # Important note: models_to_skip are only removed and other models are *not* added back in.
-#                 If you set `TOP 10`, and add `Flux.1-Schnell fp8 (Compact)` to `models_to_skip`, 
+#                 If you set `TOP 10`, and add `Flux.1-Schnell fp8 (Compact)` to `models_to_skip`,
 #                 you will only have 9 models loaded.
 #
 models_to_load:
@@ -272,14 +272,14 @@ models_to_load:
     #- "stable_diffusion"
     #- "Anything Diffusion"
     #- "stable_diffusion_inpainting" # requires `allow_painting` to be true
-# <32gb RAM: 
+# <32gb RAM:
   # Only SD15 models (set `load_large_models: false` and add SDXL, SD21, and all of the "Un-pruned" models to your `models_to_skip` below if using TOP/ALL commands)
   # Be sure to set your queue_size to 0
-# 32gb+ RAM, 8GB VRAM: 
+# 32gb+ RAM, 8GB VRAM:
   # SD15, SD21
   # If running SDXL
   # If running Flux, be sure to free up as much VRAM as possible before starting the worker.
-# 32gb+ RAM, 10GB+ VRAM: 
+# 32gb+ RAM, 10GB+ VRAM:
   # All model types can be run.
 
 

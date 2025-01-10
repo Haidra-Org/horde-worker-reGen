@@ -5139,6 +5139,7 @@ class HordeWorkerProcessManager:
             for process_info in self._process_map.values():
                 if process_info.process_type == HordeProcessType.INFERENCE:
                     self._replace_inference_process(process_info)
+                    self._any_replaced = True
 
             threading.Thread(target=timed_unset_recently_recovered).start()
         else:

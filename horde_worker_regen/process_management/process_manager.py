@@ -4428,7 +4428,9 @@ class HordeWorkerProcessManager:
                     ):
                         await asyncio.sleep(self._loop_interval)
                         self.receive_and_handle_process_messages()
-                        self.replace_hung_processes()
+                        if self.replace_hung_processes():
+                            await asyncio.sleep(self._loop_interval / 2)
+                            await asyncio.sleep(self._loop_interval / 2)
                         self._replace_all_safety_process()
 
                     if self._shutting_down and not self._last_pop_recently():

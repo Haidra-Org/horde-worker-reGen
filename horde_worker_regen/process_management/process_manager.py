@@ -4194,7 +4194,7 @@ class HordeWorkerProcessManager:
             log_function = logger.opt(ansi=True).success
 
         if self.kudos_generated_this_session > 0:
-            logger.opt(ansi=True).info(
+            log_function(
                 f"<fg #7dcea0>{kudos_info_string}</>",
             )
 

@@ -314,7 +314,7 @@ class reGenBridgeData(CombinedHordeBridgeData):
             os.environ["AIWORKER_LORA_CACHE_SIZE"] = str(self.max_lora_cache_size * 1024)
 
         if self.load_large_models:
-            os.environ["AI_HORDE_MODEL_META_LARGE_MODELS"] = "true"
+            os.environ["AI_HORDE_MODEL_META_LARGE_MODELS"] = "1"
 
     def save(self, file_path: str) -> None:
         """Save the config model to a file.

@@ -2978,6 +2978,13 @@ class HordeWorkerProcessManager:
                     timeout=aiohttp.ClientTimeout(total=10),
                     ssl=sslcontext,
                 ) as response:
+                    if response.status == 500:
+                        logger.warning(
+                            "Retrying upload to R2. This is a cloudflare issue and only is a concern if "
+                            "you see this message 5 or more times a minute.",
+                        )
+                        new_submit.retry()
+                        return False
                     if response.status != 200:
                         logger.error(f"Failed to upload image to R2: {response}")
                         new_submit.retry()

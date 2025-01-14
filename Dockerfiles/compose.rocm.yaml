@@ -12,7 +12,7 @@ services:
     container_name: reGen
     tty: true
     #environment:
-    #  - FLASH_ATTENTION_USE_TRITON_ROCM=TRUE
+    #  - FLASH_ATTENTION_TRITON_AMD_ENABLE=TRUE
     group_add:
       - video
     volumes:

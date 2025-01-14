@@ -29,7 +29,7 @@ CONDA_ENVIRONMENT_FILE=environment.rocm.yaml
 
 # Determine if the user has a flash attention supported card.
 SUPPORTED_CARD=$(rocminfo | grep -c -e gfx1100 -e gfx1101 -e gfx1102)
-if [ "$SUPPORTED_CARD" -gt 0 ]; then export FLASH_ATTENTION_USE_TRITON_ROCM="${FLASH_ATTENTION_USE_TRITON_ROCM:=TRUE}"; fi
+if [ "$SUPPORTED_CARD" -gt 0 ]; then export FLASH_ATTENTION_TRITON_AMD_ENABLE="${FLASH_ATTENTION_TRITON_AMD_ENABLE:=TRUE}"; fi
 
 wget -qO- https://github.com/mamba-org/micromamba-releases/releases/latest/download/micromamba-linux-64.tar.bz2 | tar -xvj -C "${SCRIPT_DIR}"
 if [ ! -f "$SCRIPT_DIR/conda/envs/linux/bin/python" ]; then

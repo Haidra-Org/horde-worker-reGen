@@ -555,6 +555,18 @@ class HordeInferenceProcess(HordeProcess):
         from torch.cuda import empty_cache
 
         empty_cache()
+        import ctypes
+
+        def malloc_trim() -> None:
+            # if we're in linux...
+            if sys.platform == "linux":
+                # ...we can use libc's malloc_trim function to release memory back to the OS
+                try:
+                    ctypes.CDLL("libc.so.6").malloc_trim(0)
+                except Exception as e:
+                    logger.error(f"Failed to call malloc_trim: {type(e).__name__} {e}")
+
+        malloc_trim()
 
     @logger.catch(reraise=True)
     def unload_models_from_vram(self) -> None:

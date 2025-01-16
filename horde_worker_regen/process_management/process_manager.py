@@ -1608,6 +1608,8 @@ class HordeWorkerProcessManager:
         :return:
         """
         logger.info(f"Starting inference process on PID {pid}")
+        vram_heavy_models = any(model in VRAM_HEAVY_MODELS for model in self.bridge_data.image_models_to_load)
+
         pipe_connection, child_pipe_connection = multiprocessing.Pipe(duplex=True)
         # Create a new process that will run the start_inference_process function
         process = multiprocessing.Process(
@@ -1627,6 +1629,7 @@ class HordeWorkerProcessManager:
                 "high_memory_mode": self.bridge_data.high_memory_mode,
                 "amd_gpu": self._amd_gpu,
                 "directml": self._directml,
+                "vram_heavy_models": vram_heavy_models,
             },
         )
         process.start()

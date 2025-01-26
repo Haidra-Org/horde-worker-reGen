@@ -48,6 +48,7 @@ def start_inference_process(
             Defaults to False.
         directml (int | None, optional): If not None, the process will attempt to use DirectML \
             with the specified device
+        vram_heavy_models (bool, optional): If true, the process will attempt to reserve more VRAM. Defaults to False.
     """
     with contextlib.nullcontext():  # contextlib.redirect_stdout(None), contextlib.redirect_stderr(None):
         logger.remove()

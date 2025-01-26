@@ -252,7 +252,22 @@ With the role:
        filepath: /path/to/model/file.safetensors
    ```
 
+   Currently supported baselines:
+    ```
+        stable_diffusion_1
+        stable_diffusion_2_768
+        stable_diffusion_2_512
+        stable_diffusion_xl
+        stable_cascade
+        flux_1 
+    ```
+    > **Warning**: Flux.schnell series models are the only Flux models allowed; Flux.dev is *not* currently permitted. Do not attempt to offer Flux.dev, models derived from it, or models which contain data from it.
+    See [`STABLE_DIFFUSION_BASELINE_CATEGORY` in horde_model_reference](https://github.com/Haidra-Org/horde-model-reference/blob/main/horde_model_reference/meta_consts.py#L86) for an up to date list.
+
+
 3. Add the model `name` to your `models_to_load` list.
+  
+> Note: Do not use sexually explicit or excessively vulgar names for models.
 
 If set up correctly, `custom_models.json` will appear in the worker directory on startup.
 

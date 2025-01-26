@@ -4008,7 +4008,8 @@ class HordeWorkerProcessManager:
                                 message_expiry=message_expiry,
                             )
                             logger.info(
-                                f"Message {message_id} from {message_origin} (expires {message_expiry}): {message_text}",
+                                f"Message {message_id} from {message_origin} (expires {message_expiry}): "
+                                f"{message_text}",
                             )
             except Exception as e:
                 logger.error(f"Failed to process API messages: {e}")

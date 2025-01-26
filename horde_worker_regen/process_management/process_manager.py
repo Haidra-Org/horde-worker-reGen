@@ -3996,10 +3996,6 @@ class HordeWorkerProcessManager:
                         message_origin = message.get("origin", None)
                         message_expiry = message.get("expiry", None)
 
-                        logger.info(
-                            f"Message {message_id} from {message_origin} (expires {message_expiry}): {message_text}",
-                        )
-
                         if message_id not in self._api_messages_received:
                             if message_id is not None:
                                 message_id = str(message_id)

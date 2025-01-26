@@ -4662,8 +4662,9 @@ class HordeWorkerProcessManager:
                 logging_function("<b>API Messages:</b>")
                 for message_id, message in self._api_messages_received.items():
                     logging_function(
-                        f"  <fg #000><bg #0ff127>{message_id}: {message.message_text} "
-                        f"(from {message.message_origin}, expires {message.message_expiry})"
+                        f"  <fg #000><bg #0ff127>{message.message_text} "
+                        f"(from {message.message_origin}, expires {message.message_expiry}, "
+                        f"message_id: {message_id[:8]})</></>",
                         "</></>",
                     )
 

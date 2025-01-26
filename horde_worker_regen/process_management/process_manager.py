@@ -1352,7 +1352,11 @@ class HordeWorkerProcessManager:
 
         self.enable_performance_mode()
         if self.bridge_data.remove_maintenance_on_init:
-            self.remove_maintenance()
+            try:
+                self.remove_maintenance()
+            except Exception as e:
+                logger.warning(e)
+                logger.warning("Error trying to unset maintenance. Did this worker not exist yet?")
 
         # Get the total memory of each GPU
         import torch

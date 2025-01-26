@@ -3992,7 +3992,7 @@ class HordeWorkerProcessManager:
                 ):
                     for message in job_pop_response.messages:
                         message_id = message.get("id", None)
-                        message_text = message.get("message", None)
+                        message_text = str(message.get("message", None))
                         message_origin = message.get("origin", None)
                         message_expiry = message.get("expiry", None)
 
@@ -4001,6 +4001,8 @@ class HordeWorkerProcessManager:
                         )
 
                         if message_id not in self._api_messages_received:
+                            if message_id is not None:
+                                message_id = str(message_id)
                             self._api_messages_received[message_id] = APIWorkerMessage(
                                 message_id=message_id,
                                 message_text=message_text,
@@ -4661,12 +4663,24 @@ class HordeWorkerProcessManager:
             if len(self._api_messages_received) > 0:
                 logging_function("<b>API Messages:</b>")
                 for message_id, message in self._api_messages_received.items():
-                    logging_function(
-                        f"  <fg #000><bg #0ff127>{message.message_text} "
-                        f"(from {message.message_origin}, expires {message.message_expiry}, "
-                        f"message_id: {message_id[:8]})</></>",
-                        "</></>",
-                    )
+                    try:
+                        message_text = message.message_text or ""
+                        log_safe_message = message_text.replace("<", "&lt;").replace(">", "&gt;")
+                        log_safe_message = log_safe_message.replace("\n", " ")
+                        log_safe_message = log_safe_message.replace("\r", " ")
+                        log_safe_message = log_safe_message.replace("\t", " ")
+                        log_safe_message = log_safe_message.replace("{", "{{").replace("}", "}}")
+                        log_safe_message = log_safe_message.replace('"', "'")
+                        log_safe_message = log_safe_message.replace("'", "'")
+
+                        logging_function(
+                            f"  <fg #000><bg #0ff127>{log_safe_message} "
+                            f"(from {message.message_origin}, expires {message.message_expiry}, "
+                            f"message_id: {message_id[:8]})</></>",
+                            "</></>",
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to print API message: {e}")
 
             logging_function("<b>Process info:</b>")
             for process_info_string in process_info_strings:

@@ -1033,6 +1033,22 @@ class LRUCache:
         return bumped
 
 
+class APIWorkerMessage(BaseModel):
+    """A message sent to the worker from the API."""
+
+    message_id: str
+    """The ID of the message."""
+
+    message_text: str | None
+    """The text of the message."""
+
+    message_origin: str | None
+    """The origin (author) of the message."""
+
+    message_expiry: str | None
+    """The expiry time of the message."""
+
+
 class HordeWorkerProcessManager:
     """Manages and controls processes to act as a horde worker."""
 
@@ -1229,6 +1245,8 @@ class HordeWorkerProcessManager:
     _directml: int | None
     """ID of the potential directml device."""
 
+    _api_messages_received: dict[str, APIWorkerMessage]
+
     @property
     def post_process_job_overlap_allowed(self) -> bool:
         """Return true if post processing jobs are allowed to overlap."""
@@ -1381,6 +1399,8 @@ class HordeWorkerProcessManager:
         self._process_message_queue = multiprocessing.Queue()
 
         self.kudos_events: list[tuple[float, float]] = []
+
+        self._api_messages_received = {}
 
         self.stable_diffusion_reference = None
 
@@ -3964,6 +3984,34 @@ class HordeWorkerProcessManager:
                 job_pop_request,
                 ImageGenerateJobPopResponse,
             )
+            try:
+                if (
+                    hasattr(job_pop_response, "messages")
+                    and job_pop_response.messages is not None
+                    and len(job_pop_response.messages) > 0
+                ):
+                    for message in job_pop_response.messages:
+                        message_id = message.get("id", None)
+                        message_text = message.get("message", None)
+                        message_origin = message.get("origin", None)
+                        message_expiry = message.get("expiry", None)
+
+                        logger.info(
+                            f"Message {message_id} from {message_origin} (expires {message_expiry}): {message_text}",
+                        )
+
+                        if message_id not in self._api_messages_received:
+                            self._api_messages_received[message_id] = APIWorkerMessage(
+                                message_id=message_id,
+                                message_text=message_text,
+                                message_origin=message_origin,
+                                message_expiry=message_expiry,
+                            )
+                            logger.info(
+                                f"Message {message_id} from {message_origin} (expires {message_expiry}): {message_text}",
+                            )
+            except Exception as e:
+                logger.error(f"Failed to process API messages: {e}")
 
             # TODO: horde_sdk should handle this and return a field with a enum(?) of the reason
             if isinstance(job_pop_response, RequestErrorResponse):
@@ -4608,6 +4656,16 @@ class HordeWorkerProcessManager:
             process_info_strings = self._process_map.get_process_info_strings()
 
             logging_function("<fg #dddddd>" + str("^" * 80) + "</>")
+
+            if len(self._api_messages_received) > 0:
+                logging_function("<b>API Messages:</b>")
+                for message_id, message in self._api_messages_received.items():
+                    logging_function(
+                        f"  <fg #000><bg #0ff127>{message_id}: {message.message_text} "
+                        f"(from {message.message_origin}, expires {message.message_expiry})"
+                        "</></>",
+                    )
+
             logging_function("<b>Process info:</b>")
             for process_info_string in process_info_strings:
                 logging_function("  " + process_info_string)

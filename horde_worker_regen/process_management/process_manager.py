@@ -4009,7 +4009,7 @@ class HordeWorkerProcessManager:
                                 message_origin=message_origin,
                                 message_expiry=message_expiry,
                             )
-                            logger.info(
+                            logger.debug(
                                 f"Message {message_id} from {message_origin} (expires {message_expiry}): "
                                 f"{message_text}",
                             )

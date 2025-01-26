@@ -89,8 +89,10 @@ def load_env_vars_from_config() -> None:  # FIXME: there is a dynamic way to do 
         ]
 
         custom_horde_url = config["horde_url"]
+        AI_HORDE_URL = os.getenv("AI_HORDE_URL")
         if custom_horde_url and any(url in custom_horde_url for url in known_ai_horde_urls):
-            logger.debug("Using default AI Horde URL.")
+            if AI_HORDE_URL is None or not AI_HORDE_URL:
+                logger.debug("Using default AI Horde URL.")
         else:
             logger.warning(
                 f"Using custom AI Horde URL `{custom_horde_url}`. Make sure this is correct and ends in `/api/`.",

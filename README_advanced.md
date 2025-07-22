@@ -104,7 +104,7 @@ exit
 - `git clone https://github.com/Haidra-Org/horde-worker-reGen.git`
 - `cd .\horde-worker-reGen\`
 - Install the requirements:
-  - CUDA: `pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu126`
+  - CUDA: `pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu128`
   - RoCM: `pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/rocm6.2`
 
 ### Run worker
@@ -115,7 +115,7 @@ exit
 Pressing control-c will stop the worker but will first have the worker complete any jobs in progress before ending. Please try and avoid hard killing it unless you are seeing many major errors. You can force kill by repeatedly pressing control+c or doing a SIGKILL.
 
 ### Important note if manually manage your venvs
-- You should be running `python -m pip install -r requirements.txt -U https://download.pytorch.org/whl/cu126` every time you `git pull`. (Use `/whl/rocm6.2` instead if applicable)
+- You should be running `python -m pip install -r requirements.txt -U https://download.pytorch.org/whl/cu128` every time you `git pull`. (Use `/whl/rocm6.2` instead if applicable)
 
 
 ## Advanced users, running on directml

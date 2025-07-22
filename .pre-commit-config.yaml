@@ -39,7 +39,7 @@ repos:
         - python-dotenv
         - aiohttp
         - horde_safety==0.2.3
-        - torch==2.5.0
+        - torch==2.7.1
         - ruamel.yaml
         - horde_engine==2.20.12
         - horde_sdk==0.17.1

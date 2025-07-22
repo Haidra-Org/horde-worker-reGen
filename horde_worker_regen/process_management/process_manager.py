@@ -1351,8 +1351,8 @@ class HordeWorkerProcessManager:
                 raise ValueError(
                     "VRAM heavy models detected. Total RAM is less than 24GB. "
                     "This is not enough RAM to run the worker."
-                    "Disable `Stable Cascade 1.0` by adding it to your `models_to_skip` or remove it from your "
-                    "`models_to_load`.",
+                    "Disable the large models by adding it to your `models_to_skip` or remove it from your "
+                    "`models_to_load`. Large models include: " + ", ".join(VRAM_HEAVY_MODELS),
                 )
 
             self.target_ram_overhead_bytes = min(self.target_ram_overhead_bytes, int(20 * 1024 * 1024 * 1024 / 2))

@@ -28,7 +28,7 @@ done
 CONDA_ENVIRONMENT_FILE=environment.rocm.yaml
 
 # Determine if the user has a flash attention supported card.
-SUPPORTED_CARD=$(rocminfo | grep -c -e gfx1100 -e gfx1101 -e gfx1102)
+SUPPORTED_CARD=$(rocminfo | grep -c -e gfx1100 -e gfx1101 -e gfx1102 || true)
 if [ "$SUPPORTED_CARD" -gt 0 ]; then export FLASH_ATTENTION_TRITON_AMD_ENABLE="${FLASH_ATTENTION_TRITON_AMD_ENABLE:=TRUE}"; fi
 
 wget -qO- https://github.com/mamba-org/micromamba-releases/releases/latest/download/micromamba-linux-64.tar.bz2 | tar -xvj -C "${SCRIPT_DIR}"
@@ -39,12 +39,10 @@ ${SCRIPT_DIR}/bin/micromamba create --no-shortcuts -r "$SCRIPT_DIR/conda" -n lin
 
 if [ "$hordelib" = true ]; then
  ${SCRIPT_DIR}/bin/micromamba run -r "$SCRIPT_DIR/conda" -n linux python -s -m pip uninstall -y hordelib horde_engine horde_sdk horde_model_reference
- ${SCRIPT_DIR}/bin/micromamba run -r "$SCRIPT_DIR/conda" -n linux python -s -m pip install horde_engine horde_model_reference --extra-index-url https://download.pytorch.org/whl/rocm6.2
+ ${SCRIPT_DIR}/bin/micromamba run -r "$SCRIPT_DIR/conda" -n linux python -s -m pip install horde_engine horde_model_reference --extra-index-url https://download.pytorch.org/whl/rocm6.3
 else
- ${SCRIPT_DIR}/bin/micromamba run -r "$SCRIPT_DIR/conda" -n linux python -s -m pip install -r "$SCRIPT_DIR/requirements.rocm.txt" -U --extra-index-url https://download.pytorch.org/whl/rocm6.2
+ ${SCRIPT_DIR}/bin/micromamba run -r "$SCRIPT_DIR/conda" -n linux python -s -m pip install -r "$SCRIPT_DIR/requirements.rocm.txt" -U --extra-index-url https://download.pytorch.org/whl/rocm6.3
 fi
-
-${SCRIPT_DIR}/bin/micromamba run -r "$SCRIPT_DIR/conda" -n linux python -s -m pip uninstall -y pynvml nvidia-ml-py
 
 # Check if we are running in WSL2
 WSL_KERNEL=$(uname -a | grep -c -e WSL2 )

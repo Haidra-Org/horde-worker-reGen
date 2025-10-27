@@ -206,6 +206,11 @@ CUDA_VISIBLE_DEVICES=0 ./horde-bridge.sh -n "Instance 1"
 CUDA_VISIBLE_DEVICES=1 ./horde-bridge.sh -n "Instance 2"
 ```
 
+On Windows, the same variable can be set by modifying the `horde-bridge.cmd`. Insert the following content after line `1`. After that, re-run the script to start a worker instance using that GPU.
+```batch
+set CUDA_VISIBLE_DEVICES=1
+```
+
 **Warning**: High RAM (32-64GB+) is needed for multiple workers. `queue_size` and `max_threads` greatly impact RAM per worker.
 
 ## Updating

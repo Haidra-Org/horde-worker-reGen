@@ -88,6 +88,7 @@ def start_inference_process(
                 models_not_to_force_load.extend(
                     [
                         "cascade",
+                        "qwen_image",
                     ],
                 )
             elif low_memory_mode:
@@ -96,6 +97,7 @@ def start_inference_process(
                     [
                         "sdxl",
                         "cascade",
+                        "qwen_image",
                     ],
                 )
             elif not vram_heavy_models:

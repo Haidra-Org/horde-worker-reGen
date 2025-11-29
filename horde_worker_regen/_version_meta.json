@@ -51,6 +51,10 @@
             "horde_model_reference_branch": "qrt",
             "beta_expiry_date": "2024-06-07"
         },
+        "10.2.0": {
+            "horde_model_reference_branch": "qwen",
+            "beta_expiry_date": "2026-01-01"
+        },
         "4.2.0": {
             "horde_model_reference_branch": "cascade",
             "beta_expiry_date": "2024-02-31"

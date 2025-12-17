@@ -22,14 +22,10 @@ if [ ! -z "${ROCM_VERSION_SHORT}" ]; then
     export PYTORCH_EXTRA_INDEX="https://download.pytorch.org/whl/rocm${ROCM_VERSION_SHORT}"
     export REQUIREMENTS_FILE="requirements.rocm.txt"
 
-    # Determine if the user has a flash attention supported card.
-    SUPPORTED_CARD=$(rocminfo | grep -c -e gfx1100 -e gfx1101 -e gfx1102 || true)
-    if [ "$SUPPORTED_CARD" -gt 0 ]; then export FLASH_ATTENTION_TRITON_AMD_ENABLE="${FLASH_ATTENTION_TRITON_AMD_ENABLE:=TRUE}"; fi
-    echo "FLASH_ATTENTION_TRITON_AMD_ENABLE=$FLASH_ATTENTION_TRITON_AMD_ENABLE"
-
     #export PYTORCH_TUNABLEOP_ENABLED=1
     export MIOPEN_FIND_MODE="FAST"
     #export PYTORCH_HIP_ALLOC_CONF="garbage_collection_threshold:0.8,max_split_size_mb:512,expandable_segments:True"
+
 elif [ ! -z "${CUDA_VERSION_SHORT}" ]; then
     # CUDA environment
     export GPU_TYPE="cuda"
@@ -38,6 +34,7 @@ elif [ ! -z "${CUDA_VERSION_SHORT}" ]; then
     export PATH=${CUDA_HOME}/bin:${PATH}
     export PYTORCH_EXTRA_INDEX="https://download.pytorch.org/whl/cu${CUDA_VERSION_SHORT}"
     export REQUIREMENTS_FILE="requirements.txt"
+
 else
     echo "Neither ROCm nor CUDA environment variables found in /env_vars. Exiting."
     exit 1

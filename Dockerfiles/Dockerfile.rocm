@@ -1,13 +1,13 @@
 # Stage 1: Base environment setup
 ARG ROCM_VERSION=6.3.4
-FROM rocm/rocm-terminal:${ROCM_VERSION} AS base
+FROM rocm/dev-ubuntu-24.04:${ROCM_VERSION} AS base
 
 USER root
 WORKDIR /
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG PYTHON_VERSION=3.11
+ARG PYTHON_VERSION=3.12
 ENV PYTHON_VERSION=${PYTHON_VERSION}
 ENV APP_HOME=/horde-worker-reGen
 
@@ -19,8 +19,6 @@ RUN apt-get update && \
     python3-pip \
     python${PYTHON_VERSION}-venv \
     python${PYTHON_VERSION}-dev \
-    python${PYTHON_VERSION}-distutils \
-    ninja-build \
     rocm \
     git && \
     apt-get clean && \

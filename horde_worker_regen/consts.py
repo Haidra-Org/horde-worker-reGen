@@ -7,8 +7,8 @@ VERSION_META_REMOTE_URL = (
 )
 
 
-KNOWN_SLOW_MODELS_DIFFICULTIES = {"Stable Cascade 1.0": 6.0, "Flux.1-Schnell fp8 (Compact)": 6.0, "Qwen-Image_fp8": 6.0}
-VRAM_HEAVY_MODELS = ["Stable Cascade 1.0", "Flux.1-Schnell fp16 (Compact)", "Flux.1-Schnell fp8 (Compact)", "Qwen-Image_fp8"]
+KNOWN_SLOW_MODELS_DIFFICULTIES = {"Stable Cascade 1.0": 6.0, "Flux.1-Schnell fp8 (Compact)": 6.0, "Qwen-Image_fp8": 8.0, "Z-Image-Turbo": 6.0}
+VRAM_HEAVY_MODELS = ["Stable Cascade 1.0", "Flux.1-Schnell fp16 (Compact)", "Flux.1-Schnell fp8 (Compact)", "Qwen-Image_fp8", "Z-Image-Turbo"]
 KNOWN_SLOW_WORKFLOWS = {"qr_code": 2.0}
 KNOWN_CONTROLNET_WORKFLOWS = ["qr_code"]
 

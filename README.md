@@ -261,6 +261,7 @@ With the role:
         stable_cascade
         flux_1
         Qwen-Image_fp8
+        z_image_turbo
     ```
     > **Warning**: Flux.schnell series models are the only Flux models allowed; Flux.dev is *not* currently permitted. Do not attempt to offer Flux.dev, models derived from it, or models which contain data from it.
     See [`STABLE_DIFFUSION_BASELINE_CATEGORY` in horde_model_reference](https://github.com/Haidra-Org/horde-model-reference/blob/main/horde_model_reference/meta_consts.py#L86) for an up to date list.

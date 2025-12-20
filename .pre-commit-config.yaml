@@ -38,8 +38,9 @@ repos:
         - loguru
         - python-dotenv
         - aiohttp
-        - horde_safety==0.2.3
-        - torch==2.7.1
+        - mediapipe==0.10.21
+        - horde_safety==0.3.0
+        - torch==2.9.1
         - ruamel.yaml
         - horde_engine==2.20.12
         - horde_sdk==0.17.1

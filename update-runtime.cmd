@@ -67,7 +67,7 @@ micromamba.exe shell hook -s cmd.exe %MAMBA_ROOT_PREFIX% -v
 call "%MAMBA_ROOT_PREFIX%\condabin\mamba_hook.bat"
 call "%MAMBA_ROOT_PREFIX%\condabin\micromamba.bat" activate windows
 
-python -s -m pip install torch==2.7.1 --index-url https://download.pytorch.org/whl/cu128 -U
+python -s -m pip install torch==2.9.1 --index-url https://download.pytorch.org/whl/cu128 -U
 
 if defined hordelib (
   python -s -m pip uninstall -y hordelib horde_engine horde_model_reference

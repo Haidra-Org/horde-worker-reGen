@@ -3768,7 +3768,7 @@ class HordeWorkerProcessManager:
         warning_function_no_format("  - `queue_size` is too high.")
         warning_function_no_format("  - `max_batch` is too high.")
         warning_function_no_format("  - `max_power` is too high.")
-        warning_function_no_format("  - The worker can't handle, SDXL, Cascade, or Flux models.")
+        warning_function_no_format("  - The worker can't handle, SDXL, Cascade, Qwen Image, or Flux models.")
         warning_function_no_format(
             "  - If you have the equivalent GPU of a 1070 or less, set"
             " limit_max_steps or extra_slow_worker. "

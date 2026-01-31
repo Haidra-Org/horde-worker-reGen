@@ -408,6 +408,7 @@ class HordeInferenceProcess(HordeProcess):
                 seamless_tiling_enabled=seamless_tiling_enabled,
                 horde_model_name=horde_model_name,
                 preloading=True,
+                file_type=self._horde.get_model_file_type(horde_model_name),
             )
 
         logger.info(f"Preloaded model {horde_model_name}")

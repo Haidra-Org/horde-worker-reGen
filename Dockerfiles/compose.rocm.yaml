@@ -4,15 +4,13 @@ services:
       context: ./
       dockerfile: ./Dockerfile.rocm
       args:
-        - ROCM_VERSION=6.2.1
-        - PYTHON_VERSION=3.11
+        - ROCM_VERSION=6.3.4
+        - PYTHON_VERSION=3.12
         - USE_PIP_CACHE=true
         - GIT_BRANCH=main
         - GIT_OWNER=Haidra-Org
     container_name: reGen
     tty: true
-    #environment:
-    #  - FLASH_ATTENTION_TRITON_AMD_ENABLE=TRUE
     group_add:
       - video
     volumes:

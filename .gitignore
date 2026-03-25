@@ -1,5 +1,8 @@
 bridgeData.env
 bridgeData.yaml*
+.gpu_backend
+.installed_gpu_backend
+.models_downloaded
 testing
 dummy
 
@@ -19,6 +22,11 @@ griffe.json
 
 micromamba.exe
 micromamba.tar.bz2
+
+bin/uv
+bin/uv.exe
+bin/uvx
+bin/uvx.exe
 info/
 library/
 

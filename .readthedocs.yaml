@@ -9,12 +9,11 @@ build:
   os: ubuntu-22.04
   tools:
     python: "3.11"
+  commands:
+    - pip install uv
+    - uv sync --locked --extra cpu --no-dev
+    - uv pip install -r requirements.docs.txt
+    - uv run mkdocs build -d $READTHEDOCS_OUTPUT/html
 
 mkdocs:
   configuration: mkdocs.yml
-
-# Optionally declare the Python requirements required to build your docs
-python:
-  install:
-  - requirements: requirements.txt
-  - requirements: requirements.docs.txt

@@ -78,14 +78,12 @@ Both use multi-stage builds and support customization through build arguments.
 These can be set either in the `compose.[cuda|rocm].yaml` file, in the `Dockerfile.[cuda|rocm]` or as [CLI arguments](#building-docker-images) for a manual build without compose.
 Common build arguments for both Dockerfiles:
 
-- `PYTHON_VERSION`: Python version to install (default: 3.11)
 - `GIT_BRANCH`: Branch of the repository to clone (default: main)
 - `GIT_OWNER`: Owner of the GitHub repository (default: Haidra-Org)
-- `USE_PIP_CACHE`: Whether to use pip caching (default: true)
 
 Specific build arguments:
-- For CUDA: `CUDA_VERSION` (default: 12.4.1)
-- For ROCm: `ROCM_VERSION` (default: 6.1.2)
+- For CUDA: `CUDA_VERSION` (default: 12.8.1)
+- For ROCm: `ROCM_VERSION` (default: 6.4)
 
 ## Building Docker Images
 
@@ -93,11 +91,9 @@ Specific build arguments:
 
 ```bash
 docker build -f Dockerfile.cuda \
-  --build-arg CUDA_VERSION=12.4.1 \
-  --build-arg PYTHON_VERSION=3.11 \
+  --build-arg CUDA_VERSION=12.8.1 \
   --build-arg GIT_BRANCH=main \
   --build-arg GIT_OWNER=Haidra-Org \
-  --build-arg USE_PIP_CACHE=true \
   -t horde-worker-regen:cuda .
 ```
 
@@ -105,11 +101,9 @@ docker build -f Dockerfile.cuda \
 
 ```bash
 docker build -f Dockerfile.rocm \
-  --build-arg ROCM_VERSION=6.1.2 \
-  --build-arg PYTHON_VERSION=3.11 \
+  --build-arg ROCM_VERSION=6.4 \
   --build-arg GIT_BRANCH=main \
   --build-arg GIT_OWNER=Haidra-Org \
-  --build-arg USE_PIP_CACHE=true \
   -t horde-worker-regen:rocm .
 ```
 
@@ -171,9 +165,9 @@ If you have a local install of the worker, you can use the script `convert_confi
   ./runtime.sh python -s -m convert_config_to_env --file .\bridgeData.yaml
   ```
 
-- venv users
+- uv users
   ```
-  python -m convert_config_to_env --file .\bridgeData.yaml
+  uv run python -m convert_config_to_env --file .\bridgeData.yaml
   ```
 
 ... which will write a file to your current working directory named `bridgeData.env`, which is suitable for passing to `docker run` with the `--env-file` cli option. Note that the models_to_load and models_to_skip will be resolved to a list of models if you specified a meta-load command such as `TOP 5` (it would write out the top 5 at that time, **not** the literal `TOP 5`). If you want the dynamic nature of those commands, you should specify them manually.
@@ -213,9 +207,8 @@ If you have a local install of the worker, you can use the script `convert_confi
 
 ## Troubleshooting
 
-1. If encountering pip cache-related errors, try building without cache: `--build-arg USE_PIP_CACHE=false`
-2. Ensure you have the necessary GPU drivers installed on your host system.
-3. For ROCm, make sure your system supports the specified ROCm version.
+1. Ensure you have the necessary GPU drivers installed on your host system.
+2. For ROCm, make sure your system supports the specified ROCm version.
 
 ## Updating
 

@@ -2,9 +2,6 @@
 # Get the directory of the current script
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Build the absolute path to the Conda environment
-CONDA_ENV_PATH="$SCRIPT_DIR/conda/envs/linux/lib"
-
 # Determine if the user has a flash attention supported card.
 SUPPORTED_CARD=$(rocminfo | grep -c -e gfx1100 -e gfx1101 -e gfx1102)
 if [ "$SUPPORTED_CARD" -gt 0 ]; then export FLASH_ATTENTION_TRITON_AMD_ENABLE="${FLASH_ATTENTION_TRITON_AMD_ENABLE:=TRUE}"; fi
@@ -15,16 +12,10 @@ WSL_KERNEL=$(uname -a | grep -c -e WSL2 )
 if [ "$WSL_KERNEL" -gt 0 ]; then
     export IN_WSL="TRUE"
     echo "WSL environment detected. Patching ROCm libhsa-runtime64.so"
-    for i in $(find ./ -iname libhsa-runtime64.so); do cp /opt/rocm/lib/libhsa-runtime64.so $i; done
+    for i in $(find ./ -iname libhsa-runtime64.so); do cp /opt/rocm/lib/libhsa-runtime64.so "$i"; done
 fi
 
-# Add the Conda environment to LD_LIBRARY_PATH
-export LD_LIBRARY_PATH="$CONDA_ENV_PATH:$LD_LIBRARY_PATH"
-
-# Set torch garbage cleanup. Amd defaults cause problems. //this was less stable than the torch 2.5.0 defaults in my testing
-#export PYTORCH_HIP_ALLOC_CONF=garbage_collection_threshold:0.6,max_split_size_mb:2048
-
-# List of directories to check
+# List of directories to check for jemalloc
 dirs=(
     "/usr/lib"
     "/usr/local/lib"
@@ -44,7 +35,7 @@ done
 
 # If jemalloc was not found, print a warning
 if [ -z "$LD_PRELOAD" ]; then
-    printf "WARNING: jemalloc not found. You may run into memory issues! We recommend running `sudo apt install libjemalloc2`\n"
+    printf "WARNING: jemalloc not found. You may run into memory issues! We recommend running 'sudo apt install libjemalloc2'\n"
     # Press q to quit or any other key to continue
     read -n 1 -s -r -p "Press q to quit or any other key to continue: " key
     if [ "$key" = "q" ]; then

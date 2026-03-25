@@ -6,6 +6,11 @@ from pathlib import Path
 import pytest
 from loguru import logger
 
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
+
 
 @pytest.fixture(scope="session", autouse=True)
 def init_hordelib() -> None:
@@ -15,9 +20,7 @@ def init_hordelib() -> None:
 
 
 PRECOMMIT_FILE_PATH = Path(__file__).parent.parent / ".pre-commit-config.yaml"
-REQUIREMENTS_FILE_PATH = Path(__file__).parent.parent / "requirements.txt"
-ROCM_REQUIREMENTS_FILE_PATH = Path(__file__).parent.parent / "requirements.rocm.txt"
-DIRECTML_REQUIREMENTS_FILE_PATH = Path(__file__).parent.parent / "requirements.directml.txt"
+PYPROJECT_FILE_PATH = Path(__file__).parent.parent / "pyproject.toml"
 
 TRACKED_DEPENDENCIES = [
     "horde_sdk",
@@ -35,46 +38,37 @@ def tracked_dependencies() -> list[str]:
     return TRACKED_DEPENDENCIES
 
 
-def get_dependency_versions(requirements_file_path: str | Path) -> dict[str, str]:
-    """Get the versions of horde dependencies from the given requirements file."""
-    requirements_file_path = Path(requirements_file_path)
+def _parse_version(spec: str) -> str:
+    """Extract version from a PEP 508 dependency specifier."""
+    for op in ("~=", "==", ">="):
+        if op in spec:
+            version = spec.split(op)[1].strip()
+            # Strip extras after comma, semicolons (env markers), or +
+            for sep in (",", ";", "+"):
+                version = version.split(sep)[0].strip()
+            return version
+    raise ValueError(f"Unsupported version pin: {spec}")
 
-    with open(requirements_file_path) as f:
-        requirements = f.readlines()
 
-    dependencies = {}
-    for req in requirements:
-        for dep in TRACKED_DEPENDENCIES:
-            if req.startswith(dep):
-                if "==" in req:
-                    version = req.split("==")[1].strip()
-                elif "~=" in req:
-                    version = req.split("~=")[1].strip()
-                elif ">=" in req:
-                    version = req.split(">=")[1].strip()
-                else:
-                    raise ValueError(f"Unsupported version pin: {req}")
+def get_dependency_versions_from_pyproject() -> dict[str, str]:
+    """Get the versions of tracked dependencies from pyproject.toml."""
+    with open(PYPROJECT_FILE_PATH, "rb") as f:
+        data = tomllib.load(f)
 
-                # Strip any info starting from the `+` character
-                version = version.split("+")[0]
-                dependencies[dep] = version
+    deps = data["project"]["dependencies"]
+    versions: dict[str, str] = {}
 
-    return dependencies
+    for dep_str in deps:
+        dep_name = dep_str.split("[")[0].split(">")[0].split("~")[0].split("=")[0].split("<")[0].strip()
+        normalised = dep_name.replace("-", "_").lower()
+        for tracked in TRACKED_DEPENDENCIES:
+            if normalised == tracked.replace("-", "_").lower():
+                versions[tracked] = _parse_version(dep_str)
+
+    return versions
 
 
 @pytest.fixture(scope="session")
 def horde_dependency_versions() -> dict[str, str]:
-    """Get the versions of horde dependencies from the requirements file."""
-    return get_dependency_versions(REQUIREMENTS_FILE_PATH)
-
-
-@pytest.fixture(scope="session")
-def rocm_horde_dependency_versions() -> dict[str, str]:
-    """Get the versions of horde dependencies from the ROCm requirements file."""
-    return get_dependency_versions(ROCM_REQUIREMENTS_FILE_PATH)
-
-
-@pytest.fixture(scope="session")
-def directml_horde_dependency_versions() -> dict[str, str]:
-    """Get the versions of horde dependencies from the DirectML requirements file."""
-    return get_dependency_versions(DIRECTML_REQUIREMENTS_FILE_PATH)
+    """Get the versions of horde dependencies from pyproject.toml."""
+    return get_dependency_versions_from_pyproject()

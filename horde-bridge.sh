@@ -2,13 +2,7 @@
 # Get the directory of the current script
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Build the absolute path to the Conda environment
-CONDA_ENV_PATH="$SCRIPT_DIR/conda/envs/linux/lib"
-
-# Add the Conda environment to LD_LIBRARY_PATH
-export LD_LIBRARY_PATH="$CONDA_ENV_PATH:$LD_LIBRARY_PATH"
-
-# List of directories to check
+# List of directories to check for jemalloc
 dirs=(
     "/usr/lib"
     "/usr/local/lib"
@@ -37,9 +31,18 @@ if [ -z "$LD_PRELOAD" ]; then
     fi
 fi
 
+echo "============================================"
+echo "  AI Horde Worker"
+echo "============================================"
+echo ""
 if "$SCRIPT_DIR/runtime.sh" python -s "$SCRIPT_DIR/download_models.py"; then
-    echo "Model Download OK. Starting worker..."
+    echo ""
+    echo "Models ready. Starting worker..."
+    echo "(Press Ctrl+C to stop the worker gracefully)"
+    echo ""
     "$SCRIPT_DIR/runtime.sh" python -s "$SCRIPT_DIR/run_worker.py" $*
 else
-    echo "download_models.py exited with error code. Aborting"
+    echo ""
+    echo "ERROR: Model download failed. Check the output above and try again."
+    echo "       Common fix: check your internet connection and disk space."
 fi

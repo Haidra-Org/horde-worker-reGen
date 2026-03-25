@@ -9,12 +9,12 @@ def test_pre_commit_dep_versions(
     horde_dependency_versions: dict[str, str],
     tracked_dependencies: list[str],
 ) -> None:
-    """Check that the versions of horde deps. in .pre-commit-config.yaml match the versions in requirements.txt.
+    """Check that the versions of horde deps. in .pre-commit-config.yaml match the versions in pyproject.toml.
 
     See the `tracked_dependencies` fixture for the dependencies tracked.
 
     Args:
-        horde_dependency_versions (list[tuple[str, str]]): The versions of the dependencies in requirements.txt.
+        horde_dependency_versions (list[tuple[str, str]]): The versions of the dependencies in pyproject.toml.
         tracked_dependencies (list[str]): The dependencies to track.
 
     """

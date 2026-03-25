@@ -1,33 +1,25 @@
 # Stage 1: Base environment setup
-ARG CUDA_VERSION=12.4.1
+ARG CUDA_VERSION=12.8.1
 FROM nvidia/cuda:${CUDA_VERSION}-runtime-ubuntu22.04 AS base
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG PYTHON_VERSION=3.11
-ENV PYTHON_VERSION=${PYTHON_VERSION}
 ENV APP_HOME=/horde-worker-reGen
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends software-properties-common && \
-    add-apt-repository ppa:deadsnakes/ppa && \
     apt-get install -y --no-install-recommends \
-    python${PYTHON_VERSION} \
-    python3-pip \
-    python${PYTHON_VERSION}-venv \
     libgl1 \
-    git && \
+    git \
+    curl \
+    ca-certificates && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Extract CUDA version for PyTorch
-ARG CUDA_VERSION
-RUN CUDA_VERSION_SHORT=$(echo "${CUDA_VERSION}" | cut -d. -f1-2 | tr -d '.') && \
-    echo "${CUDA_VERSION_SHORT}" && \
-    echo "export CUDA_VERSION_SHORT=${CUDA_VERSION_SHORT}" >> /env_vars
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-# Stage 2: Clone repository and install dependencies
+# Stage 2: Install dependencies (cached layer)
 FROM base AS builder
 
 ARG GIT_BRANCH=main
@@ -42,21 +34,13 @@ WORKDIR "${APP_HOME}"
 RUN git clone "https://github.com/${GIT_OWNER}/horde-worker-reGen.git" . && \
     git switch "${GIT_BRANCH}"
 
-# Create virtual environment
-RUN python"${PYTHON_VERSION}" -m venv "${APP_HOME}/venv"
-ENV PATH="${APP_HOME}/venv/bin:$PATH"
+# Install dependencies first (better layer caching)
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-install-project --extra cu128
 
-# Install dependencies
-ARG PIP_CACHE_DIR=/pip-cache
-ARG USE_PIP_CACHE=true
-
-RUN --mount=type=cache,target="${PIP_CACHE_DIR}",sharing=locked,id=pip-cache \
-    . /env_vars && \
-    if [ "${USE_PIP_CACHE}" = "true" ]; then \
-        pip install --cache-dir="${PIP_CACHE_DIR}" opencv-python-headless -r requirements.txt -U --extra-index-url "https://download.pytorch.org/whl/cu${CUDA_VERSION_SHORT}"; \
-    else \
-        pip install opencv-python-headless -r requirements.txt -U --extra-index-url "https://download.pytorch.org/whl/cu${CUDA_VERSION_SHORT}"; \
-    fi
+# Install the project itself
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --extra cu128
 
 # Stage 3: Final stage
 FROM builder AS final

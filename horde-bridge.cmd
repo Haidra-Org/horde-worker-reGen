@@ -1,35 +1,37 @@
 @echo off
 cd /d %~dp0
+title AI Horde Worker
 
-: This first call to runtime activates the environment for the rest of the script
-call runtime python -s -m pip -V
+echo ============================================
+echo   AI Horde Worker
+echo ============================================
+echo.
 
-call python -s -m pip uninstall hordelib
-call python -s -m pip install horde_sdk~=0.17.1 horde_model_reference~=0.9.2 horde_engine~=2.20.12 horde_safety~=0.3.0 -U
-
+: Ensure the environment is set up
+call runtime python -s -c "import torch"
 if %ERRORLEVEL% NEQ 0 (
-    echo "Please run update-runtime.cmd."
-    GOTO END
-)
-
-call python -s -m pip check
-if %ERRORLEVEL% NEQ 0 (
-    echo "Please run update-runtime.cmd."
+    echo.
+    echo ERROR: Environment not set up. Please run update-runtime.cmd first.
+    echo        Or use horde-worker.cmd which handles setup automatically.
     GOTO END
 )
 
 :DOWNLOAD
-call python -s download_models.py
+echo Downloading / verifying models...
+call runtime python -s download_models.py
 if %ERRORLEVEL% NEQ 0 GOTO ABORT
-echo "Model Download OK. Starting worker..."
-call python -s run_worker.py %*
+echo.
+echo Models ready. Starting worker...
+echo (Press Ctrl+C to stop the worker gracefully)
+echo.
+call runtime python -s run_worker.py %*
 
 GOTO END
 
 :ABORT
-echo "download_models.py exited with error code. Aborting"
+echo.
+echo ERROR: Model download failed. Check the output above and try again.
+echo        Common fix: check your internet connection and disk space.
 
 :END
-call "%MAMBA_ROOT_PREFIX%\condabin\micromamba.bat" deactivate >nul
-call deactivate >nul
 pause

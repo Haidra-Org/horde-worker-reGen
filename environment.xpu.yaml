@@ -1,0 +1,9 @@
+name: ldm
+channels:
+  - conda-forge
+  - defaults
+# Minimal environment for Intel XPU. PyTorch and the rest of the stack are installed with pip.
+dependencies:
+  - git
+  - pip
+  - python==3.11

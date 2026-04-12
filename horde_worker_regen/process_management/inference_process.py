@@ -40,6 +40,7 @@ from horde_worker_regen.process_management.messages import (
     HordeProcessState,
     ModelLoadState,
 )
+from horde_worker_regen.runtime_backend import HordeRuntimeBackend, clear_torch_cache
 
 if TYPE_CHECKING:
     from hordelib.horde import HordeLib, ProgressReport, ResultingImageReturn
@@ -80,6 +81,7 @@ class HordeInferenceProcess(HordeProcess):
     _active_model_name: str | None = None
     """The name of the currently active model. Note that other models may be loaded in RAM or VRAM."""
     _aux_model_lock: Lock
+    _backend: HordeRuntimeBackend
 
     def __init__(
         self,
@@ -93,6 +95,7 @@ class HordeInferenceProcess(HordeProcess):
         process_launch_identifier: int,
         *,
         high_memory_mode: bool = False,
+        backend: HordeRuntimeBackend | None = None,
     ) -> None:
         """Initialise the HordeInferenceProcess.
 
@@ -119,6 +122,7 @@ class HordeInferenceProcess(HordeProcess):
         )
 
         self._aux_model_lock = aux_model_lock
+        self._backend = backend or HordeRuntimeBackend()
 
         # We import these here to guard against potentially importing them in the main process
         # which would create shared objects, potentially causing issues
@@ -548,13 +552,10 @@ class HordeInferenceProcess(HordeProcess):
                 self._vae_decode_semaphore.release()
         return results
 
-    @staticmethod
-    def clear_gc_and_torch_cache() -> None:
+    def clear_gc_and_torch_cache(self) -> None:
         """Clear the garbage collector and the PyTorch cache."""
         gc.collect()
-        from torch.cuda import empty_cache
-
-        empty_cache()
+        clear_torch_cache(self._backend)
 
     @logger.catch(reraise=True)
     def unload_models_from_vram(self) -> None:

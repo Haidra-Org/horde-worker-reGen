@@ -139,7 +139,7 @@ HSA Agents
 
 ### Prerequisites
 * Install [git](https://git-scm.com/) in your system.
-* Install CUDA/RoCM if you haven't already.
+* Install CUDA/RoCM/Intel XPU drivers if you haven't already.
 * Install Python 3.10 or 3.11.
   * If using the official python installer **and** you do not already regularly already use python, be sure to check the box that says `Add python.exe to PATH` at the first screen.
 * We **strongly recommend** you configure at least 8gb (preferably 16gb+) of memory swap space. This recommendation applies to linux too.
@@ -159,16 +159,24 @@ HSA Agents
 - Install the requirements:
   - CUDA: `pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu128`
   - RoCM: `pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/rocm6.2`
+  - Intel XPU: `pip install -r requirements.txt --index-url https://download.pytorch.org/whl/xpu --extra-index-url https://pypi.org/simple`
+    - Intel XPU requires the Intel GPU driver and Level Zero runtime on the host OS.
+    - If you need to pin a specific Intel GPU, set `ONEAPI_DEVICE_SELECTOR` (for example `level_zero:gpu:0`) before running the commands below.
 
 ### Run worker
 - Set your config now, copying `bridgeData_template.yaml` to `bridgeData.yaml`, being sure to set an API key and worker name at a minimum
 - `python download_models.py` (**critical - must be run first every time**)
 - `python run_worker.py` (to start working)
+- Intel XPU manual invocation:
+  - `python download_models.py --xpu`
+  - `python run_worker.py --xpu`
+  - Keep `safety_on_gpu: false`, because the current safety stack uses CPU on XPU.
 
 Pressing control-c will stop the worker but will first have the worker complete any jobs in progress before ending. Please try and avoid hard killing it unless you are seeing many major errors. You can force kill by repeatedly pressing control+c or doing a SIGKILL.
 
 ### Important note if manually manage your venvs
-- You should be running `python -m pip install -r requirements.txt -U https://download.pytorch.org/whl/cu128` every time you `git pull`. (Use `/whl/rocm6.2` instead if applicable)
+- You should be running `python -m pip install -r requirements.txt -U --extra-index-url https://download.pytorch.org/whl/cu128` every time you `git pull`.
+- Use `--extra-index-url https://download.pytorch.org/whl/rocm6.2` for RoCM or `--index-url https://download.pytorch.org/whl/xpu --extra-index-url https://pypi.org/simple` for Intel XPU.
 
 
 ## Advanced users, running on directml

@@ -8,17 +8,16 @@ from horde_sdk.ai_horde_api.apimodels import (
     ImageGenerateJobPopResponse,
     ImageGenerateJobPopSkippedStatus,
 )
-from horde_sdk.ai_horde_api.consts import KNOWN_SAMPLERS, KNOWN_SOURCE_PROCESSING
-from horde_sdk.ai_horde_api.fields import JobID
-
+from horde_sdk.ai_horde_api.fields import GenerationID
+from horde_sdk.generation_parameters.image.consts import KNOWN_IMAGE_SAMPLERS, KNOWN_IMAGE_SOURCE_PROCESSING
 
 def dummy_job_factory(model_name: str) -> ImageGenerateJobPopResponse:
-    # sampler = random.choice(list(KNOWN_SAMPLERS.__members__.keys()))
-    sampler = KNOWN_SAMPLERS.k_euler
+    # sampler = random.choice(list(KNOWN_IMAGE_SAMPLERS.__members__.keys()))
+    sampler = KNOWN_IMAGE_SAMPLERS.k_euler
     return ImageGenerateJobPopResponse(
-        ids=[JobID(root=uuid.uuid4())],
-        id=JobID(root=uuid.uuid4()),
-        source_processing=KNOWN_SOURCE_PROCESSING.txt2img,
+        ids=[GenerationID(root=uuid.uuid4())],
+        id_=GenerationID(root=uuid.uuid4()),
+        source_processing=KNOWN_IMAGE_SOURCE_PROCESSING.txt2img,
         skipped=ImageGenerateJobPopSkippedStatus(),  # type: ignore
         model=model_name,
         payload=ImageGenerateJobPopPayload(

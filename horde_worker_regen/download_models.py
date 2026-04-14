@@ -13,19 +13,13 @@ def download_all_models(
     if not load_config_from_env_vars:
         load_env_vars_from_config()
 
-    from horde_model_reference.model_reference_manager import ModelReferenceManager
+    from horde_model_reference.model_reference_manager import ModelReferenceManager, PrefetchStrategy
     from loguru import logger
 
     from horde_worker_regen.bridge_data.load_config import BridgeDataLoader, reGenBridgeData
     from horde_worker_regen.consts import BRIDGE_CONFIG_FILENAME
 
-    horde_model_reference_manager = ModelReferenceManager(
-        download_and_convert_legacy_dbs=True,
-        override_existing=True,
-    )
-
-    if not horde_model_reference_manager.download_and_convert_all_legacy_dbs(override_existing=True):
-        logger.error("Failed to download and convert legacy DBs. Retrying in 5 seconds...")
+    horde_model_reference_manager = ModelReferenceManager(prefetch_strategy=PrefetchStrategy.SYNC)
 
     bridge_data: reGenBridgeData | None = None
     try:

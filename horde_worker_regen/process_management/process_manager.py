@@ -2117,13 +2117,13 @@ class HordeWorkerProcessManager:
             elif isinstance(message, HordeSafetyResultMessage):
                 completed_job_info: HordeJobInfo | None = None
                 for i, job_being_safety_checked in enumerate(self.jobs_being_safety_checked):
-                    if job_being_safety_checked.sdk_api_job_info.id_ == message.job_id:
+                    if job_being_safety_checked.sdk_api_job_info.id_ == message.generation_id:
                         completed_job_info = self.jobs_being_safety_checked.pop(i)
                         break
 
                 if completed_job_info is None or completed_job_info.job_image_results is None:
                     logger.error(
-                        f"Expected to find a completed job with ID {message.job_id} but none was found. "
+                        f"Expected to find a completed job with ID {message.generation_id} but none was found. "
                         "This should only happen when certain process crashes occur.",
                     )
                     continue
@@ -2144,7 +2144,7 @@ class HordeWorkerProcessManager:
 
                     if message.safety_evaluations[i].failed:
                         logger.error(
-                            f"Job {message.job_id} image #{i} faulted during safety checks. "
+                            f"Job {message.generation_id} image #{i} faulted during safety checks. "
                             "Check the safety process logs for more information.",
                         )
                         any_safety_failed = True
@@ -2162,11 +2162,11 @@ class HordeWorkerProcessManager:
                     del self.job_faults[completed_job_info.sdk_api_job_info.id_]
                 else:
                     logger.error(
-                        f"Job {message.job_id} was not found in job_faults. This is unexpected.",
+                        f"Job {message.generation_id} was not found in job_faults. This is unexpected.",
                     )
 
                 logger.debug(
-                    f"Job {message.job_id} had {num_images_censored} images censored and took "
+                    f"Job {message.generation_id} had {num_images_censored} images censored and took "
                     f"{message.time_elapsed:.2f} seconds to check safety",
                 )
 

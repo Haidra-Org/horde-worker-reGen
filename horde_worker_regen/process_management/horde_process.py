@@ -11,9 +11,9 @@ from abc import abstractmethod
 from enum import auto
 
 try:
-    from multiprocessing.connection import PipeConnection as Connection  # type: ignore
+    from multiprocessing.connection import PipeConnection as Connection
 except Exception:
-    from multiprocessing.connection import Connection  # type: ignore
+    from multiprocessing.connection import Connection
 from multiprocessing.synchronize import Lock
 from typing import TYPE_CHECKING
 

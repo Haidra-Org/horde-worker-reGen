@@ -1,14 +1,19 @@
 """Contains the code to download all models specified in the config file. Executable as a standalone script."""
 
+from horde_worker_regen.runtime_backend import HordeRuntimeBackend
+
 
 def download_all_models(
     *,
     load_config_from_env_vars: bool = False,
     purge_unused_loras: bool = False,
-    directml: int | None = None,
+    backend: HordeRuntimeBackend | None = None,
 ) -> None:
     """Download all models specified in the config file."""
     from horde_worker_regen.load_env_vars import load_env_vars_from_config
+
+    backend = backend or HordeRuntimeBackend()
+    backend.apply_environment()
 
     if not load_config_from_env_vars:
         load_env_vars_from_config()
@@ -57,8 +62,7 @@ def download_all_models(
     del _
 
     extra_comfyui_args = []
-    if directml is not None:
-        extra_comfyui_args.append(f"--directml={directml}")
+    backend.append_comfyui_args(extra_comfyui_args)
 
     hordelib.initialise(extra_comfyui_args=extra_comfyui_args)
     from hordelib.shared_model_manager import SharedModelManager

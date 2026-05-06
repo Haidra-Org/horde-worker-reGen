@@ -17,6 +17,7 @@ You can read about [kudos](https://github.com/Haidra-Org/haidra-assets/blob/main
       - [Option 2: Without Git](#option-2-without-git)
     - [Linux](#linux)
     - [AMD GPUs](#amd-gpus)
+    - [Intel Arc / XPU](#intel-arc--xpu)
     - [DirectML](#directml)
   - [Configuration](#configuration)
     - [Basic Settings](#basic-settings)
@@ -88,6 +89,15 @@ AMD support is experimental, and **Linux-only** for now:
 - [WSL support](README_advanced.md#advanced-users-amd-rocm-inside-windows-wsl) is highly experimental.
 - Join the [AMD discussion on Discord](https://discord.com/channels/781145214752129095/1076124012305993768) if you're interested in trying.
 
+### Intel Arc / XPU
+
+Intel Arc support is available on **Linux** through PyTorch XPU:
+
+- Use `update-runtime-xpu.sh` and `horde-bridge-xpu.sh`.
+- Install the Intel GPU driver and Level Zero runtime on the host OS before running the worker.
+- If you have multiple Intel GPUs, set `ONEAPI_DEVICE_SELECTOR` before launching the worker.
+- Safety checks currently stay on the CPU on XPU, so keep `safety_on_gpu: false`.
+
 ### DirectML
 
 **Experimental** Support for DirectML has been added. See [Running on DirectML](README_advanced.md#advanced-users-running-on-directml) for more information and further instructions. You can now follow this guide using  `update-runtime-directml.cmd` and `horde-bridge-directml.cmd` where appropriate. Please note that DirectML is several times slower than *ANY* other methods of running the worker.
@@ -133,6 +143,18 @@ Tailor settings to your GPU, following these pointers:
   - max_batch: 4 # Or higher
   ```
 
+- **Intel Arc A770 (16GB, Linux/XPU)**:
+
+  ```yaml
+  - queue_size: 1
+  - safety_on_gpu: false # XPU keeps the safety stack on CPU for now
+  - moderate_performance_mode: true
+  - unload_models_from_vram_often: false
+  - max_threads: 1
+  - max_power: 40
+  - max_batch: 4
+  ```
+
 - **8-10GB VRAM** (e.g. 2080, 3060, 4060, 4060 Ti):
 
   ```yaml
@@ -176,6 +198,7 @@ Tailor settings to your GPU, following these pointers:
 1. Install the worker as described in the [Installation](#installation) section.
 2. Run `horde-bridge.cmd` (Windows) or `horde-bridge.sh` (Linux).
    - **AMD**: Use `horde-bridge-rocm` versions.
+   - **Intel Arc / XPU**: Use `horde-bridge-xpu.sh`.
 
 ### Stopping
 
@@ -208,13 +231,20 @@ CUDA_VISIBLE_DEVICES=0 ./horde-bridge.sh -n "Instance 1"
 CUDA_VISIBLE_DEVICES=1 ./horde-bridge.sh -n "Instance 2"
 ```
 
+For Intel XPU, select the visible GPU with `ONEAPI_DEVICE_SELECTOR`:
+
+```bash
+ONEAPI_DEVICE_SELECTOR=level_zero:gpu:0 ./horde-bridge-xpu.sh -n "Arc A770 #1"
+ONEAPI_DEVICE_SELECTOR=level_zero:gpu:1 ./horde-bridge-xpu.sh -n "Arc A770 #2"
+```
+
 **Warning**: High RAM (32-64GB+) is needed for multiple workers. `queue_size` and `max_threads` greatly impact RAM per worker.
 
 ## Updating
 
 The worker is constantly improving. Follow development and get update notifications in our [Discord](https://discord.gg/3DxrhksKzn).
 
-Script names below assume Windows (`.cmd`) and NVIDIA. For Linux use `.sh`, for AMD use `-rocm` versions.
+Script names below assume Windows (`.cmd`) and NVIDIA. For Linux use `.sh`, for AMD use `-rocm` versions, and for Intel Arc use `-xpu` versions.
 
 ### Updating the Worker
 
@@ -234,8 +264,9 @@ Script names below assume Windows (`.cmd`) and NVIDIA. For Linux use `.sh`, for 
 > **Warning**: Some antivirus software (e.g. Avast) may interfere with the update. If you get `CRYPT_E_NO_REVOCATION_CHECK` errors, disable antivirus, retry, then re-enable.
 
 4. Run `update-runtime` for your OS to update dependencies.
-   - Not all updates require this, but run it if unsure
-   - **Advanced users**: see [README_advanced.md](README_advanced.md) for manual options
+   - **Intel Arc / XPU**: Use `update-runtime-xpu.sh`
+    - Not all updates require this, but run it if unsure
+    - **Advanced users**: see [README_advanced.md](README_advanced.md) for manual options
 5. [Start the worker](#starting) again
 
 ## Custom Models
@@ -293,6 +324,7 @@ Check the [#local-workers Discord channel](https://discord.com/channels/78114521
 Common issues and fixes:
 
 - **Download failures**: Check disk space and internet connection.
+- **Intel Arc / XPU not detected**: Confirm the Intel GPU driver and Level Zero runtime are installed, then check that `torch.xpu.is_available()` is true inside the worker environment.
 - **Job timeouts**:
   - Remove large models (Flux, Cascade, SDXL)
   - Lower `max_power`

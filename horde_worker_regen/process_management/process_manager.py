@@ -90,6 +90,7 @@ from horde_worker_regen.process_management.messages import (
     ModelLoadState,
 )
 from horde_worker_regen.process_management.worker_entry_points import start_inference_process, start_safety_process
+from horde_worker_regen.runtime_backend import HordeRuntimeBackend, get_torch_device_infos
 
 sslcontext = ssl.create_default_context(cafile=certifi.where())
 
@@ -1239,11 +1240,8 @@ class HordeWorkerProcessManager:
     _lru: LRUCache
     """A simple LRU cache. This is used to keep track of the most recently used models."""
 
-    _amd_gpu: bool
-    """Whether or not the GPU is an AMD GPU."""
-
-    _directml: int | None
-    """ID of the potential directml device."""
+    _backend: HordeRuntimeBackend
+    """The backend configuration for worker child processes."""
 
     _api_messages_received: dict[str, APIWorkerMessage]
 
@@ -1264,8 +1262,7 @@ class HordeWorkerProcessManager:
         target_vram_overhead_bytes_map: Mapping[int, int] | None = None,  # FIXME
         max_safety_processes: int = 1,
         max_download_processes: int = 1,
-        amd_gpu: bool = False,
-        directml: int | None = None,
+        backend: HordeRuntimeBackend | None = None,
     ) -> None:
         """Initialise the process manager.
 
@@ -1281,8 +1278,7 @@ class HordeWorkerProcessManager:
                 Defaults to 1.
             max_download_processes (int, optional): The maximum number of download processes that can run at once. \
                 Defaults to 1.
-            amd_gpu (bool, optional): Whether or not the GPU is an AMD GPU. Defaults to False.
-            directml (int, optional): ID of the potential directml device. Defaults to None.
+            backend (HordeRuntimeBackend | None, optional): The backend configuration for this worker.
         """
         self.session_start_time = time.time()
 
@@ -1314,8 +1310,8 @@ class HordeWorkerProcessManager:
 
         self._lru = LRUCache(self.max_inference_processes)
 
-        self._amd_gpu = amd_gpu
-        self._directml = directml
+        self._backend = backend or HordeRuntimeBackend()
+        self._backend.apply_environment()
 
         self._replaced_due_to_maintenance = False
 
@@ -1376,16 +1372,12 @@ class HordeWorkerProcessManager:
                 logger.warning(e)
                 logger.warning("Error trying to unset maintenance. Did this worker not exist yet?")
 
-        # Get the total memory of each GPU
-        import torch
-
         self._device_map = TorchDeviceMap(root={})
-        for i in range(torch.cuda.device_count()):
-            device = torch.cuda.get_device_properties(i)
-            self._device_map.root[i] = TorchDeviceInfo(
-                device_name=device.name,
-                device_index=i,
-                total_memory=device.total_memory,
+        for device_name, device_index, total_memory in get_torch_device_infos(self._backend):
+            self._device_map.root[device_index] = TorchDeviceInfo(
+                device_name=device_name,
+                device_index=device_index,
+                total_memory=total_memory,
             )
 
         self.jobs_in_progress = []
@@ -1451,7 +1443,7 @@ class HordeWorkerProcessManager:
         if self.bridge_data.high_performance_mode:
             self._max_pending_megapixelsteps = 80
             logger.info("High performance mode enabled")
-            if not self.bridge_data.safety_on_gpu:
+            if not self.bridge_data.safety_on_gpu and self._backend.supports_gpu_safety:
                 logger.warning(
                     "If you have a high-end GPU, you should enable safety on GPU (safety_on_gpu in the config).",
                 )
@@ -1558,12 +1550,18 @@ class HordeWorkerProcessManager:
 
         # Start the required number of processes
 
+        if self.bridge_data.safety_on_gpu and not self._backend.supports_gpu_safety:
+            logger.warning(
+                f"safety_on_gpu is enabled, but the {self._backend.name} backend does not support "
+                "GPU safety reliably. Using CPU for safety checks.",
+            )
+
         for _ in range(num_processes_to_start):
             # Create a two-way communication pipe for the parent and child processes
             pid = self._process_map.num_safety_processes()
             pipe_connection, child_pipe_connection = multiprocessing.Pipe(duplex=True)
 
-            cpu_only = not self.bridge_data.safety_on_gpu
+            cpu_only = not self.bridge_data.safety_on_gpu or not self._backend.supports_gpu_safety
 
             # Create a new process that will run the start_safety_process function
             process = multiprocessing.Process(
@@ -1578,8 +1576,7 @@ class HordeWorkerProcessManager:
                 ),
                 kwargs={
                     "high_memory_mode": self.bridge_data.high_memory_mode,
-                    "amd_gpu": self._amd_gpu,
-                    "directml": self._directml,
+                    "backend": self._backend,
                 },
             )
 
@@ -1651,8 +1648,7 @@ class HordeWorkerProcessManager:
             kwargs={
                 "very_high_memory_mode": self.bridge_data.very_high_memory_mode,
                 "high_memory_mode": self.bridge_data.high_memory_mode,
-                "amd_gpu": self._amd_gpu,
-                "directml": self._directml,
+                "backend": self._backend,
                 "vram_heavy_models": vram_heavy_models,
             },
         )

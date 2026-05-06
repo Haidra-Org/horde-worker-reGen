@@ -18,13 +18,14 @@ from multiprocessing.context import BaseContext
 import regex as re
 from loguru import logger
 
+from horde_worker_regen.runtime_backend import HordeRuntimeBackend
+
 
 def main(
     ctx: BaseContext,
     load_from_env_vars: bool = False,
     *,
-    amd_gpu: bool = False,
-    directml: int | None = None,
+    backend: HordeRuntimeBackend | None = None,
 ) -> None:
     """Check for a valid config and start the driver ('main') process for the reGen worker."""
     from horde_model_reference.model_reference_manager import ModelReferenceManager
@@ -33,6 +34,9 @@ def main(
     from horde_worker_regen.bridge_data.load_config import BridgeDataLoader, reGenBridgeData
     from horde_worker_regen.consts import BRIDGE_CONFIG_FILENAME
     from horde_worker_regen.process_management.main_entry_point import start_working
+
+    backend = backend or HordeRuntimeBackend()
+    backend.apply_environment()
 
     def ensure_model_db_downloaded() -> ModelReferenceManager:
         horde_model_reference_manager = ModelReferenceManager(
@@ -103,8 +107,7 @@ def main(
         ctx=ctx,
         bridge_data=bridge_data,
         horde_model_reference_manager=horde_model_reference_manager,
-        amd_gpu=amd_gpu,
-        directml=directml,
+        backend=backend,
     )
 
     logger.info("Worker has finished working.")
@@ -204,8 +207,30 @@ def init() -> None:
         default=None,
         help="Enable directml and specify device to use.",
     )
+    parser.add_argument(
+        "--xpu",
+        action="store_true",
+        default=False,
+        help="Enable Intel XPU support for Arc and other Intel GPUs.",
+    )
+    parser.add_argument(
+        "--oneapi-device-selector",
+        type=str,
+        default=None,
+        help="Restrict Intel XPU visibility using ONEAPI_DEVICE_SELECTOR, e.g. level_zero:gpu:0.",
+    )
 
     args = parser.parse_args()
+
+    try:
+        backend = HordeRuntimeBackend(
+            amd_gpu=args.amd,
+            directml=args.directml,
+            xpu=args.xpu,
+            oneapi_device_selector=args.oneapi_device_selector,
+        )
+    except ValueError as e:
+        parser.error(str(e))
 
     os.environ["HORDE_SDK_DISABLE_CUSTOM_SINKS"] = "1"
 
@@ -261,8 +286,7 @@ def init() -> None:
     main(
         multiprocessing.get_context("spawn"),
         args.load_config_from_env_vars,
-        amd_gpu=args.amd,
-        directml=args.directml,
+        backend=backend,
     )
 
 

@@ -10,6 +10,7 @@ from multiprocessing.synchronize import Lock, Semaphore
 from loguru import logger
 
 from horde_worker_regen.process_management._aliased_types import ProcessQueue
+from horde_worker_regen.runtime_backend import HordeRuntimeBackend
 
 
 def start_inference_process(
@@ -25,8 +26,7 @@ def start_inference_process(
     low_memory_mode: bool = False,
     high_memory_mode: bool = False,
     very_high_memory_mode: bool = False,
-    amd_gpu: bool = False,
-    directml: int | None = None,
+    backend: HordeRuntimeBackend | None = None,
     vram_heavy_models: bool = False,
 ) -> None:
     """Start an inference process.
@@ -44,14 +44,13 @@ def start_inference_process(
         high_memory_mode (bool, optional): If true, the process will attempt to use more memory. Defaults to False.
         very_high_memory_mode (bool, optional): If true, the process will attempt to use even more memory.
             Defaults to False.
-        amd_gpu (bool, optional): If true, the process will attempt to use AMD GPU-specific optimisations.
-            Defaults to False.
-        directml (int | None, optional): If not None, the process will attempt to use DirectML \
-            with the specified device
+        backend (HordeRuntimeBackend | None, optional): The backend configuration for this worker process.
         vram_heavy_models (bool, optional): If true, the process will attempt to reserve more VRAM. Defaults to False.
     """
     with contextlib.nullcontext():  # contextlib.redirect_stdout(None), contextlib.redirect_stderr(None):
         logger.remove()
+        backend = backend or HordeRuntimeBackend()
+        backend.apply_environment()
 
         try:
             import hordelib
@@ -67,17 +66,12 @@ def start_inference_process(
                 f"Initialising hordelib with process_id={process_id}, "
                 f"process_launch_identifier={process_launch_identifier}, "
                 f"high_memory_mode={high_memory_mode} "
-                f"and amd_gpu={amd_gpu}, low_memory_mode={low_memory_mode}, "
+                f"and backend={backend.name}, low_memory_mode={low_memory_mode}, "
                 f"very_high_memory_mode={very_high_memory_mode}",
             )
 
             extra_comfyui_args = ["--disable-smart-memory"]
-
-            if amd_gpu:
-                extra_comfyui_args.append("--use-pytorch-cross-attention")
-
-            if directml is not None:
-                extra_comfyui_args.append(f"--directml={directml}")
+            backend.append_comfyui_args(extra_comfyui_args)
 
             models_not_to_force_load = ["flux"]
 
@@ -135,6 +129,7 @@ def start_inference_process(
             aux_model_lock=aux_model_lock,
             vae_decode_semaphore=vae_decode_semaphore,
             process_launch_identifier=process_launch_identifier,
+            backend=backend,
         )
 
         worker_process.main_loop()
@@ -149,8 +144,7 @@ def start_safety_process(
     cpu_only: bool = True,
     *,
     high_memory_mode: bool = False,
-    amd_gpu: bool = False,
-    directml: int | None = None,
+    backend: HordeRuntimeBackend | None = None,
 ) -> None:
     """Start a safety process.
 
@@ -162,13 +156,11 @@ def start_safety_process(
         process_launch_identifier (int): The unique identifier for this launch.
         cpu_only (bool, optional): If true, the process will not use the GPU. Defaults to True.
         high_memory_mode (bool, optional): If true, the process will attempt to use more memory. Defaults to False.
-        amd_gpu (bool, optional): If true, the process will attempt to use AMD GPU-specific optimizations.
-            Defaults to False.
-        directml (int | None, optional): If not None, the process will attempt to use DirectML \
-            with the specified device
+        backend (HordeRuntimeBackend | None, optional): The backend configuration for this worker process.
     """
     with contextlib.nullcontext():  # contextlib.redirect_stdout(), contextlib.redirect_stderr():
         logger.remove()
+        backend = backend or HordeRuntimeBackend()
 
         try:
             from hordelib.utils.logger import HordeLog
@@ -179,15 +171,10 @@ def start_safety_process(
                 verbosity_count=5,  # FIXME
             )
 
-            logger.debug(f"Initialising hordelib with process_id={process_id} and high_memory_mode={high_memory_mode}")
-
-            extra_comfyui_args = ["--disable-smart-memory"]
-
-            if amd_gpu:
-                extra_comfyui_args.append("--use-pytorch-cross-attention")
-
-            if directml is not None:
-                extra_comfyui_args.append(f"--directml={directml}")
+            logger.debug(
+                f"Initialising safety process with process_id={process_id}, "
+                f"high_memory_mode={high_memory_mode}, backend={backend.name}",
+            )
 
         except Exception as e:
             logger.critical(f"Failed to initialise: {type(e).__name__} {e}")
@@ -199,7 +186,7 @@ def start_safety_process(
             f"Initialising hordelib with process_id={process_id}, "
             f"process_launch_identifier={process_launch_identifier}, "
             f"cpu_only={cpu_only}, high_memory_mode={high_memory_mode} "
-            f"and amd_gpu={amd_gpu}",
+            f"and backend={backend.name}",
         )
         worker_process = HordeSafetyProcess(
             process_id=process_id,

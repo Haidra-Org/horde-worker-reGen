@@ -1342,8 +1342,7 @@ class HordeWorkerProcessManager:
 
         self.total_ram_bytes = psutil.virtual_memory().total
 
-        self.target_ram_overhead_bytes = target_ram_overhead_bytes
-        self.target_ram_overhead_bytes = min(int(self.total_ram_bytes / 2), 9)
+        self.target_ram_overhead_bytes = min(int(self.total_ram_bytes / 2), target_ram_overhead_bytes)
 
         if any(model in VRAM_HEAVY_MODELS for model in self.bridge_data.image_models_to_load):
             # If the system ram is less than 24GB, then we're going to exit with an error

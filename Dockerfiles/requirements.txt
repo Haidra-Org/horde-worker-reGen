@@ -2,15 +2,13 @@
 torch
 torchvision
 qrcode==7.4.2 # >8 breaks horde-engine 2.20.12 via the qr code generation nodes
-mediapipe==0.10.21 # >= 0.10.30 has breaking changes for horde-engine 2.20.x
 
-aiodns>=3.0.0,<4.0.0 # 4.x.x has an undetermined breaking change causing an "Could not contact DNS servers" error
 certifi # Required for SSL cert resolution
 
 horde_sdk~=0.17.1
-horde_safety~=0.3.0
+horde_safety~=0.2.3
 horde_engine~=2.20.12
-horde_model_reference~=0.9.2
+horde_model_reference>=0.9.2
 
 python-dotenv
 ruamel.yaml

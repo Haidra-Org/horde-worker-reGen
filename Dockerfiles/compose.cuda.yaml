@@ -4,7 +4,7 @@ services:
       context: ./
       dockerfile: ./Dockerfile.cuda
       args:
-        - CUDA_VERSION=12.4.1
+        - CUDA_VERSION=13.1.0
         - PYTHON_VERSION=3.11
         - USE_PIP_CACHE=true
         - GIT_BRANCH=main

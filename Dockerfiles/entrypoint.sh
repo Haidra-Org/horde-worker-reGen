@@ -42,7 +42,7 @@ else
     exit 1
 fi
 
-python -m pip install -r ${REQUIREMENTS_FILE} -U --extra-index-url ${PYTORCH_EXTRA_INDEX}
+python -m pip install -U --extra-index-url ${PYTORCH_EXTRA_INDEX} torch torchvision
 
 # Run GPU-specific setup scripts if they exist
 if [ -f "${APP_HOME}/setup_${GPU_TYPE}.sh" ]; then

@@ -1,11 +1,11 @@
 # Stage 1: Base environment setup
-ARG CUDA_VERSION=12.4.1
+ARG CUDA_VERSION=13.1.0
 FROM nvidia/cuda:${CUDA_VERSION}-runtime-ubuntu22.04 AS base
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG PYTHON_VERSION=3.11
+ARG PYTHON_VERSION=3.12
 ENV PYTHON_VERSION=${PYTHON_VERSION}
 ENV APP_HOME=/horde-worker-reGen
 
@@ -49,6 +49,7 @@ ENV PATH="${APP_HOME}/venv/bin:$PATH"
 # Install dependencies
 ARG PIP_CACHE_DIR=/pip-cache
 ARG USE_PIP_CACHE=true
+COPY requirements.txt .
 
 RUN --mount=type=cache,target="${PIP_CACHE_DIR}",sharing=locked,id=pip-cache \
     . /env_vars && \

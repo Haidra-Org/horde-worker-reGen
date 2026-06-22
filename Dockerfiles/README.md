@@ -84,7 +84,7 @@ Common build arguments for both Dockerfiles:
 - `USE_PIP_CACHE`: Whether to use pip caching (default: true)
 
 Specific build arguments:
-- For CUDA: `CUDA_VERSION` (default: 12.4.1)
+- For CUDA: `CUDA_VERSION` (default: 13.1.0)
 - For ROCm: `ROCM_VERSION` (default: 6.1.2)
 
 ## Building Docker Images
@@ -93,7 +93,7 @@ Specific build arguments:
 
 ```bash
 docker build -f Dockerfile.cuda \
-  --build-arg CUDA_VERSION=12.4.1 \
+  --build-arg CUDA_VERSION=13.1.0 \
   --build-arg PYTHON_VERSION=3.11 \
   --build-arg GIT_BRANCH=main \
   --build-arg GIT_OWNER=Haidra-Org \

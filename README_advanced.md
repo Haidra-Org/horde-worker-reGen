@@ -162,6 +162,7 @@ HSA Agents
 
 ### Run worker
 - Set your config now, copying `bridgeData_template.yaml` to `bridgeData.yaml`, being sure to set an API key and worker name at a minimum
+  - Optionally, set the `AIWORKER_BRIDGE_DATA_LOCATION` environment variable to load the config from a different path (useful for containers or running multiple workers from one checkout)
 - `python download_models.py` (**critical - must be run first every time**)
 - `python run_worker.py` (to start working)
 

@@ -12,8 +12,10 @@ load_dotenv()
 
 def load_env_vars_from_config() -> None:  # FIXME: there is a dynamic way to do this
     """Load the environment variables from the config file."""
+    from horde_worker_regen.consts import BRIDGE_CONFIG_FILENAME
+
     yaml = YAML()
-    config_file = "bridgeData.yaml"
+    config_file = BRIDGE_CONFIG_FILENAME
     template_file = "bridgeData_template.yaml"
 
     if not pathlib.Path(config_file).exists():

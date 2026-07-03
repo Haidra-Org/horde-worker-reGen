@@ -14,9 +14,13 @@ import argparse
 from horde_model_reference.model_reference_manager import ModelReferenceManager
 
 from horde_worker_regen.bridge_data.load_config import BridgeDataLoader, ConfigFormat
+from horde_worker_regen.consts import BRIDGE_CONFIG_FILENAME
 
 
-def convert_config_to_env(config_filename: str = "bridgeData.yaml", dot_env_filename: str = "bridgeData.env") -> None:
+def convert_config_to_env(
+    config_filename: str = BRIDGE_CONFIG_FILENAME,
+    dot_env_filename: str = "bridgeData.env",
+) -> None:
     """Convert the config file to an env file (suitable for use in a container or similar)."""
     bridge_data_loader = BridgeDataLoader()
     horde_model_reference_manager = ModelReferenceManager(
@@ -51,7 +55,7 @@ if __name__ == "__main__":
         "-f",
         type=str,
         help="The file to convert",
-        default="bridgeData.yaml",
+        default=BRIDGE_CONFIG_FILENAME,
     )
     args = parser.parse_args()
 

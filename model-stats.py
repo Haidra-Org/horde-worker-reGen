@@ -14,6 +14,8 @@ import requests
 import yaml
 from tqdm import tqdm
 
+from horde_worker_regen.consts import BRIDGE_CONFIG_FILENAME
+
 # Location of stable horde worker bridge log
 LOG_FILE = "logs/bridge*.log"
 
@@ -71,7 +73,7 @@ class LogStats:
     def parse_log(self) -> None:
         self.used_models = {}
         # Grab any statically loaded models
-        with open("bridgeData.yaml", encoding="utf-8", errors="ignore") as configfile:
+        with open(BRIDGE_CONFIG_FILENAME, encoding="utf-8", errors="ignore") as configfile:
             config = yaml.safe_load(configfile)
         self.unused_models = config["models_to_load"]
         # Models to exclude

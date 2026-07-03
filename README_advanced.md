@@ -76,10 +76,10 @@ Now we compile the bridge library. We will point the Linux compiler directly to 
 git clone https://github.com/ROCm/librocdxg.git
 cd librocdxg
 
-# 2. Set the Windows SDK path 
+# 2. Set the Windows SDK path
 # IMPORTANT: Change "10.0.26100.0" below to match the folder version you found in Step 1!
 export win_sdk='/mnt/c/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/'
- 
+
 # 3. Configure the build environment
 mkdir -p build
 cd build
@@ -162,6 +162,7 @@ HSA Agents
 
 ### Run worker
 - Set your config now, copying `bridgeData_template.yaml` to `bridgeData.yaml`, being sure to set an API key and worker name at a minimum
+  - Optionally, set the `AIWORKER_BRIDGE_DATA_LOCATION` environment variable to load the config from a different path (useful for containers or running multiple workers from one checkout)
 - `python download_models.py` (**critical - must be run first every time**)
 - `python run_worker.py` (to start working)
 

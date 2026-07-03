@@ -16,7 +16,7 @@ from horde_worker_regen.download_summary import (
 class FakeModelManager:
     """Duck-typed stand-in for a hordelib model manager."""
 
-    def __init__(self, available_models: list[str], downloads: dict[str, list[dict]]) -> None:
+    def __init__(self, available_models: list[str], downloads: dict[str, list[dict] | dict]) -> None:
         """Initialise with the models considered on-disk and the download entries per model."""
         self._available_models = available_models
         self._downloads = downloads
@@ -25,7 +25,7 @@ class FakeModelManager:
         """Return True if the model was declared as already on disk."""
         return model_name in self._available_models
 
-    def get_model_download(self, model_name: str) -> list[dict]:
+    def get_model_download(self, model_name: str) -> list[dict] | dict:
         """Return the declared download entries for the model."""
         return self._downloads[model_name]
 
@@ -84,6 +84,20 @@ def test_collect_pending_downloads_handles_multi_file_models_and_missing_urls() 
         "https://example.com/part1.safetensors",
         "https://example.com/part2.yaml",
     ]
+
+
+def test_collect_pending_downloads_accepts_a_bare_dict_entry() -> None:
+    """Older hordelib releases may hand back a single dict instead of a list of entries."""
+    manager = FakeModelManager(
+        available_models=[],
+        downloads={
+            "legacy_model": {"file_url": "https://example.com/legacy.safetensors"},
+        },
+    )
+
+    pending = collect_pending_downloads(manager, ["legacy_model"])
+
+    assert [p.file_url for p in pending] == ["https://example.com/legacy.safetensors"]
 
 
 def test_collect_pending_downloads_survives_manager_errors() -> None:

@@ -61,8 +61,12 @@ class SupportsModelDownloads(Protocol):
         """Return True if the model is already downloaded and valid."""
         ...
 
-    def get_model_download(self, model_name: str) -> list[dict]:
-        """Return the download entries (with `file_url`) for the model."""
+    def get_model_download(self, model_name: str) -> list[dict] | dict:
+        """Return the download entries (with `file_url`) for the model.
+
+        Some hordelib releases annotate this as `dict` and others as `list[dict]`; at runtime it is a
+        list of download entries, but a single bare entry is tolerated here just in case.
+        """
         ...
 
 
@@ -76,10 +80,12 @@ def collect_pending_downloads(
         try:
             if model_manager.is_model_available(model_name):
                 continue
-            download_entries = model_manager.get_model_download(model_name)
+            raw_download_config = model_manager.get_model_download(model_name)
         except Exception as e:
             logger.debug(f"Could not inspect download info for model {model_name}: {e}")
             continue
+
+        download_entries = raw_download_config if isinstance(raw_download_config, list) else [raw_download_config]
 
         for download_entry in download_entries:
             file_url = download_entry.get("file_url")

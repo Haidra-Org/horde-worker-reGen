@@ -1,5 +1,14 @@
 """Contains the code to download all models specified in the config file. Executable as a standalone script."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from hordelib.shared_model_manager import SharedModelManager
+
+    from horde_worker_regen.bridge_data.data_model import reGenBridgeData
+
 
 def download_all_models(
     *,
@@ -16,7 +25,7 @@ def download_all_models(
     from horde_model_reference.model_reference_manager import ModelReferenceManager
     from loguru import logger
 
-    from horde_worker_regen.bridge_data.load_config import BridgeDataLoader, reGenBridgeData
+    from horde_worker_regen.bridge_data.load_config import BridgeDataLoader
     from horde_worker_regen.consts import BRIDGE_CONFIG_FILENAME
 
     horde_model_reference_manager = ModelReferenceManager(
@@ -64,6 +73,8 @@ def download_all_models(
     from hordelib.shared_model_manager import SharedModelManager
 
     SharedModelManager.load_model_managers()
+
+    _log_pending_download_summary(bridge_data, SharedModelManager)
 
     if bridge_data.allow_lora:
         if SharedModelManager.manager.lora is None:
@@ -179,3 +190,66 @@ def download_all_models(
         exit(1)
     else:
         logger.success("Downloaded all compvis (Stable Diffusion) models.")
+
+
+def _log_pending_download_summary(
+    bridge_data: reGenBridgeData,
+    shared_model_manager: type[SharedModelManager],
+) -> None:
+    """Log how many model files are about to be downloaded, their total size, and whether they fit on disk.
+
+    Mirrors the download decisions made in `download_all_models` (see issues #400 and #267). LoRA downloads
+    are resolved dynamically by the LoRA model manager and are not included in the summary.
+    """
+    from loguru import logger
+
+    from horde_worker_regen.download_summary import (
+        PendingDownload,
+        collect_pending_downloads,
+        log_download_summary,
+        populate_download_sizes,
+    )
+
+    manager = shared_model_manager.manager
+    pending_by_category: dict[str, list[PendingDownload]] = {}
+
+    if bridge_data.allow_controlnet and manager.controlnet is not None:
+        controlnet_models = [
+            cn_model
+            for cn_model in manager.controlnet.model_reference
+            if bridge_data.allow_sdxl_controlnet or "sdxl" not in cn_model.lower()
+        ]
+        pending_by_category["ControlNet"] = collect_pending_downloads(manager.controlnet, controlnet_models)
+
+    if bridge_data.allow_sdxl_controlnet and manager.miscellaneous is not None:
+        pending_by_category["Miscellaneous"] = collect_pending_downloads(
+            manager.miscellaneous,
+            manager.miscellaneous.model_reference,
+        )
+
+    if bridge_data.allow_post_processing:
+        post_processing_managers = {
+            "GFPGAN": manager.gfpgan,
+            "ESRGAN": manager.esrgan,
+            "CodeFormer": manager.codeformer,
+        }
+        for category, post_processing_manager in post_processing_managers.items():
+            if post_processing_manager is not None:
+                pending_by_category[category] = collect_pending_downloads(
+                    post_processing_manager,
+                    post_processing_manager.model_reference,
+                )
+
+    if manager.compvis is not None:
+        pending_by_category["Stable Diffusion"] = collect_pending_downloads(
+            manager.compvis,
+            bridge_data.image_models_to_load,
+        )
+
+    all_pending = [pending for category_pending in pending_by_category.values() for pending in category_pending]
+    if all_pending:
+        logger.info(f"Checking the size of {len(all_pending)} model file(s) to download...")
+        populate_download_sizes(all_pending)
+
+    download_target_dir = manager.compvis.model_folder_path if manager.compvis is not None else None
+    log_download_summary(pending_by_category, download_target_dir=download_target_dir)

@@ -76,10 +76,10 @@ Now we compile the bridge library. We will point the Linux compiler directly to 
 git clone https://github.com/ROCm/librocdxg.git
 cd librocdxg
 
-# 2. Set the Windows SDK path 
+# 2. Set the Windows SDK path
 # IMPORTANT: Change "10.0.26100.0" below to match the folder version you found in Step 1!
 export win_sdk='/mnt/c/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/'
- 
+
 # 3. Configure the build environment
 mkdir -p build
 cd build
